@@ -18,7 +18,7 @@ const DELEGATE_TYPES = [['NEW', 'New'], ['REASSESS', 'Reassessment'], ['NYC', 'N
 
 export default function Schedule() {
   const [tab, setTab] = useState('menus')
-  // Filters + collapse state are lifted here so they persist across the tabs.
+  // Filters + per-block collapse state are lifted here so they persist across tabs.
   const [courseType, setCourseType] = useState('')   // '' = all course types (scheme)
   const [delegateType, setDelegateType] = useState('') // '' = all delegate types (kind)
   const [expanded, setExpanded] = useState(() => new Set()) // block ids that are open (collapsed by default)
@@ -86,7 +86,7 @@ function SchedHeader() {
   return (
     <div className="sect-head">
       <h2>📚 Course blocks</h2>
-      <p className="muted small">Each block is a course with its dates (pulled from Teamup). Assign the staff and delegates to each one, then push it back to Teamup. Use the filters to focus on a course or delegate type; click a block to open or collapse it.</p>
+      <p className="muted small">Each block is a course with its dates (pulled from Teamup). Assign the staff and delegates to each one, then push it back to Teamup. Use the filters to focus on a course or delegate type; click a block to open or collapse just that one.</p>
     </div>
   )
 }
@@ -195,7 +195,7 @@ function DragAssign({ f }) {
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
   const [pool, setPool] = useState(() => getPool())
-  const drag = useRef(null)           // { type:'staff'|'delegate', id, scheme? }
+  const drag = useRef(null)           // { type:'staff'|'delegate', id }
   const [sel, setSel] = useState(null) // click-to-place selection
   const [over, setOver] = useState(null)
 
@@ -220,25 +220,25 @@ function DragAssign({ f }) {
     toast(`Added ${poolItem.name}${poolItem.origin ? ' (' + kindLabel(poolItem.origin) + ')' : ''}`)
     setPool(getPool()); reloadResched(); reload()
   }
+  // Staff drop onto a specific role slot. Delegates fall through to the whole card.
   function onDropRole(e, blockId, role) {
-    e.preventDefault(); setOver(null)
     const d = drag.current
-    if (d?.type === 'staff') assignRole(blockId, role, d.id)
-    drag.current = null
+    if (d?.type === 'staff') { e.preventDefault(); setOver(null); assignRole(blockId, role, d.id); drag.current = null }
   }
+  // Delegate drop ANYWHERE on the card.
   function onDropDelegate(e, blockId) {
-    e.preventDefault(); setOver(null)
     const d = drag.current
     if (d?.type === 'delegate') {
+      e.preventDefault(); setOver(null)
       const item = allWaiting.find((p) => p.id === d.id)
       if (item) addDelegate(blockId, item)
+      drag.current = null
     }
-    drag.current = null
   }
   function clickZoneRole(blockId, role) {
     if (sel?.type === 'staff') assignRole(blockId, role, sel.id)
   }
-  function clickZoneDelegate(blockId) {
+  function clickCardDelegate(blockId) {
     if (sel?.type === 'delegate') {
       const item = allWaiting.find((p) => p.id === sel.id)
       if (item) addDelegate(blockId, item)
@@ -265,7 +265,7 @@ function DragAssign({ f }) {
         })}
       </div>
       <div className="asr-pool">
-        <span className="lbl">Delegates waiting{f.courseType || f.delegateType ? ' (filtered)' : ''} — drag to a block, or click then click a block
+        <span className="lbl">Delegates waiting{f.courseType || f.delegateType ? ' (filtered)' : ''} — drag onto a block card, or click then click a card
           <span className="kind-legend"><i style={{ background: KIND_COLOR.NEW }}></i>New <i style={{ background: KIND_COLOR.REASSESS }}></i>Reassessment <i style={{ background: KIND_COLOR.NYC }}></i>NYC <i style={{ background: KIND_COLOR.NO_SHOW }}></i>No-show</span>
         </span>
         {waiting.length === 0 && <span className="muted small">{allWaiting.length ? 'No waiting delegates match the filter.' : 'Pool empty — book delegates in “Book a Delegate”.'}</span>}
@@ -287,12 +287,16 @@ function DragAssign({ f }) {
       <div className="course-grid">
         {visible.map((b) => {
           const open = f.expanded.has(b.id)
+          const dropping = over === 'card:' + b.id || sel?.type === 'delegate'
           return (
-            <div className={'ccard' + (open ? '' : ' collapsed')} key={b.id}>
+            <div className={'ccard' + (open ? '' : ' collapsed') + (dropping ? ' droptarget' : '')} key={b.id}
+              onDragOver={(e) => { if (drag.current?.type === 'delegate') { e.preventDefault(); setOver('card:' + b.id) } }}
+              onDragLeave={() => setOver((o) => (o === 'card:' + b.id ? null : o))}
+              onDrop={(e) => onDropDelegate(e, b.id)}>
               <BlockHeader b={b} open={open} onToggle={() => f.toggle(b.id)} />
               {open && (
                 <>
-                  <div className="cbd">
+                  <div className="cbd" style={{ cursor: sel?.type === 'delegate' ? 'pointer' : 'default' }} onClick={() => clickCardDelegate(b.id)}>
                     {ROLES.map(([role, label]) => {
                       const sid = b[role + 'Id']
                       const okey = `${b.id}:${role}`
@@ -301,9 +305,8 @@ function DragAssign({ f }) {
                           <div className="fl">{label}</div>
                           <div className={'asr-drop' + (sid ? ' set' : '') + (over === okey || (!sid && sel?.type === 'staff') ? ' over' : '')}
                             style={{ cursor: !sid && sel?.type === 'staff' ? 'pointer' : 'default' }}
-                            onClick={() => clickZoneRole(b.id, role)}
-                            onDragOver={(e) => { e.preventDefault(); setOver(okey) }}
-                            onDragLeave={() => setOver(null)}
+                            onClick={(e) => { e.stopPropagation(); clickZoneRole(b.id, role) }}
+                            onDragOver={(e) => { e.preventDefault(); if (drag.current?.type === 'staff') setOver(okey) }}
                             onDrop={(e) => onDropRole(e, b.id, role)}>
                             {sid ? (
                               <>
@@ -321,13 +324,8 @@ function DragAssign({ f }) {
                     {b.delegates.map((d) => (
                       <div className="delg" key={d.bookingId}><span className="av">{initials(...d.name.split(' '))}</span>{d.name}</div>
                     ))}
-                    <div className={'asr-drop' + (over === `${b.id}:del` || sel?.type === 'delegate' ? ' over' : '')}
-                      style={{ marginTop: 6, cursor: sel?.type === 'delegate' ? 'pointer' : 'default' }}
-                      onClick={() => clickZoneDelegate(b.id)}
-                      onDragOver={(e) => { e.preventDefault(); setOver(`${b.id}:del`) }}
-                      onDragLeave={() => setOver(null)}
-                      onDrop={(e) => onDropDelegate(e, b.id)}>
-                      {sel?.type === 'delegate' ? 'Click to add the selected delegate' : 'Drop a delegate here'}
+                    <div className="drop-hint muted small">
+                      {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
                   </div>
                   <BlockFooter b={b} />

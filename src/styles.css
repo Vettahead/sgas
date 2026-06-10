@@ -251,3 +251,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .ccard.collapsed .cth .ct{background:#eef2f7;color:var(--slate)}
 .ccard.collapsed .cth .cth-sum{color:var(--muted)}
 .ccard.collapsed:hover .cth{background:var(--brand-soft)}
+
+/* --- Schedule: per-block collapse must not stretch to grid-row height --- */
+.course-grid{align-items:start}
+.ccard.droptarget{outline:3px solid var(--brand);outline-offset:2px}
+.drop-hint{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line)}
