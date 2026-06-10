@@ -147,6 +147,7 @@ export const store = {
     { renewal_contact_id: 3, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-06T09:00:00Z', channel: 'email' },
     { renewal_contact_id: 4, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-15T09:00:00Z', channel: 'email' },
     { renewal_contact_id: 5, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-25T09:00:00Z', channel: 'email' },
+    { renewal_contact_id: 6, client_id: 2, category_code: 'CCN1', sent_at: '2026-06-08T14:30:00Z', channel: 'phone', notes: 'No reply — left voicemail' },
   ],
   // Tom Ainsworth (client 1) is on an MLP of 3 courses; he's passed Domestic (course 1).
   mlps: [
@@ -157,7 +158,7 @@ export const store = {
     { mlp_course_id: 2, mlp_id: 1, course_id: 5 },
     { mlp_course_id: 3, mlp_id: 1, course_id: 6 },
   ],
-  seq: { client: 8, company: 4, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 5 },
+  seq: { client: 8, company: 4, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }

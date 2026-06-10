@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { getDashboard, recordRenewalContact, RENEWAL_COLD_THRESHOLD } from '../lib/api.js'
+import { getDashboard, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { roleLabel } from '../lib/roles.js'
@@ -16,7 +16,6 @@ const SECTIONS = {
   ASSESSOR: { renewals: false, scheduling: false, assessment: true, outstanding: false, mlps: false },
   ACCOUNTS: { renewals: false, scheduling: false, assessment: false, outstanding: true, mlps: false },
 }
-// Which three stat tiles each role gets, in order.
 const STAT_KEYS = {
   ADMIN: ['renew', 'sessions', 'outstanding'],
   STANDARD: ['renew', 'sessions', 'outstanding'],
@@ -24,10 +23,14 @@ const STAT_KEYS = {
   ASSESSOR: ['toAssess', 'sessions', 'unassigned'],
   ACCOUNTS: ['outstanding', 'cold', 'renew'],
 }
+// Quick-pick outcomes for the "Log call" dialog.
+const CALL_OUTCOMES = ['No reply', 'Left voicemail', 'Will call back', 'Booked in', 'Not interested']
 
 export default function Dashboard({ go, user }) {
   const [windowDays, setWindowDays] = useState(180)
   const { data, loading, reload } = useData(() => getDashboard({ windowDays }), [windowDays])
+  const [callTarget, setCallTarget] = useState(null) // the renewal row we're logging a call for
+  const [openLog, setOpenLog] = useState(null)        // `${clientId}:${code}` whose history is expanded
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
   const { renewals, coldList, chase, counts, mlps, awaitingBlocks, assessBlocks } = data
   const role = user?.role || 'ADMIN'
@@ -43,9 +46,9 @@ export default function Dashboard({ go, user }) {
     cold: [counts.cold, 'On the cold list (phone)', 'green'],
   }
   const statKeys = STAT_KEYS[role] || STAT_KEYS.ADMIN
+  const logKey = (r) => `${r.clientId}:${r.code}`
 
-  // One renewal email at a time (GDPR: individualised, never bulk). Logs the
-  // contact and opens the user's mail client with a templated message.
+  // Send one individualised renewal email (GDPR: one-by-one, never bulk).
   async function emailRenewal(r) {
     await recordRenewalContact(r.clientId, r.code, 'email')
     const subject = `Renewal due: your ${r.code} certification`
@@ -59,14 +62,34 @@ export default function Dashboard({ go, user }) {
     toast(`Renewal email logged for ${r.name} (${r.code})${r.email ? '' : ' — no email on file'}`)
     reload()
   }
-  async function logCall(r) {
-    await recordRenewalContact(r.clientId, r.code, 'phone')
-    toast(`Phone follow-up logged for ${r.name} (${r.code})`)
+  async function saveCall(notes) {
+    const r = callTarget
+    await recordRenewalContact(r.clientId, r.code, 'phone', notes)
+    toast(`Call logged for ${r.name} (${r.code})${notes ? ': ' + notes : ''}`)
+    setCallTarget(null)
     reload()
+  }
+  function toggleLog(r) {
+    const k = logKey(r)
+    setOpenLog((cur) => (cur === k ? null : k))
   }
 
   const hour = new Date().getHours()
   const greet = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening'
+
+  // Shared action buttons + contact-count badge + expandable history row.
+  const Actions = ({ r }) => (
+    <span className="renew-actions">
+      <button className="btn ghost sm" onClick={() => emailRenewal(r)} title="Send an individualised renewal email">✉ Email</button>
+      <button className="btn ghost sm" onClick={() => setCallTarget(r)} title="Log a phone call and what was said">📞 Call</button>
+      <button className="btn ghost sm" onClick={() => toggleLog(r)} title="View the contact history">Log</button>
+    </span>
+  )
+  const ContactBadge = ({ r }) => (
+    r.contacts > 0
+      ? <span className="muted small" title={r.lastContact ? 'Last contact: ' + fmt(r.lastContact) : ''}>{r.emails}✉{r.calls > 0 ? ' · ' + r.calls + '📞' : ''}</span>
+      : <span className="muted small">—</span>
+  )
 
   return (
     <>
@@ -88,25 +111,22 @@ export default function Dashboard({ go, user }) {
                 {WINDOWS.map(([d, l]) => <option key={d} value={d}>{l}</option>)}
               </select>
             </label>
-            <span className="muted small" style={{ marginLeft: 10 }}>Booked-in delegates drop off automatically; one renewal email at a time.</span>
+            <span className="muted small" style={{ marginLeft: 10 }}>Booked-in delegates drop off automatically; contact one at a time.</span>
           </div>
           <table>
-            <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th>In</th><th style={{ textAlign: 'center' }}>Emails</th><th></th></tr></thead>
+            <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th>In</th><th style={{ textAlign: 'center' }}>Contacts</th><th>Actions</th></tr></thead>
             <tbody>
               {renewals.length === 0 && <tr><td colSpan={6} className="empty">Nothing expiring in the window</td></tr>}
-              {renewals.map((r, i) => (
-                <tr key={i}>
-                  <td><a className="linkbtn" onClick={() => go('delegates', r.clientId)}>{r.name}</a></td>
-                  <td><b>{r.code}</b> <span className="muted small">{r.desc}</span></td>
-                  <td className="nowrap">{fmt(r.expiry)}</td>
-                  <td><span className={'b ' + (r.days <= 90 ? 'due' : 'scheme')}>{r.days} days</span></td>
-                  <td style={{ textAlign: 'center' }}>{r.contacts > 0 ? <span className="b scheme" title={r.lastContact ? 'Last: ' + fmt(r.lastContact) : ''}>{r.contacts}</span> : <span className="muted small">—</span>}</td>
-                  <td><button className="btn ghost sm" onClick={() => emailRenewal(r)}>Email</button></td>
-                </tr>
+              {renewals.map((r) => (
+                <RenewalRows key={logKey(r)} r={r} cols={6} open={openLog === logKey(r)} Actions={Actions} ContactBadge={ContactBadge}
+                  lead={<>
+                    <td className="nowrap">{fmt(r.expiry)}</td>
+                    <td><span className={'b ' + (r.days <= 90 ? 'due' : 'scheme')}>{r.days} days</span></td>
+                  </>} go={go} />
               ))}
             </tbody>
           </table>
-          <div className="banner">Cross-references qualification expiry against the look-ahead window. A delegate already booked for their renewal drops off the list; if they don't attend, they reappear. Each email is individualised and logged (GDPR — no bulk sends).</div>
+          <div className="banner">Cross-references qualification expiry against the look-ahead window. A delegate already booked for their renewal drops off the list; if they don't attend, they reappear. Every email and call is individualised and logged (GDPR — no bulk sends).</div>
         </div>
       )}
 
@@ -114,21 +134,16 @@ export default function Dashboard({ go, user }) {
         <div className="card" style={{ marginBottom: 18 }}>
           <h3>📞 Cold list — phone follow-up <span className="tag">{coldList.length} after {RENEWAL_COLD_THRESHOLD}+ emails</span></h3>
           <table>
-            <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th style={{ textAlign: 'center' }}>Emails sent</th><th>Mobile</th><th></th></tr></thead>
+            <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th style={{ textAlign: 'center' }}>Contacts</th><th>Mobile</th><th>Actions</th></tr></thead>
             <tbody>
-              {coldList.map((r, i) => (
-                <tr key={i}>
-                  <td><a className="linkbtn" onClick={() => go('delegates', r.clientId)}>{r.name}</a></td>
-                  <td><b>{r.code}</b> <span className="muted small">{r.desc}</span></td>
-                  <td className="nowrap">{fmt(r.expiry)}</td>
-                  <td style={{ textAlign: 'center' }}><span className="b due">{r.contacts}</span></td>
-                  <td className="nowrap">{r.mobile || '—'}</td>
-                  <td><button className="btn ghost sm" onClick={() => logCall(r)}>Log call</button></td>
-                </tr>
+              {coldList.map((r) => (
+                <RenewalRows key={logKey(r)} r={r} cols={6} open={openLog === logKey(r)} Actions={Actions} ContactBadge={ContactBadge}
+                  lead={<td className="nowrap">{fmt(r.expiry)}</td>}
+                  tail={<td className="nowrap">{r.mobile || '—'}</td>} go={go} />
               ))}
             </tbody>
           </table>
-          <div className="banner">These delegates haven't answered {RENEWAL_COLD_THRESHOLD} or more renewal emails — hand to phone follow-up (e.g. a ring-round) rather than emailing again.</div>
+          <div className="banner">These delegates haven't answered {RENEWAL_COLD_THRESHOLD} or more renewal emails — work them by phone. Use <b>Log call</b> to record what was said (or "no reply"); it's saved to the contact log under <b>Log</b>.</div>
         </div>
       )}
 
@@ -211,6 +226,68 @@ export default function Dashboard({ go, user }) {
           )}
         </div>
       )}
+
+      {callTarget && <CallModal target={callTarget} onSave={saveCall} onClose={() => setCallTarget(null)} />}
     </>
+  )
+}
+
+// A renewal/cold-list row plus (when open) its expandable contact-history row.
+function RenewalRows({ r, cols, open, lead, tail, Actions, ContactBadge, go }) {
+  return (
+    <>
+      <tr>
+        <td><a className="linkbtn" onClick={() => go('delegates', r.clientId)}>{r.name}</a></td>
+        <td><b>{r.code}</b> <span className="muted small">{r.desc}</span></td>
+        {lead}
+        <td style={{ textAlign: 'center' }}><ContactBadge r={r} /></td>
+        {tail}
+        <td><Actions r={r} /></td>
+      </tr>
+      {open && <ContactLog clientId={r.clientId} code={r.code} cols={cols} />}
+    </>
+  )
+}
+
+function ContactLog({ clientId, code, cols }) {
+  const { data, loading } = useData(() => getRenewalContacts(clientId, code), [clientId, code])
+  return (
+    <tr className="logrow">
+      <td></td>
+      <td colSpan={cols - 1}>
+        <div className="chaselog">
+          <div className="muted small" style={{ marginBottom: 4 }}>Contact log:</div>
+          {loading ? <span className="muted small">Loading…</span>
+            : !data || data.length === 0 ? <span className="muted small">Nothing logged yet.</span>
+              : data.map((c) => (
+                <div className="cl" key={c.id}>
+                  <span className="when">{fmt(c.at)}</span>
+                  <span className="b scheme">{c.channel === 'phone' ? '📞 Call' : '✉ Email'}</span>
+                  <span className="what">{c.notes || (c.channel === 'phone' ? '(no note)' : 'Renewal email sent')}</span>
+                </div>
+              ))}
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+function CallModal({ target, onSave, onClose }) {
+  const [note, setNote] = useState('')
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>📞 Log call — {target.name}</h3>
+        <div className="muted small">{target.code} · expires {fmt(target.expiry)}{target.mobile ? ' · ' + target.mobile : ''}</div>
+        <div className="chips">
+          {CALL_OUTCOMES.map((c) => <button key={c} className="chip" onClick={() => setNote(c)}>{c}</button>)}
+        </div>
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={3} placeholder="What was said? (e.g. no reply, will call back next week…)" autoFocus />
+        <div className="modal-foot">
+          <button className="btn ghost sm" onClick={onClose}>Cancel</button>
+          <button className="btn sm" onClick={() => onSave(note.trim())}>Save call</button>
+        </div>
+      </div>
+    </div>
   )
 }

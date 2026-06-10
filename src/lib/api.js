@@ -109,20 +109,22 @@ function contactIndex(rows) {
   const map = {}
   for (const r of rows) {
     const k = `${r.client_id}:${r.category_code}`
-    const e = map[k] || (map[k] = { count: 0, last: null })
+    const e = map[k] || (map[k] = { count: 0, emails: 0, calls: 0, last: null })
     e.count++
+    if (r.channel === 'phone') e.calls++; else e.emails++
     if (!e.last || r.sent_at > e.last) e.last = r.sent_at
   }
   return map
 }
 function renewalEntry(clientId, name, code, desc, scheme, expiry, days, email, mobile, contacts) {
-  const c = contacts[`${clientId}:${code}`] || { count: 0, last: null }
-  return { clientId, name, code, desc, scheme, expiry, days, email: email || '', mobile: mobile || '', contacts: c.count, lastContact: c.last }
+  const c = contacts[`${clientId}:${code}`] || { count: 0, emails: 0, calls: 0, last: null }
+  return { clientId, name, code, desc, scheme, expiry, days, email: email || '', mobile: mobile || '', contacts: c.count, emails: c.emails, calls: c.calls, lastContact: c.last }
 }
 // Split the due list into the email worklist vs the cold (phone follow-up) list.
 function dashboardShape(dueAll, chase, mlps, sessions, windowDays, extra = {}) {
-  const renewals = dueAll.filter((r) => r.contacts < RENEWAL_COLD_THRESHOLD)
-  const coldList = dueAll.filter((r) => r.contacts >= RENEWAL_COLD_THRESHOLD)
+  // "Cold" is driven by unanswered EMAILS (calls don't push someone onto the phone list).
+  const renewals = dueAll.filter((r) => r.emails < RENEWAL_COLD_THRESHOLD)
+  const coldList = dueAll.filter((r) => r.emails >= RENEWAL_COLD_THRESHOLD)
   const awaitingBlocks = extra.awaitingBlocks || []
   const assessBlocks = extra.assessBlocks || []
   return {
@@ -134,15 +136,32 @@ function dashboardShape(dueAll, chase, mlps, sessions, windowDays, extra = {}) {
   }
 }
 
-// Log an individualised renewal contact (email or phone). GDPR: one-by-one only.
-export async function recordRenewalContact(clientId, code, channel = 'email') {
+// Log an individualised renewal contact (email or phone) with optional notes.
+// GDPR: one-by-one only.
+export async function recordRenewalContact(clientId, code, channel = 'email', notes = null) {
   if (LIVE) {
-    const { error } = await supabase.from('renewal_contact').insert({ client_id: clientId, category_code: code, channel })
+    const { error } = await supabase.from('renewal_contact').insert({ client_id: clientId, category_code: code, channel, notes: notes || null })
     if (error) throw error
     return
   }
   D.renewal_contact = D.renewal_contact || []
-  D.renewal_contact.push({ renewal_contact_id: ++D.seq.renewal, client_id: clientId, category_code: code, sent_at: new Date().toISOString(), channel })
+  D.renewal_contact.push({ renewal_contact_id: ++D.seq.renewal, client_id: clientId, category_code: code, sent_at: new Date().toISOString(), channel, notes: notes || null })
+}
+
+// The full contact history for one delegate + qualification (newest first),
+// so the renewal/cold-list rows can show a reviewable log of emails and calls.
+export async function getRenewalContacts(clientId, code) {
+  if (LIVE) {
+    const { data } = await supabase.from('renewal_contact')
+      .select('renewal_contact_id,sent_at,channel,notes')
+      .eq('client_id', clientId).eq('category_code', code)
+      .order('sent_at', { ascending: false })
+    return (data || []).map((r) => ({ id: r.renewal_contact_id, at: r.sent_at, channel: r.channel, notes: r.notes || '' }))
+  }
+  return (D.renewal_contact || [])
+    .filter((r) => r.client_id === clientId && r.category_code === code)
+    .sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at))
+    .map((r) => ({ id: r.renewal_contact_id, at: r.sent_at, channel: r.channel, notes: r.notes || '' }))
 }
 
 function flagList(b) {
