@@ -47,7 +47,8 @@ export default function Payments() {
       <div className="hint">The <b>final stage</b>: after a course runs, flag what's <b>outstanding</b> (default No) and chase the <b>company</b>. Each chase is logged with the booking id — that id goes in the email so reception can search their sent mail. No money lives here — that's Sage.</div>
       <div className="card">
         <h3>💷 Bookings — invoicing &amp; outstanding</h3>
-        <table>
+        <div className="tablewrap">
+        <table className="paytable">
           <thead>
             <tr>
               <th>Booking</th><th>Delegate</th><th>Invoiced to</th><th>Result</th>
@@ -70,6 +71,7 @@ export default function Payments() {
             })}
           </tbody>
         </table>
+        </div>
         <div className="banner">Flag an item to mark it outstanding (defaults to No). "Chase" emails the company's accounts contact, stamps the date, and records the items in the chase log. A <b>No-show</b> result can be credited by clearing its Payment flag.</div>
       </div>
     </>
@@ -114,7 +116,7 @@ function DetailRow({ b, saveIgas }) {
   return (
     <tr className="logrow">
       <td></td>
-      <td colSpan={9}>
+      <td colSpan={10}>
         {showIgas && (
           <div className="igas-block">
             <span className="muted small">IGAS evidence (5-year):</span>
@@ -149,5 +151,6 @@ function IgasState({ date, expiry, onClear }) {
 }
 
 function FlagBtn({ on, onClick }) {
-  return <button className={'b ' + (on ? 'due' : 'pend')} style={{ cursor: 'pointer', border: 'none' }} onClick={onClick}>{on ? 'YES' : '—'}</button>
+  // Off = "No" (the default for a freshly-created booking); click to flag "Yes" (outstanding).
+  return <button className={'flagbtn ' + (on ? 'yes' : 'no')} onClick={onClick} title={on ? 'Outstanding — click to clear' : 'Not outstanding — click to flag'}>{on ? 'Yes' : 'No'}</button>
 }
