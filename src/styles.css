@@ -211,3 +211,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 
 /* --- §4.9 delegate renewal summary -------------------------------------- */
 .renew-alert{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+
+/* --- §4.3 Schedule filters + collapsible course blocks ------------------ */
+.sched-filters{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:14px;background:#f7f9fc;border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.sched-filters .ff{display:flex;flex-direction:column;gap:3px;font-size:11px;font-weight:600;color:var(--muted)}
+.sched-filters .ff select{padding:6px 9px;font-size:12.5px}
+.sched-filters .ff-spacer{flex:1}
+.ccard .cth .chev{font-size:10px;opacity:.85;width:10px}
+.ccard .cth .cth-title{flex:1;display:flex;align-items:center;gap:6px;min-width:0}
+.ccard .cth .cth-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ccard .cth .cth-right{display:flex;align-items:center;gap:8px;margin-left:auto}
+.ccard .cth .cth-right .ct{margin-left:0}
+.cth-sum{display:flex;align-items:center;gap:6px;font-size:11px;color:#bcd0ec}
+.cth-sum .b{font-size:10px;padding:1px 7px}

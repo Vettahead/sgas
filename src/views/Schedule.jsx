@@ -14,9 +14,23 @@ const kindColor = (k) => KIND_COLOR[k] || '#48566a'
 const KIND_LABEL = { NEW: 'New', REASSESS: 'Reassessment', NYC: 'NYC (not yet complete)', NO_SHOW: 'No-show' }
 const kindLabel = (k) => KIND_LABEL[k] || 'New'
 const kindTag = (k) => ({ REASSESS: 're', NYC: 'NYC', NO_SHOW: 'no-show' }[k] || '')
+const DELEGATE_TYPES = [['NEW', 'New'], ['REASSESS', 'Reassessment'], ['NYC', 'NYC'], ['NO_SHOW', 'No-show']]
 
 export default function Schedule() {
   const [tab, setTab] = useState('menus')
+  // Filters + collapse state are lifted here so they persist across the tabs.
+  const [courseType, setCourseType] = useState('')   // '' = all course types (scheme)
+  const [delegateType, setDelegateType] = useState('') // '' = all delegate types (kind)
+  const [expanded, setExpanded] = useState(() => new Set()) // block ids that are open (collapsed by default)
+
+  const f = {
+    courseType, setCourseType, delegateType, setDelegateType,
+    expanded,
+    toggle: (id) => setExpanded((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s }),
+    expandAll: (ids) => setExpanded(new Set(ids)),
+    collapseAll: () => setExpanded(new Set()),
+  }
+
   return (
     <>
       <div className="hint">
@@ -27,15 +41,51 @@ export default function Schedule() {
         <button className={'btn sm' + (tab === 'drag' ? '' : ' ghost')} onClick={() => setTab('drag')}>🖐 Drag &amp; drop</button>
         <button className={'btn sm' + (tab === 'cal' ? '' : ' ghost')} onClick={() => setTab('cal')}>📅 Calendar</button>
       </div>
-      {tab === 'menus' && <MenuAssign />}
-      {tab === 'drag' && <DragAssign />}
-      {tab === 'cal' && <CalendarTab />}
+      {tab === 'menus' && <MenuAssign f={f} />}
+      {tab === 'drag' && <DragAssign f={f} />}
+      {tab === 'cal' && <CalendarTab f={f} />}
     </>
   )
 }
 
+// Distinct course types (schemes) present in a set of blocks/sessions.
+const schemesOf = (rows) => [...new Set((rows || []).map((r) => r.scheme).filter(Boolean))].sort()
+
+function FilterBar({ schemes, f, blockIds, showDelegate = true }) {
+  const active = f.courseType || f.delegateType
+  return (
+    <div className="sched-filters">
+      <label className="ff">Course type
+        <select value={f.courseType} onChange={(e) => f.setCourseType(e.target.value)}>
+          <option value="">All courses</option>
+          {schemes.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </label>
+      {showDelegate && (
+        <label className="ff">Delegate type
+          <select value={f.delegateType} onChange={(e) => f.setDelegateType(e.target.value)}>
+            <option value="">All delegates</option>
+            {DELEGATE_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          </select>
+        </label>
+      )}
+      {active && <button className="btn ghost sm" onClick={() => { f.setCourseType(''); f.setDelegateType('') }}>Clear</button>}
+      <span className="ff-spacer"></span>
+      {blockIds && (
+        <>
+          <button className="btn ghost sm" onClick={() => f.expandAll(blockIds)}>Expand all</button>
+          <button className="btn ghost sm" onClick={f.collapseAll}>Collapse all</button>
+        </>
+      )}
+    </div>
+  )
+}
+
+// Does a waiting-pool entry pass the delegate-type filter?
+const passDelegate = (p, f) => !f.delegateType || (p.kind || 'NEW') === f.delegateType
+
 /* ============================ STYLE A — dropdown menus ============================ */
-function MenuAssign() {
+function MenuAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
@@ -44,6 +94,9 @@ function MenuAssign() {
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
   if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
+
+  const schemes = schemesOf(blocks)
+  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
 
   async function setRole(blockId, role, value) {
     await assignBlockRole(blockId, role, value ? Number(value) : null)
@@ -73,51 +126,60 @@ function MenuAssign() {
   }
 
   return (
-    <div className="course-grid">
-      {blocks.map((b) => {
-        const poolForScheme = [...pool, ...(resched || [])].filter((p) => p.scheme === b.scheme)
-        const chosen = picks[b.id] || new Set()
-        return (
-          <div className="ccard" key={b.id}>
-            <BlockHeader b={b} />
-            <div className="cbd">
-              {ROLES.map(([role, label]) => (
-                <div className="field" key={role} style={{ marginBottom: 8 }}>
-                  <label className="fl">{label}</label>
-                  <select value={b[role + 'Id'] || ''} onChange={(e) => setRole(b.id, role, e.target.value)}>
-                    <option value="">— choose {label.toLowerCase()} —</option>
-                    {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>{s.name}{s.room ? ' · ' + s.room : ''}</option>)}
-                  </select>
-                </div>
-              ))}
-              <BlockDelegates b={b} />
-              {poolForScheme.length > 0 && (
-                <div style={{ marginTop: 10 }}>
-                  <div className="fl">Add from pool ({b.scheme})</div>
-                  {poolForScheme.map((p) => (
-                    <div className="delg" key={p.id} onClick={() => togglePick(b.id, p.id)} style={{ borderLeft: `4px solid ${kindColor(p.kind)}` }} title={kindLabel(p.kind)}>
-                      <span className="av" style={{ background: kindColor(p.kind), color: '#fff' }}>{initials(p.forename, p.surname)}</span>{p.name}
-                      {(p.kind === 'NYC' || p.kind === 'NO_SHOW') && <span className="b" style={{ marginLeft: 4, background: kindColor(p.kind), color: '#fff' }}>{kindTag(p.kind)}</span>}
-                      {p.mlp && <span className="b scheme" style={{ marginLeft: 4 }}>MLP</span>}
-                      {p.igas && <span className="b scheme">IGAS</span>}
-                      <span className="muted small">{p.count} quals</span>
-                      <input type="checkbox" readOnly checked={chosen.has(p.id)} />
-                    </div>
-                  ))}
-                  <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => addDelegates(b.id)}>Add selected</button>
-                </div>
+    <>
+      <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
+      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>No course blocks match the filter.</div>}
+      <div className="course-grid">
+        {visible.map((b) => {
+          const open = f.expanded.has(b.id)
+          const poolForScheme = [...pool, ...(resched || [])].filter((p) => p.scheme === b.scheme && passDelegate(p, f))
+          const chosen = picks[b.id] || new Set()
+          return (
+            <div className="ccard" key={b.id}>
+              <BlockHeader b={b} open={open} onToggle={() => f.toggle(b.id)} />
+              {open && (
+                <>
+                  <div className="cbd">
+                    {ROLES.map(([role, label]) => (
+                      <div className="field" key={role} style={{ marginBottom: 8 }}>
+                        <label className="fl">{label}</label>
+                        <select value={b[role + 'Id'] || ''} onChange={(e) => setRole(b.id, role, e.target.value)}>
+                          <option value="">— choose {label.toLowerCase()} —</option>
+                          {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>{s.name}{s.room ? ' · ' + s.room : ''}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                    <BlockDelegates b={b} />
+                    {poolForScheme.length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <div className="fl">Add from pool ({b.scheme}{f.delegateType ? ' · ' + kindLabel(f.delegateType) : ''})</div>
+                        {poolForScheme.map((p) => (
+                          <div className="delg" key={p.id} onClick={() => togglePick(b.id, p.id)} style={{ borderLeft: `4px solid ${kindColor(p.kind)}` }} title={kindLabel(p.kind)}>
+                            <span className="av" style={{ background: kindColor(p.kind), color: '#fff' }}>{initials(p.forename, p.surname)}</span>{p.name}
+                            {(p.kind === 'NYC' || p.kind === 'NO_SHOW') && <span className="b" style={{ marginLeft: 4, background: kindColor(p.kind), color: '#fff' }}>{kindTag(p.kind)}</span>}
+                            {p.mlp && <span className="b scheme" style={{ marginLeft: 4 }}>MLP</span>}
+                            {p.igas && <span className="b scheme">IGAS</span>}
+                            <span className="muted small">{p.count} quals</span>
+                            <input type="checkbox" readOnly checked={chosen.has(p.id)} />
+                          </div>
+                        ))}
+                        <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => addDelegates(b.id)}>Add selected</button>
+                      </div>
+                    )}
+                  </div>
+                  <BlockFooter b={b} />
+                </>
               )}
             </div>
-            <BlockFooter b={b} />
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+    </>
   )
 }
 
 /* ============================ STYLE B — drag & drop ============================ */
-function DragAssign() {
+function DragAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
@@ -125,10 +187,14 @@ function DragAssign() {
   const drag = useRef(null)           // { type:'staff'|'delegate', id, scheme? }
   const [sel, setSel] = useState(null) // click-to-place selection
   const [over, setOver] = useState(null)
-  const waiting = [...pool, ...(resched || [])]
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
   if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
+
+  const schemes = schemesOf(blocks)
+  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
+  const allWaiting = [...pool, ...(resched || [])]
+  const waiting = allWaiting.filter((p) => (!f.courseType || p.scheme === f.courseType) && passDelegate(p, f))
 
   async function assignRole(blockId, role, staffId) {
     await assignBlockRole(blockId, role, staffId); reload()
@@ -153,7 +219,7 @@ function DragAssign() {
     e.preventDefault(); setOver(null)
     const d = drag.current
     if (d?.type === 'delegate') {
-      const item = waiting.find((p) => p.id === d.id)
+      const item = allWaiting.find((p) => p.id === d.id)
       if (item) addDelegate(blockId, item)
     }
     drag.current = null
@@ -163,13 +229,14 @@ function DragAssign() {
   }
   function clickZoneDelegate(blockId) {
     if (sel?.type === 'delegate') {
-      const item = waiting.find((p) => p.id === sel.id)
+      const item = allWaiting.find((p) => p.id === sel.id)
       if (item) addDelegate(blockId, item)
     }
   }
 
   return (
     <>
+      <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
       <div className="asr-pool">
         <span className="lbl">Staff — drag to a role, or click then click a slot</span>
         {staff.map((s) => {
@@ -186,10 +253,10 @@ function DragAssign() {
         })}
       </div>
       <div className="asr-pool">
-        <span className="lbl">Delegates waiting — drag to a block, or click then click a block
+        <span className="lbl">Delegates waiting{f.courseType || f.delegateType ? ' (filtered)' : ''} — drag to a block, or click then click a block
           <span className="kind-legend"><i style={{ background: KIND_COLOR.NEW }}></i>New <i style={{ background: KIND_COLOR.REASSESS }}></i>Reassessment <i style={{ background: KIND_COLOR.NYC }}></i>NYC <i style={{ background: KIND_COLOR.NO_SHOW }}></i>No-show</span>
         </span>
-        {waiting.length === 0 && <span className="muted small">Pool empty — book delegates in “Book a Delegate”.</span>}
+        {waiting.length === 0 && <span className="muted small">{allWaiting.length ? 'No waiting delegates match the filter.' : 'Pool empty — book delegates in “Book a Delegate”.'}</span>}
         {waiting.map((p) => {
           const on = sel?.type === 'delegate' && sel.id === p.id
           return (
@@ -204,60 +271,80 @@ function DragAssign() {
         })}
       </div>
 
+      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>No course blocks match the filter.</div>}
       <div className="course-grid">
-        {blocks.map((b) => (
-          <div className="ccard" key={b.id}>
-            <BlockHeader b={b} />
-            <div className="cbd">
-              {ROLES.map(([role, label]) => {
-                const sid = b[role + 'Id']
-                const okey = `${b.id}:${role}`
-                return (
-                  <div key={role} style={{ marginBottom: 8 }}>
-                    <div className="fl">{label}</div>
-                    <div className={'asr-drop' + (sid ? ' set' : '') + (over === okey || (!sid && sel?.type === 'staff') ? ' over' : '')}
-                      style={{ cursor: !sid && sel?.type === 'staff' ? 'pointer' : 'default' }}
-                      onClick={() => clickZoneRole(b.id, role)}
-                      onDragOver={(e) => { e.preventDefault(); setOver(okey) }}
+        {visible.map((b) => {
+          const open = f.expanded.has(b.id)
+          return (
+            <div className="ccard" key={b.id}>
+              <BlockHeader b={b} open={open} onToggle={() => f.toggle(b.id)} />
+              {open && (
+                <>
+                  <div className="cbd">
+                    {ROLES.map(([role, label]) => {
+                      const sid = b[role + 'Id']
+                      const okey = `${b.id}:${role}`
+                      return (
+                        <div key={role} style={{ marginBottom: 8 }}>
+                          <div className="fl">{label}</div>
+                          <div className={'asr-drop' + (sid ? ' set' : '') + (over === okey || (!sid && sel?.type === 'staff') ? ' over' : '')}
+                            style={{ cursor: !sid && sel?.type === 'staff' ? 'pointer' : 'default' }}
+                            onClick={() => clickZoneRole(b.id, role)}
+                            onDragOver={(e) => { e.preventDefault(); setOver(okey) }}
+                            onDragLeave={() => setOver(null)}
+                            onDrop={(e) => onDropRole(e, b.id, role)}>
+                            {sid ? (
+                              <>
+                                <span className="dot" style={{ background: ASSESSOR_COLOR[sid] || '#48566a' }}></span>
+                                <b>{b[role]}</b>
+                                <span className="x" onClick={(e) => { e.stopPropagation(); assignRole(b.id, role, null) }}>✕</span>
+                              </>
+                            ) : (sel?.type === 'staff' ? `Click to place ${label.toLowerCase()}` : `Drop ${label.toLowerCase()} here`)}
+                          </div>
+                        </div>
+                      )
+                    })}
+
+                    <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
+                    {b.delegates.map((d) => (
+                      <div className="delg" key={d.bookingId}><span className="av">{initials(...d.name.split(' '))}</span>{d.name}</div>
+                    ))}
+                    <div className={'asr-drop' + (over === `${b.id}:del` || sel?.type === 'delegate' ? ' over' : '')}
+                      style={{ marginTop: 6, cursor: sel?.type === 'delegate' ? 'pointer' : 'default' }}
+                      onClick={() => clickZoneDelegate(b.id)}
+                      onDragOver={(e) => { e.preventDefault(); setOver(`${b.id}:del`) }}
                       onDragLeave={() => setOver(null)}
-                      onDrop={(e) => onDropRole(e, b.id, role)}>
-                      {sid ? (
-                        <>
-                          <span className="dot" style={{ background: ASSESSOR_COLOR[sid] || '#48566a' }}></span>
-                          <b>{b[role]}</b>
-                          <span className="x" onClick={(e) => { e.stopPropagation(); assignRole(b.id, role, null) }}>✕</span>
-                        </>
-                      ) : (sel?.type === 'staff' ? `Click to place ${label.toLowerCase()}` : `Drop ${label.toLowerCase()} here`)}
+                      onDrop={(e) => onDropDelegate(e, b.id)}>
+                      {sel?.type === 'delegate' ? 'Click to add the selected delegate' : 'Drop a delegate here'}
                     </div>
                   </div>
-                )
-              })}
-
-              <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
-              {b.delegates.map((d) => (
-                <div className="delg" key={d.bookingId}><span className="av">{initials(...d.name.split(' '))}</span>{d.name}</div>
-              ))}
-              <div className={'asr-drop' + (over === `${b.id}:del` || sel?.type === 'delegate' ? ' over' : '')}
-                style={{ marginTop: 6, cursor: sel?.type === 'delegate' ? 'pointer' : 'default' }}
-                onClick={() => clickZoneDelegate(b.id)}
-                onDragOver={(e) => { e.preventDefault(); setOver(`${b.id}:del`) }}
-                onDragLeave={() => setOver(null)}
-                onDrop={(e) => onDropDelegate(e, b.id)}>
-                {sel?.type === 'delegate' ? 'Click to add the selected delegate' : 'Drop a delegate here'}
-              </div>
+                  <BlockFooter b={b} />
+                </>
+              )}
             </div>
-            <BlockFooter b={b} />
-          </div>
-        ))}
+          )
+        })}
       </div>
     </>
   )
 }
 
 /* ============================ shared block bits ============================ */
-function BlockHeader({ b }) {
+function BlockHeader({ b, open, onToggle }) {
   return (
-    <div className="cth">📚 {b.course}<span className="ct">{b.designator || b.scheme}</span></div>
+    <div className="cth" onClick={onToggle} style={{ cursor: 'pointer' }} title={open ? 'Collapse' : 'Expand'}>
+      <span className="chev">{open ? '▾' : '▸'}</span>
+      <span className="cth-title">📚 {b.course}</span>
+      <span className="cth-right">
+        {!open && (
+          <span className="cth-sum">
+            {b.delegates.length}👤
+            {b.ready ? <span className="b pass">Ready</span> : <span className="b pend">Incomplete</span>}
+          </span>
+        )}
+        <span className="ct">{b.designator || b.scheme}</span>
+      </span>
+    </div>
   )
 }
 function BlockDelegates({ b }) {
@@ -295,11 +382,18 @@ function BlockFooter({ b }) {
 }
 
 /* ============================ calendar ============================ */
-function CalendarTab() {
+function CalendarTab({ f }) {
   const { data: sessions, loading } = useData(listSessions)
   const { data: staff } = useData(listStaff)
   if (loading || !sessions) return <div className="loading">Loading calendar…</div>
-  return <Calendar sessions={sessions} staff={staff || []} />
+  const schemes = schemesOf(sessions)
+  const filtered = f.courseType ? sessions.filter((s) => s.scheme === f.courseType) : sessions
+  return (
+    <>
+      <FilterBar schemes={schemes} f={f} showDelegate={false} />
+      <Calendar sessions={filtered} staff={staff || []} />
+    </>
+  )
 }
 
 function Calendar({ sessions, staff }) {
