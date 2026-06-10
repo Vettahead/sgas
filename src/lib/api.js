@@ -35,42 +35,114 @@ const poolList = LIVE ? [] : D.pool
 // READS
 // =============================================================================
 
-export async function getDashboard() {
+// §4.10 Renewal engine config: default look-ahead window + the "cold list"
+// threshold (after this many unanswered contacts, move to phone follow-up).
+export const RENEWAL_WINDOW_DEFAULT = 180   // ~6 months
+export const RENEWAL_COLD_THRESHOLD = 5
+
+export async function getDashboard({ windowDays = RENEWAL_WINDOW_DEFAULT } = {}) {
   if (LIVE) {
     const { data: lq } = await supabase
       .from('v_live_qualification')
-      .select('client_id,forename,surname,category_code,category_desc,expiry_date,days_to_expiry')
-      .gte('days_to_expiry', 0).lte('days_to_expiry', 90)
+      .select('client_id,forename,surname,email,mobile,category_code,category_desc,scheme,expiry_date,days_to_expiry')
+      .gte('days_to_expiry', 0).lte('days_to_expiry', windowDays)
       .order('expiry_date', { ascending: true })
+    // Booked-in = delegate already has a PENDING booking for the same qualification → drop off the list.
+    const { data: pend } = await supabase
+      .from('booking_category')
+      .select('result,category:category_id(code),booking:booking_id(client_id)')
+      .eq('result', 'PENDING')
+    const bookedSet = new Set((pend || []).map((p) => `${p.booking?.client_id}:${p.category?.code}`))
+    // Contact history (staged follow-up counts).
+    const { data: rc } = await supabase.from('renewal_contact').select('client_id,category_code,sent_at')
+    const contacts = contactIndex(rc || [])
     const { count: sessions } = await supabase
       .from('session').select('*', { count: 'exact', head: true })
     const { data: chaseRows } = await supabase
       .from('booking')
       .select('booking_id,flag_mlp,flag_igas,flag_payment_outstanding,client:client_id(forename,surname),company:company_id(name)')
       .or('flag_mlp.eq.true,flag_igas.eq.true,flag_payment_outstanding.eq.true')
-    const renewals = (lq || []).map((r) => ({
-      clientId: r.client_id, name: `${r.forename} ${r.surname}`,
-      code: r.category_code, desc: r.category_desc, expiry: r.expiry_date, days: r.days_to_expiry,
-    }))
+    const dueAll = (lq || [])
+      .filter((r) => !bookedSet.has(`${r.client_id}:${r.category_code}`))
+      .map((r) => renewalEntry(r.client_id, `${r.forename} ${r.surname}`, r.category_code, r.category_desc, r.scheme, r.expiry_date, r.days_to_expiry, r.email, r.mobile, contacts))
     const chase = (chaseRows || []).map((b) => ({
-      name: `${b.client.forename} ${b.client.surname}`, payer: b.company?.name || '—',
-      flags: flagList(b),
+      name: `${b.client.forename} ${b.client.surname}`, payer: b.company?.name || '—', flags: flagList(b),
     }))
-    return { renewals, chase, mlps: await listMLPs(), counts: { renew: renewals.length, sessions: sessions || 0, outstanding: chase.length } }
+    return dashboardShape(dueAll, chase, await listMLPs(), sessions || 0, windowDays, blockSummaries(await listBlocks()))
   }
   // demo
-  const renewals = D.booking_categories
-    .filter((x) => x.result === 'PASS' && x.expiry_date && daysUntil(x.expiry_date) >= 0 && daysUntil(x.expiry_date) <= 90)
+  const pendingSet = new Set(
+    D.booking_categories.filter((x) => x.result === 'PENDING')
+      .map((x) => `${D.bookings.find((b) => b.booking_id === x.booking_id)?.client_id}:${cat(x.category_id)?.code}`)
+  )
+  const contacts = contactIndex((D.renewal_contact || []).map((r) => ({ client_id: r.client_id, category_code: r.category_code, sent_at: r.sent_at })))
+  const dueAll = D.booking_categories
+    .filter((x) => x.result === 'PASS' && x.expiry_date && daysUntil(x.expiry_date) >= 0 && daysUntil(x.expiry_date) <= windowDays)
     .sort((a, b) => new Date(a.expiry_date) - new Date(b.expiry_date))
     .map((x) => {
       const b = D.bookings.find((bb) => bb.booking_id === x.booking_id)
       const client = cl(b.client_id)
-      return { clientId: client.client_id, name: `${client.forename} ${client.surname}`, code: cat(x.category_id).code, desc: cat(x.category_id).description, expiry: x.expiry_date, days: daysUntil(x.expiry_date) }
+      const c = cat(x.category_id)
+      return { code: c.code, clientId: client.client_id, entry: renewalEntry(client.client_id, `${client.forename} ${client.surname}`, c.code, c.description, c.scheme, x.expiry_date, daysUntil(x.expiry_date), client.email, client.mobile, contacts) }
     })
+    .filter((x) => !pendingSet.has(`${x.clientId}:${x.code}`))
+    .map((x) => x.entry)
   const chase = D.bookings.filter((b) => b.flag_mlp || b.flag_igas || b.flag_payment_outstanding).map((b) => ({
     name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`, payer: co(b.company_id)?.name || '—', flags: flagList(b),
   }))
-  return { renewals, chase, mlps: await listMLPs(), counts: { renew: renewals.length, sessions: D.sessions.length, outstanding: chase.length } }
+  return dashboardShape(dueAll, chase, await listMLPs(), D.sessions.length, windowDays, blockSummaries(await listBlocks()))
+}
+
+// Role-relevant block worklists for the per-user dashboards (§4.10).
+function blockSummaries(blocks) {
+  const awaitingBlocks = (blocks || []).filter((b) => !b.ready).map((b) => ({
+    id: b.id, course: b.course, start: b.start, end: b.end, scheme: b.scheme,
+    missing: [!b.trainerId && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
+  }))
+  const assessBlocks = (blocks || []).filter((b) => b.delegates.length > 0).map((b) => ({
+    id: b.id, course: b.course, start: b.start, end: b.end, count: b.delegates.length,
+  }))
+  return { awaitingBlocks, assessBlocks }
+}
+
+function contactIndex(rows) {
+  const map = {}
+  for (const r of rows) {
+    const k = `${r.client_id}:${r.category_code}`
+    const e = map[k] || (map[k] = { count: 0, last: null })
+    e.count++
+    if (!e.last || r.sent_at > e.last) e.last = r.sent_at
+  }
+  return map
+}
+function renewalEntry(clientId, name, code, desc, scheme, expiry, days, email, mobile, contacts) {
+  const c = contacts[`${clientId}:${code}`] || { count: 0, last: null }
+  return { clientId, name, code, desc, scheme, expiry, days, email: email || '', mobile: mobile || '', contacts: c.count, lastContact: c.last }
+}
+// Split the due list into the email worklist vs the cold (phone follow-up) list.
+function dashboardShape(dueAll, chase, mlps, sessions, windowDays, extra = {}) {
+  const renewals = dueAll.filter((r) => r.contacts < RENEWAL_COLD_THRESHOLD)
+  const coldList = dueAll.filter((r) => r.contacts >= RENEWAL_COLD_THRESHOLD)
+  const awaitingBlocks = extra.awaitingBlocks || []
+  const assessBlocks = extra.assessBlocks || []
+  return {
+    renewals, coldList, chase, mlps, windowDays, awaitingBlocks, assessBlocks,
+    counts: {
+      renew: dueAll.length, sessions, outstanding: chase.length, cold: coldList.length,
+      unassigned: awaitingBlocks.length, toAssess: assessBlocks.reduce((n, b) => n + b.count, 0),
+    },
+  }
+}
+
+// Log an individualised renewal contact (email or phone). GDPR: one-by-one only.
+export async function recordRenewalContact(clientId, code, channel = 'email') {
+  if (LIVE) {
+    const { error } = await supabase.from('renewal_contact').insert({ client_id: clientId, category_code: code, channel })
+    if (error) throw error
+    return
+  }
+  D.renewal_contact = D.renewal_contact || []
+  D.renewal_contact.push({ renewal_contact_id: ++D.seq.renewal, client_id: clientId, category_code: code, sent_at: new Date().toISOString(), channel })
 }
 
 function flagList(b) {

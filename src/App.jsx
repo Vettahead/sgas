@@ -130,7 +130,7 @@ export default function App() {
           </div>
         </div>
         <div className="content">
-          {activeView === 'dash' && <Dashboard go={go} />}
+          {activeView === 'dash' && <Dashboard go={go} user={user} />}
           {activeView === 'book' && <Book />}
           {activeView === 'sched' && <Schedule />}
           {activeView === 'assess' && <Assess />}

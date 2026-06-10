@@ -3,8 +3,9 @@
 //   ADMIN     — everything, plus the Admin screen; can view everyone's dashboard
 //   STANDARD  — reception: dashboard, book a delegate, delegates, companies (no scheduling)
 //   SCHEDULER — dashboard, book a delegate, schedule
-//   ASSESSOR  — assessments only (log in, tick pass/fail)
-//   ACCOUNTS  — payments & chase only
+//   ASSESSOR  — dashboard (their blocks to assess) + assessments
+//   ACCOUNTS  — dashboard (outstanding to chase) + payments & chase
+// Every role lands on a DASHBOARD tailored to what they do (§4.10 per-user dashboards).
 
 export const ROLES = ['ADMIN', 'STANDARD', 'SCHEDULER', 'ASSESSOR', 'ACCOUNTS']
 
@@ -22,8 +23,8 @@ export const ROLE_VIEWS = {
   ADMIN: ['dash', 'book', 'sched', 'assess', 'pay', 'delegates', 'companies', 'staff', 'courses', 'admin'],
   STANDARD: ['dash', 'book', 'delegates', 'companies'],
   SCHEDULER: ['dash', 'book', 'sched'],
-  ASSESSOR: ['assess'],
-  ACCOUNTS: ['pay'],
+  ASSESSOR: ['dash', 'assess'],
+  ACCOUNTS: ['dash', 'pay'],
 }
 
 export function viewsForRole(role) {

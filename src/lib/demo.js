@@ -96,6 +96,8 @@ export const store = {
     bk(4, 4, 3, 3, false, false, false, null),
     bk(5, 5, 4, 4, false, false, false, null),
     bk(6, 6, 2, 2, false, false, false, null),
+    // §4.10 demo: Tom (client 1) is re-booked for CCN1 → that qual drops off his renewal list.
+    bk(7, 1, 5, 1, false, false, false, null),
   ],
   booking_categories: [
     bc(1, 1, 1, 'PASS', '2021-07-01', '2026-07-01'),
@@ -110,6 +112,7 @@ export const store = {
     bc(10, 6, 1, 'PASS', '2026-05-20', '2031-05-20'),
     bc(11, 6, 3, 'FAIL', null, null),
     bc(12, 6, 4, 'PENDING', null, null),
+    bc(13, 7, 1, 'PENDING', null, null), // Tom's CCN1 re-booking (booked-in → drops off renewals)
   ],
   pool: [
     { id: 101, client_id: 3, scheme: 'ACS Domestic', category_ids: [1, 2, 4] },
@@ -137,6 +140,14 @@ export const store = {
   chase_log: [
     { chase_id: 1, booking_id: 2, chased_at: '2026-06-02T09:15:00Z', items: 'Payment', channel: 'email' },
   ],
+  // §4.10 demo: Gary (client 2) has had 5 unanswered renewal emails for CCN1 → cold list (phone follow-up).
+  renewal_contact: [
+    { renewal_contact_id: 1, client_id: 2, category_code: 'CCN1', sent_at: '2026-04-20T09:00:00Z', channel: 'email' },
+    { renewal_contact_id: 2, client_id: 2, category_code: 'CCN1', sent_at: '2026-04-28T09:00:00Z', channel: 'email' },
+    { renewal_contact_id: 3, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-06T09:00:00Z', channel: 'email' },
+    { renewal_contact_id: 4, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-15T09:00:00Z', channel: 'email' },
+    { renewal_contact_id: 5, client_id: 2, category_code: 'CCN1', sent_at: '2026-05-25T09:00:00Z', channel: 'email' },
+  ],
   // Tom Ainsworth (client 1) is on an MLP of 3 courses; he's passed Domestic (course 1).
   mlps: [
     { mlp_id: 1, client_id: 1, label: 'Gas new-entrant MLP', created_at: '2026-05-01T09:00:00Z', completed_at: null },
@@ -146,7 +157,7 @@ export const store = {
     { mlp_course_id: 2, mlp_id: 1, course_id: 5 },
     { mlp_course_id: 3, mlp_id: 1, course_id: 6 },
   ],
-  seq: { client: 8, company: 4, session: 6, booking: 6, bcat: 12, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3 },
+  seq: { client: 8, company: 4, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 5 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }
