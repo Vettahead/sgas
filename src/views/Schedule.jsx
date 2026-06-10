@@ -81,6 +81,16 @@ function FilterBar({ schemes, f, blockIds, showDelegate = true }) {
   )
 }
 
+// Section header for the assignment tabs — explains what the course-block area is for.
+function SchedHeader() {
+  return (
+    <div className="sect-head">
+      <h2>📚 Course blocks</h2>
+      <p className="muted small">Each block is a course with its dates (pulled from Teamup). Assign the staff and delegates to each one, then push it back to Teamup. Use the filters to focus on a course or delegate type; click a block to open or collapse it.</p>
+    </div>
+  )
+}
+
 // Does a waiting-pool entry pass the delegate-type filter?
 const passDelegate = (p, f) => !f.delegateType || (p.kind || 'NEW') === f.delegateType
 
@@ -127,6 +137,7 @@ function MenuAssign({ f }) {
 
   return (
     <>
+      <SchedHeader />
       <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
       {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>No course blocks match the filter.</div>}
       <div className="course-grid">
@@ -135,7 +146,7 @@ function MenuAssign({ f }) {
           const poolForScheme = [...pool, ...(resched || [])].filter((p) => p.scheme === b.scheme && passDelegate(p, f))
           const chosen = picks[b.id] || new Set()
           return (
-            <div className="ccard" key={b.id}>
+            <div className={'ccard' + (open ? '' : ' collapsed')} key={b.id}>
               <BlockHeader b={b} open={open} onToggle={() => f.toggle(b.id)} />
               {open && (
                 <>
@@ -236,6 +247,7 @@ function DragAssign({ f }) {
 
   return (
     <>
+      <SchedHeader />
       <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
       <div className="asr-pool">
         <span className="lbl">Staff — drag to a role, or click then click a slot</span>
@@ -276,7 +288,7 @@ function DragAssign({ f }) {
         {visible.map((b) => {
           const open = f.expanded.has(b.id)
           return (
-            <div className="ccard" key={b.id}>
+            <div className={'ccard' + (open ? '' : ' collapsed')} key={b.id}>
               <BlockHeader b={b} open={open} onToggle={() => f.toggle(b.id)} />
               {open && (
                 <>
