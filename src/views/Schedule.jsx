@@ -6,7 +6,9 @@ import { toast } from '../lib/toast.js'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const todayISO = () => new Date().toISOString().slice(0, 10)
-const ROLES = [['trainer', 'Trainer'], ['assessor', 'Assessor'], ['verifier', 'Verifier']]
+// Only the Trainer is assigned on the Schedule block — the Assessor and Verifier
+// are now chosen in the Assess phase (per the review-meeting model change).
+const ROLES = [['trainer', 'Trainer']]
 
 // Booking-type colours for the waiting pool: green = new/full, blue = reassessment.
 const KIND_COLOR = { NEW: '#1a8a4b', REASSESS: '#0a5ad6', NYC: '#b7791f', NO_SHOW: '#c0392b' }
@@ -384,7 +386,7 @@ function BlockFooter({ b }) {
       </div>
       <div className="cfoot">
         <button className="btn" style={{ width: '100%' }} disabled={!b.ready} onClick={push}>
-          {b.ready ? 'Push to Teamup ⟳' : 'Assign all 3 roles + a delegate'}
+          {b.ready ? 'Push to Teamup ⟳' : 'Assign a trainer + a delegate'}
         </button>
       </div>
     </>
