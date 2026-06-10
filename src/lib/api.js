@@ -130,9 +130,54 @@ export async function listCompanies() {
     const { data } = await supabase.from('company').select('*').order('name')
     const { data: clients } = await supabase.from('client').select('company_id')
     const counts = tally(clients || [], 'company_id')
-    return (data || []).map((c) => ({ ...c, delegates: counts[c.company_id] || 0 }))
+    return (data || []).map((c) => ({ ...c, delegates: counts[c.company_id] || 0, sendToEmployer: c.send_to_employer !== false }))
   }
-  return D.companies.map((c) => ({ ...c, delegates: D.clients.filter((x) => x.company_id === c.company_id).length }))
+  return D.companies.map((c) => ({ ...c, delegates: D.clients.filter((x) => x.company_id === c.company_id).length, sendToEmployer: c.send_to_employer !== false }))
+}
+
+// §4.9 Company detail: the employer plus everyone who works there.
+export async function getCompany(companyId) {
+  if (LIVE) {
+    const { data: company } = await supabase.from('company').select('*').eq('company_id', companyId).single()
+    const { data: clients } = await supabase
+      .from('client')
+      .select('client_id,forename,surname,ni_number,mobile,email')
+      .eq('company_id', companyId).order('surname')
+    const ids = (clients || []).map((c) => c.client_id)
+    let byClient = {}
+    if (ids.length) {
+      const { data: bks } = await supabase
+        .from('booking')
+        .select('client_id,session:session_id(start_date)')
+        .in('client_id', ids)
+      for (const b of bks || []) {
+        const e = byClient[b.client_id] || (byClient[b.client_id] = { count: 0, last: null })
+        e.count++
+        const d = b.session?.start_date
+        if (d && (!e.last || d > e.last)) e.last = d
+      }
+    }
+    const delegates = (clients || []).map((c) => ({
+      ...c, bookings: byClient[c.client_id]?.count || 0, lastBooking: byClient[c.client_id]?.last || null,
+    }))
+    return { company: { ...company, sendToEmployer: company.send_to_employer !== false }, delegates }
+  }
+  const company = co(companyId)
+  const delegates = D.clients.filter((c) => c.company_id === companyId).map((c) => {
+    const bks = D.bookings.filter((b) => b.client_id === c.client_id)
+    const dates = bks.map((b) => ses(b.session_id)?.start_date).filter(Boolean).sort()
+    return { ...c, bookings: bks.length, lastBooking: dates[dates.length - 1] || null }
+  }).sort((a, b) => a.surname.localeCompare(b.surname))
+  return { company: { ...company, sendToEmployer: company.send_to_employer !== false }, delegates }
+}
+
+export async function setSendToEmployer(companyId, value) {
+  if (LIVE) {
+    await supabase.from('company').update({ send_to_employer: !!value }).eq('company_id', companyId)
+    return
+  }
+  const c = co(companyId)
+  if (c) c.send_to_employer = !!value
 }
 
 export async function listAssessors() {

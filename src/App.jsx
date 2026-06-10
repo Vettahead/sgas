@@ -136,7 +136,7 @@ export default function App() {
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
-          {activeView === 'companies' && <Companies />}
+          {activeView === 'companies' && <Companies go={go} />}
           {activeView === 'staff' && <Staff />}
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}

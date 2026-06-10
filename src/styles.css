@@ -208,3 +208,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .mlp-bar{display:inline-block;width:140px;height:8px;border-radius:5px;background:#e6ebf2;overflow:hidden;vertical-align:middle;margin-right:8px}
 .mlp-bar span{display:block;height:100%;background:var(--green)}
 .igas-block{display:flex;gap:10px;align-items:center;padding:6px 0 10px;border-bottom:1px dashed var(--line);margin-bottom:8px}
+
+/* --- §4.9 delegate renewal summary -------------------------------------- */
+.renew-alert{display:flex;gap:8px;align-items:center;margin-bottom:12px}

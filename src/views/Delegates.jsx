@@ -1,7 +1,41 @@
 import { useMemo, useState } from 'react'
 import { listDelegates, getDelegateHistory } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
-import { fmt, initials, resultClass } from '../lib/util.js'
+import { fmt, initials, resultClass, daysUntil } from '../lib/util.js'
+
+// Roll the booking history up into the delegate's current accreditations:
+// one row per qualification, keeping the most-recent PASS, cross-referenced
+// against today to flag what's due for renewal.
+function renewalSummary(bookings) {
+  const byCode = {}
+  for (const b of bookings) {
+    for (const x of b.categories) {
+      if (x.result !== 'PASS') continue
+      const prev = byCode[x.code]
+      if (!prev || (x.achieved || '') > (prev.achieved || '')) {
+        byCode[x.code] = { code: x.code, desc: x.desc, achieved: x.achieved, expiry: x.expiry, course: b.course }
+      }
+    }
+  }
+  const rows = Object.values(byCode).map((r) => {
+    const d = r.expiry ? daysUntil(r.expiry) : null
+    let status = 'none'
+    if (d != null) status = d < 0 ? 'expired' : d <= 90 ? 'soon' : 'active'
+    return { ...r, days: d, status }
+  }).sort((a, b) => {
+    const order = { expired: 0, soon: 1, active: 2, none: 3 }
+    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status]
+    return (a.expiry || '') < (b.expiry || '') ? -1 : 1
+  })
+  return rows
+}
+
+const RENEWAL_BADGE = {
+  active: ['pass', 'Active'],
+  soon: ['due', 'Renew soon'],
+  expired: ['fail', 'Expired'],
+  none: ['scheme', 'No expiry'],
+}
 
 export default function Delegates({ openDelegate }) {
   const [selected, setSelected] = useState(openDelegate || null)
@@ -57,6 +91,9 @@ function DelegateDetail({ clientId, back }) {
   const { data, loading } = useData(() => getDelegateHistory(clientId), [clientId])
   if (loading || !data) return <div className="loading">Loading history…</div>
   const { client, bookings } = data
+  const renewals = renewalSummary(bookings)
+  const expiredCount = renewals.filter((r) => r.status === 'expired').length
+  const soonCount = renewals.filter((r) => r.status === 'soon').length
 
   return (
     <>
@@ -76,6 +113,44 @@ function DelegateDetail({ clientId, back }) {
             <Field label="Mobile" value={client.mobile} />
             <Field label="Email" value={client.email} />
           </div>
+        </div>
+      </div>
+
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h3>🎓 Qualifications & renewals <span className="tag">{renewals.length} held</span></h3>
+        <div className="body">
+          {renewals.length === 0 && <div className="empty">No achieved qualifications yet.</div>}
+          {renewals.length > 0 && (
+            <>
+              {(expiredCount > 0 || soonCount > 0) && (
+                <div className="renew-alert">
+                  {expiredCount > 0 && <span className="b fail">{expiredCount} expired</span>}
+                  {soonCount > 0 && <span className="b due">{soonCount} due within 90 days</span>}
+                </div>
+              )}
+              <table>
+                <thead><tr><th>Qualification</th><th>From course</th><th>Achieved</th><th>Expires</th><th>Renewal</th></tr></thead>
+                <tbody>
+                  {renewals.map((r) => {
+                    const [cls, label] = RENEWAL_BADGE[r.status]
+                    return (
+                      <tr key={r.code} className={r.status === 'expired' ? 'noshow-row' : ''}>
+                        <td><b>{r.code}</b> <span className="muted small">{r.desc}</span></td>
+                        <td className="muted">{r.course}</td>
+                        <td className="muted nowrap">{fmt(r.achieved)}</td>
+                        <td className="muted nowrap">{fmt(r.expiry)}</td>
+                        <td className="nowrap">
+                          <span className={'b ' + cls}>{label}</span>
+                          {r.days != null && r.status === 'soon' && <span className="muted small" style={{ marginLeft: 6 }}>{r.days}d</span>}
+                          {r.days != null && r.status === 'expired' && <span className="muted small" style={{ marginLeft: 6 }}>{-r.days}d ago</span>}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
       </div>
 

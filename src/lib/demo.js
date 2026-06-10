@@ -4,10 +4,10 @@
 
 export const store = {
   companies: [
-    { company_id: 1, name: 'Fylde Heating Ltd', contact_name: 'Dave Marsh', phone: '01253 110011', email: 'accounts@fyldeheating.co.uk', sage_ref: 'SAGE-001' },
-    { company_id: 2, name: 'Coastline Plumbing', contact_name: 'Sarah Webb', phone: '01253 220022', email: 'sarah@coastlineplumbing.co.uk', sage_ref: 'SAGE-002' },
-    { company_id: 3, name: 'J. Hartley (Sole Trader)', contact_name: 'John Hartley', phone: '07700 900123', email: 'john.hartley@gmail.com', sage_ref: 'SAGE-003' },
-    { company_id: 4, name: 'Northwest Renewables', contact_name: 'Priya Shah', phone: '01253 330033', email: 'priya@nwrenewables.co.uk', sage_ref: 'SAGE-004' },
+    { company_id: 1, name: 'Fylde Heating Ltd', contact_name: 'Dave Marsh', phone: '01253 110011', email: 'accounts@fyldeheating.co.uk', sage_ref: 'SAGE-001', send_to_employer: true },
+    { company_id: 2, name: 'Coastline Plumbing', contact_name: 'Sarah Webb', phone: '01253 220022', email: 'sarah@coastlineplumbing.co.uk', sage_ref: 'SAGE-002', send_to_employer: true },
+    { company_id: 3, name: 'J. Hartley (Sole Trader)', contact_name: 'John Hartley', phone: '07700 900123', email: 'john.hartley@gmail.com', sage_ref: 'SAGE-003', send_to_employer: false },
+    { company_id: 4, name: 'Northwest Renewables', contact_name: 'Priya Shah', phone: '01253 330033', email: 'priya@nwrenewables.co.uk', sage_ref: 'SAGE-004', send_to_employer: true },
   ],
   clients: [
     { client_id: 1, company_id: 1, ni_number: 'AB123456C', forename: 'Tom', surname: 'Ainsworth', date_of_birth: '1990-04-12', mobile: '07700 900001', telephone: '', email: 'tom.a@example.com' },
