@@ -267,3 +267,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .modal .chip{border:1px solid #cfd8e3;background:#fff;border-radius:20px;padding:3px 11px;font-size:12px;cursor:pointer}
 .modal .chip:hover{background:var(--brand-soft)}
 .modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
+
+/* §4.7 ACS form generation buttons */
+.btn-form{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--brand);background:var(--brand);color:#fff;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn-form:hover{filter:brightness(1.06)}
+.btn-form.ghost{background:#fff;color:var(--brand-dark);border-color:#cdd6e4}
+.btn-form.lg{padding:9px 16px;font-size:14px}
+.btn-form:disabled{opacity:.45;cursor:not-allowed;filter:none}
+.block-actions{margin-bottom:14px}
+.cfoot .form-row{display:flex;gap:8px;margin-top:8px}
+.cfoot .form-row .btn-form{flex:1;justify-content:center}

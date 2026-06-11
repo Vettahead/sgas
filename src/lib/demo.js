@@ -4,20 +4,20 @@
 
 export const store = {
   companies: [
-    { company_id: 1, name: 'Fylde Heating Ltd', contact_name: 'Dave Marsh', phone: '01253 110011', email: 'accounts@fyldeheating.co.uk', sage_ref: 'SAGE-001', send_to_employer: true },
-    { company_id: 2, name: 'Coastline Plumbing', contact_name: 'Sarah Webb', phone: '01253 220022', email: 'sarah@coastlineplumbing.co.uk', sage_ref: 'SAGE-002', send_to_employer: true },
-    { company_id: 3, name: 'J. Hartley (Sole Trader)', contact_name: 'John Hartley', phone: '07700 900123', email: 'john.hartley@gmail.com', sage_ref: 'SAGE-003', send_to_employer: false },
-    { company_id: 4, name: 'Northwest Renewables', contact_name: 'Priya Shah', phone: '01253 330033', email: 'priya@nwrenewables.co.uk', sage_ref: 'SAGE-004', send_to_employer: true },
+    { company_id: 1, name: 'Fylde Heating Ltd', address: 'Unit 5 Squires Gate Lane, Blackpool, FY4 3RN', contact_name: 'Dave Marsh', phone: '01253 110011', email: 'accounts@fyldeheating.co.uk', sage_ref: 'SAGE-001', send_to_employer: true },
+    { company_id: 2, name: 'Coastline Plumbing', address: '12 Marine Parade, Lytham, FY8 5LE', contact_name: 'Sarah Webb', phone: '01253 220022', email: 'sarah@coastlineplumbing.co.uk', sage_ref: 'SAGE-002', send_to_employer: true },
+    { company_id: 3, name: 'J. Hartley (Sole Trader)', address: '8 Cornwall Avenue, Blackpool, FY2 9QS', contact_name: 'John Hartley', phone: '07700 900123', email: 'john.hartley@gmail.com', sage_ref: 'SAGE-003', send_to_employer: false },
+    { company_id: 4, name: 'Northwest Renewables', address: 'Suite 3 Amy Johnson Way, Blackpool, FY4 2RP', contact_name: 'Priya Shah', phone: '01253 330033', email: 'priya@nwrenewables.co.uk', sage_ref: 'SAGE-004', send_to_employer: true },
   ],
   clients: [
-    { client_id: 1, company_id: 1, ni_number: 'AB123456C', forename: 'Tom', surname: 'Ainsworth', date_of_birth: '1990-04-12', mobile: '07700 900001', telephone: '', email: 'tom.a@example.com' },
-    { client_id: 2, company_id: 1, ni_number: 'AB223456C', forename: 'Gary', surname: 'Bell', date_of_birth: '1985-09-30', mobile: '07700 900002', telephone: '', email: 'gary.b@example.com' },
-    { client_id: 3, company_id: 2, ni_number: 'AB323456C', forename: 'Hassan', surname: 'Iqbal', date_of_birth: '1992-01-15', mobile: '07700 900003', telephone: '', email: 'hassan.i@example.com' },
-    { client_id: 4, company_id: 3, ni_number: 'AB423456C', forename: 'John', surname: 'Hartley', date_of_birth: '1978-07-22', mobile: '07700 900123', telephone: '', email: 'john.hartley@gmail.com' },
-    { client_id: 5, company_id: 4, ni_number: 'AB523456C', forename: 'Megan', surname: 'Doyle', date_of_birth: '1995-11-03', mobile: '07700 900005', telephone: '', email: 'megan.d@example.com' },
-    { client_id: 6, company_id: 2, ni_number: 'AB623456C', forename: 'Liam', surname: 'Prentice', date_of_birth: '1988-03-19', mobile: '07700 900006', telephone: '', email: 'liam.p@example.com' },
-    { client_id: 7, company_id: 1, ni_number: 'AB723456C', forename: 'Owen', surname: 'Pugh', date_of_birth: '1991-06-08', mobile: '07700 900007', telephone: '', email: 'owen.p@example.com' },
-    { client_id: 8, company_id: 4, ni_number: 'AB823456C', forename: 'Rhys', surname: 'Evans', date_of_birth: '1993-02-27', mobile: '07700 900008', telephone: '', email: 'rhys.e@example.com' },
+    { client_id: 1, company_id: 1, ni_number: 'AB123456C', forename: 'Tom', surname: 'Ainsworth', date_of_birth: '1990-04-12', premise: '14', street: 'Hawthorn Road', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY1 4PT', mobile: '07700 900001', telephone: '', email: 'tom.a@example.com' },
+    { client_id: 2, company_id: 1, ni_number: 'AB223456C', forename: 'Gary', surname: 'Bell', date_of_birth: '1985-09-30', premise: '42', street: 'Waterloo Road', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY4 1AB', mobile: '07700 900002', telephone: '', email: 'gary.b@example.com' },
+    { client_id: 3, company_id: 2, ni_number: 'AB323456C', forename: 'Hassan', surname: 'Iqbal', date_of_birth: '1992-01-15', premise: '7', street: 'Clifton Drive', town: 'Lytham', district: '', county: 'Lancashire', postcode: 'FY8 5RA', mobile: '07700 900003', telephone: '', email: 'hassan.i@example.com' },
+    { client_id: 4, company_id: 3, ni_number: 'AB423456C', forename: 'John', surname: 'Hartley', date_of_birth: '1978-07-22', premise: '8', street: 'Cornwall Avenue', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY2 9QS', mobile: '07700 900123', telephone: '', email: 'john.hartley@gmail.com' },
+    { client_id: 5, company_id: 4, ni_number: 'AB523456C', forename: 'Megan', surname: 'Doyle', date_of_birth: '1995-11-03', premise: '21', street: 'Park Road', town: 'Poulton-le-Fylde', district: '', county: 'Lancashire', postcode: 'FY6 7AB', mobile: '07700 900005', telephone: '', email: 'megan.d@example.com' },
+    { client_id: 6, company_id: 2, ni_number: 'AB623456C', forename: 'Liam', surname: 'Prentice', date_of_birth: '1988-03-19', premise: '3', street: 'Henry Street', town: 'Lytham', district: '', county: 'Lancashire', postcode: 'FY8 5LF', mobile: '07700 900006', telephone: '', email: 'liam.p@example.com' },
+    { client_id: 7, company_id: 1, ni_number: 'AB723456C', forename: 'Owen', surname: 'Pugh', date_of_birth: '1991-06-08', premise: '56', street: 'Caunce Street', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY1 3NG', mobile: '07700 900007', telephone: '', email: 'owen.p@example.com' },
+    { client_id: 8, company_id: 4, ni_number: 'AB823456C', forename: 'Rhys', surname: 'Evans', date_of_birth: '1993-02-27', premise: '9', street: 'Newton Drive', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY3 8LZ', mobile: '07700 900008', telephone: '', email: 'rhys.e@example.com' },
   ],
   // The `assessors` array is the shared STAFF list (anyone can be trainer/assessor/verifier).
   assessors: [

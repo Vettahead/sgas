@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react'
-import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, assignBlockRole, addDelegatesToBlock, pushBlockToTeamup, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, assignBlockRole, addDelegatesToBlock, pushBlockToTeamup, getBlockFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
+import { downloadCombined, downloadZip } from '../lib/acspdf.js'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -371,9 +372,20 @@ function BlockDelegates({ b }) {
   )
 }
 function BlockFooter({ b }) {
+  const hasDelegates = b.delegates.length > 0
   async function push() {
     const r = await pushBlockToTeamup(b.id)
     toast(`⟳ ${r.course}: would push to ${r.targets.join(', ') || 'no staff yet'}. ${r.note}`)
+  }
+  async function forms(zip) {
+    try {
+      const data = await getBlockFormData(b.id)
+      if (!data.length) return toast('No delegates on this block')
+      const label = `${b.course}_${fmt(b.start)}`
+      if (zip) await downloadZip(data, label)
+      else await downloadCombined(data, label)
+      toast(`${data.length} ACS form${data.length > 1 ? 's' : ''} generated${zip ? ' (zip)' : ''}`)
+    } catch (e) { toast(e.message) }
   }
   return (
     <>
@@ -388,6 +400,10 @@ function BlockFooter({ b }) {
         <button className="btn" style={{ width: '100%' }} disabled={!b.ready} onClick={push}>
           {b.ready ? 'Push to Teamup ⟳' : 'Assign a trainer + a delegate'}
         </button>
+        <div className="form-row">
+          <button className="btn-form" disabled={!hasDelegates} onClick={() => forms(false)} title="Batch-print one combined ACS form PDF for every delegate on this block">📄 Print ACS forms</button>
+          <button className="btn-form ghost" disabled={!hasDelegates} onClick={() => forms(true)} title="Download one PDF per delegate as a zip">🗂 Zip</button>
+        </div>
       </div>
     </>
   )

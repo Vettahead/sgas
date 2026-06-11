@@ -362,6 +362,64 @@ export async function getSessionBookings(sessionId) {
   })
 }
 
+// ---- ACS application form data (§4.7 document generation) -------------------
+// Returns the field bundle consumed by lib/acspdf.js. Same shape live or demo.
+function dobDDMMYYYY(iso) {
+  if (!iso) return ''
+  const [y, m, d] = String(iso).slice(0, 10).split('-')
+  return d && m && y ? `${d}${m}${y}` : ''
+}
+function buildRedirect(company) {
+  // Only redirect when the employer has opted in (per-company flag, §4.9).
+  if (!company || company.send_to_employer === false) return null
+  const addr = company.address ? String(company.address).split(/\n|,/).map((s) => s.trim()).filter(Boolean) : []
+  const lines = [company.name, ...addr].filter(Boolean)
+  return lines.length ? lines.slice(0, 4) : null
+}
+function formDelegate(b) {
+  const c = b.client || {}
+  const codes = Array.isArray(b.codes) ? b.codes : (b.booking_category || []).map((x) => x.category?.code).filter(Boolean)
+  const house = [c.premise, c.address_number].filter(Boolean).join(' ')
+  return {
+    bookingId: b.booking_id,
+    surname: c.surname || '', forename: c.forename || '', fullname: `${c.forename || ''} ${c.surname || ''}`.trim(),
+    dob: dobDDMMYYYY(c.date_of_birth), ni: c.ni_number || '',
+    house, street: c.street || '', town: c.town || '', city: c.district || '', county: c.county || '',
+    postcode: c.postcode || '', telephone: c.telephone || c.mobile || '', email: c.email || '',
+    medical: !!(c.medical_needs && String(c.medical_needs).trim()),
+    isReassessment: !!b.is_reassessment,
+    codes,
+    redirect: buildRedirect(b.company),
+  }
+}
+const FORM_SELECT = 'booking_id,is_reassessment,client:client_id(*),company:company_id(name,address,send_to_employer),booking_category(category:category_id(code))'
+
+export async function getFormData(bookingId) {
+  if (LIVE) {
+    const { data } = await supabase.from('booking').select(FORM_SELECT).eq('booking_id', bookingId).single()
+    return data ? formDelegate(data) : null
+  }
+  const b = D.bookings.find((x) => x.booking_id === bookingId)
+  if (!b) return null
+  const c = cl(b.client_id)
+  const company = co(b.company_id ?? c?.company_id)
+  const codes = D.booking_categories.filter((x) => x.booking_id === bookingId).map((x) => cat(x.category_id)?.code).filter(Boolean)
+  return formDelegate({ ...b, client: c, company, codes })
+}
+
+export async function getBlockFormData(sessionId) {
+  if (LIVE) {
+    const { data } = await supabase.from('booking').select(FORM_SELECT).eq('session_id', sessionId)
+    return (data || []).map(formDelegate)
+  }
+  return D.bookings.filter((b) => b.session_id === sessionId).map((b) => {
+    const c = cl(b.client_id)
+    const company = co(b.company_id ?? c?.company_id)
+    const codes = D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean)
+    return formDelegate({ ...b, client: c, company, codes })
+  })
+}
+
 export async function listPayments() {
   if (LIVE) {
     const { data } = await supabase

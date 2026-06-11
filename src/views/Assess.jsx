@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { listBlocks, getSessionBookings, markCategory, setDisposition, setAssessNotes, assignBlockRole, listStaff } from '../lib/api.js'
+import { listBlocks, getSessionBookings, markCategory, setDisposition, setAssessNotes, assignBlockRole, listStaff, getFormData, getBlockFormData } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials, resultClass, dispLabel, delegateStatus } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
+import { downloadForm, downloadCombined } from '../lib/acspdf.js'
 
 export default function Assess() {
   const { data: blocks, loading, reload: reloadBlocks } = useData(listBlocks)
@@ -42,8 +43,20 @@ function AssessArea({ block, staff, onRoles }) {
     } catch (e) { toast(e.message) }
   }
 
+  async function genAll() {
+    try {
+      const forms = await getBlockFormData(block.id)
+      if (!forms.length) return toast('No delegates to generate')
+      await downloadCombined(forms, `${block.course}_${fmt(block.start)}`)
+      toast(`Generated ${forms.length} ACS form${forms.length > 1 ? 's' : ''}`)
+    } catch (e) { toast(e.message) }
+  }
+
   return (
     <div style={{ marginTop: 16 }}>
+      <div className="block-actions">
+        <button className="btn-form lg" onClick={genAll}>📄 Generate ACS forms for this block</button>
+      </div>
       <div className="assess-roles">
         <div className="field">
           <label className="fl">Trainer (from schedule)</label>
@@ -94,6 +107,14 @@ function DelegateCard({ d, reload }) {
       toast('Notes saved')
     }
   }
+  async function genForm() {
+    try {
+      const fd = await getFormData(d.bookingId)
+      if (!fd) return toast('No form data for this delegate')
+      await downloadForm(fd)
+      toast(`ACS form generated for ${d.name}`)
+    } catch (e) { toast(e.message) }
+  }
 
   return (
     <div className="assess-deleg">
@@ -122,6 +143,7 @@ function DelegateCard({ d, reload }) {
           <button className={'noshow ' + (d.disposition === 'NO_SHOW' ? 'on' : '')} onClick={() => disp('NO_SHOW')}>No-show</button>
         </span>
         <input className="note" placeholder="Assessor notes (optional)…" value={note} onChange={(e) => setNote(e.target.value)} onBlur={saveNote} />
+        <button className="btn-form" onClick={genForm} title="Generate the LCL ACS application form for this delegate">📄 ACS form</button>
       </div>
     </div>
   )
