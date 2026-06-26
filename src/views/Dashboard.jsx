@@ -17,7 +17,7 @@ const SECTIONS = {
   ACCOUNTS: { renewals: false, scheduling: false, assessment: false, outstanding: true, mlps: false },
 }
 const STAT_KEYS = {
-  ADMIN: ['renew', 'sessions', 'outstanding'],
+  ADMIN: ['renew', 'sessions', 'unassigned', 'toAssess', 'outstanding'],
   STANDARD: ['renew', 'sessions', 'outstanding'],
   SCHEDULER: ['unassigned', 'sessions', 'renew'],
   ASSESSOR: ['toAssess', 'sessions', 'unassigned'],
@@ -26,17 +26,30 @@ const STAT_KEYS = {
 // Quick-pick outcomes for the "Log call" dialog.
 const CALL_OUTCOMES = ['No reply', 'Left voicemail', 'Will call back', 'Booked in', 'Not interested']
 
+// Dashboard cards start collapsed; whichever the user opens is remembered across
+// visits in localStorage (so their preferred layout sticks).
+const DASH_KEY = 'sgas_dash_open'
+const loadOpen = () => { try { return new Set(JSON.parse(localStorage.getItem(DASH_KEY) || '[]')) } catch { return new Set() } }
+
 export default function Dashboard({ go, user }) {
   const [windowDays, setWindowDays] = useState(180)
   const { data, loading, reload } = useData(() => getDashboard({ windowDays }), [windowDays])
   const [callTarget, setCallTarget] = useState(null) // the renewal row we're logging a call for
   const [openLog, setOpenLog] = useState(null)        // `${clientId}:${code}` whose history is expanded
   const [blockMonth, setBlockMonth] = useState('')    // '' = all months, else 'YYYY-MM'
+  const [openCards, setOpenCards] = useState(loadOpen) // which dashboard cards are expanded
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
   const { renewals, coldList, chase, counts, mlps, awaitingBlocks, assessBlocks } = data
   const role = user?.role || 'ADMIN'
   const see = SECTIONS[role] || SECTIONS.ADMIN
   const windowLabel = (WINDOWS.find(([d]) => d === windowDays) || [, windowDays + ' days'])[1]
+
+  const isOpen = (id) => openCards.has(id)
+  const toggleCard = (id) => setOpenCards((prev) => {
+    const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id)
+    try { localStorage.setItem(DASH_KEY, JSON.stringify([...s])) } catch { /* ignore */ }
+    return s
+  })
 
   const STAT = {
     renew: [counts.renew, `Expiring within ${windowLabel}`, 'amber'],
@@ -102,7 +115,7 @@ export default function Dashboard({ go, user }) {
     <>
       <div className="dash-greet">👋 {greet}{user?.name ? ', ' + user.name : ''} <span className="role-chip">{roleLabel(role)}</span></div>
 
-      <div className="row c3" style={{ marginBottom: 18 }}>
+      <div className="stat-row" style={{ marginBottom: 18 }}>
         {statKeys.map((k) => {
           const [n, l, cls] = STAT[k]
           return <div className="card" key={k}><div className={'body stat ' + cls}><div className="n">{n}</div><div className="l">{l}</div></div></div>
@@ -110,8 +123,7 @@ export default function Dashboard({ go, user }) {
       </div>
 
       {see.renewals && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <h3>🔔 Renewal engine — expiring soon <span className="tag">nightly scan</span></h3>
+        <DashCard id="renewals" title="🔔 Renewal engine — expiring soon" badge="nightly scan" count={renewals.length} open={isOpen('renewals')} onToggle={toggleCard}>
           <div className="body" style={{ paddingBottom: 0 }}>
             <label className="renew-window">Look ahead:&nbsp;
               <select value={windowDays} onChange={(e) => setWindowDays(Number(e.target.value))}>
@@ -134,12 +146,11 @@ export default function Dashboard({ go, user }) {
             </tbody>
           </table>
           <div className="banner">Cross-references qualification expiry against the look-ahead window. A delegate already booked for their renewal drops off the list; if they don't attend, they reappear. Every email and call is individualised and logged (GDPR — no bulk sends).</div>
-        </div>
+        </DashCard>
       )}
 
       {see.renewals && coldList.length > 0 && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <h3>📞 Cold list — phone follow-up <span className="tag">{coldList.length} after {RENEWAL_COLD_THRESHOLD}+ emails</span></h3>
+        <DashCard id="cold" title="📞 Cold list — phone follow-up" badge={`${coldList.length} after ${RENEWAL_COLD_THRESHOLD}+ emails`} open={isOpen('cold')} onToggle={toggleCard}>
           <table>
             <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th style={{ textAlign: 'center' }}>Contacts</th><th>Mobile</th><th>Actions</th></tr></thead>
             <tbody>
@@ -151,12 +162,11 @@ export default function Dashboard({ go, user }) {
             </tbody>
           </table>
           <div className="banner">These delegates haven't answered {RENEWAL_COLD_THRESHOLD} or more renewal emails — work them by phone. Use <b>Log call</b> to record what was said (or "no reply"); it's saved to the contact log under <b>Log</b>.</div>
-        </div>
+        </DashCard>
       )}
 
       {see.scheduling && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <h3>🗓 Blocks awaiting assignment <span className="tag">{blockMonth ? `${shownAwaiting.length} of ${awaitingBlocks.length}` : awaitingBlocks.length}</span></h3>
+        <DashCard id="scheduling" title="🗓 Blocks awaiting assignment" badge={blockMonth ? `${shownAwaiting.length} of ${awaitingBlocks.length}` : awaitingBlocks.length} open={isOpen('scheduling')} onToggle={toggleCard}>
           {blockMonths.length > 1 && (
             <div className="body" style={{ paddingBottom: 0 }}>
               <label className="renew-window">Month:&nbsp;
@@ -181,12 +191,11 @@ export default function Dashboard({ go, user }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </DashCard>
       )}
 
       {see.assessment && (
-        <div className="card" style={{ marginBottom: 18 }}>
-          <h3>✅ Blocks to assess <span className="tag">{assessBlocks.length}</span></h3>
+        <DashCard id="assessment" title="✅ Blocks to assess" badge={assessBlocks.length} open={isOpen('assessment')} onToggle={toggleCard}>
           <table>
             <thead><tr><th>Course</th><th>Dates</th><th style={{ textAlign: 'center' }}>Delegates</th><th></th></tr></thead>
             <tbody>
@@ -201,14 +210,13 @@ export default function Dashboard({ go, user }) {
               ))}
             </tbody>
           </table>
-        </div>
+        </DashCard>
       )}
 
       {(see.outstanding || see.mlps) && (
-        <div className="row c2">
+        <div className="row c2" style={{ alignItems: 'start' }}>
           {see.outstanding && (
-            <div className="card">
-              <h3>💷 Outstanding — to chase</h3>
+            <DashCard id="outstanding" title="💷 Outstanding — to chase" badge={chase.length} open={isOpen('outstanding')} onToggle={toggleCard} inRow>
               <table>
                 <thead><tr><th>Delegate</th><th>Payer</th><th>Flags</th></tr></thead>
                 <tbody>
@@ -218,11 +226,10 @@ export default function Dashboard({ go, user }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DashCard>
           )}
           {see.mlps && (
-            <div className="card">
-              <h3>🎓 Managed Learning Programmes <span className="tag">{(mlps || []).length} on programme</span></h3>
+            <DashCard id="mlps" title="🎓 Managed Learning Programmes" badge={`${(mlps || []).length} on programme`} open={isOpen('mlps')} onToggle={toggleCard} inRow>
               <table>
                 <thead><tr><th>Delegate</th><th>Progress</th><th>Status</th></tr></thead>
                 <tbody>
@@ -239,13 +246,29 @@ export default function Dashboard({ go, user }) {
                   ))}
                 </tbody>
               </table>
-            </div>
+            </DashCard>
           )}
         </div>
       )}
 
       {callTarget && <CallModal target={callTarget} onSave={saveCall} onClose={() => setCallTarget(null)} />}
     </>
+  )
+}
+
+// A collapsible dashboard card. Header (title + badge + count) toggles it; the
+// count shows even when collapsed so the card is still informative at a glance.
+function DashCard({ id, title, badge, count, open, onToggle, children, inRow }) {
+  return (
+    <div className={'card collapsible' + (open ? ' open' : '')} style={inRow ? undefined : { marginBottom: 18 }}>
+      <h3 className="card-toggle" onClick={() => onToggle(id)} title={open ? 'Collapse' : 'Expand'}>
+        <span className="chev">{open ? '▾' : '▸'}</span>
+        {title}
+        {count != null && <span className="card-count">{count}</span>}
+        {badge != null && <span className="tag">{badge}</span>}
+      </h3>
+      {open && children}
+    </div>
   )
 }
 
