@@ -91,11 +91,13 @@ export const store = {
   ],
   bookings: [
     bk(1, 1, 1, 1, false, false, false, null),
-    bk(2, 2, 1, 1, false, false, true, null),
-    bk(3, 3, 2, 2, false, false, false, null),
+    // Demo colours on Block 1/2 (Domestic): Tom=new(green), Gary=reassessment(blue),
+    // Hassan=NYC(amber), Liam=no-show(red) — so the schedule chips show all four kinds.
+    { ...bk(2, 2, 1, 1, false, false, true, null), is_reassessment: true },
+    { ...bk(3, 3, 2, 2, false, false, false, null), disposition: 'NYC' },
     bk(4, 4, 3, 3, false, false, false, null),
     bk(5, 5, 4, 4, false, false, false, null),
-    bk(6, 6, 2, 2, false, false, false, null),
+    { ...bk(6, 6, 2, 2, false, false, false, null), disposition: 'NO_SHOW' },
     // §4.10 demo: Tom (client 1) is re-booked for CCN1 → that qual drops off his renewal list.
     bk(7, 1, 5, 1, false, false, false, null),
   ],
@@ -115,10 +117,10 @@ export const store = {
     bc(13, 7, 1, 'PENDING', null, null), // Tom's CCN1 re-booking (booked-in → drops off renewals)
   ],
   pool: [
-    { id: 101, client_id: 3, scheme: 'ACS Domestic', category_ids: [1, 2, 4] },
-    { id: 102, client_id: 6, scheme: 'ACS Domestic', category_ids: [1, 3] },
+    { id: 101, client_id: 3, scheme: 'ACS Domestic', category_ids: [1, 2, 4], prefFrom: '2026-07-13', prefTo: '2026-07-24' },
+    { id: 102, client_id: 6, scheme: 'ACS Domestic', category_ids: [1, 3], prefFrom: '2026-07-20', prefTo: '2026-07-31' },
     { id: 103, client_id: 7, scheme: 'ACS Domestic', category_ids: [1, 2] },
-    { id: 104, client_id: 1, scheme: 'ACS Domestic', category_ids: [1], kind: 'REASSESS' },
+    { id: 104, client_id: 1, scheme: 'ACS Domestic', category_ids: [1], kind: 'REASSESS', prefFrom: '2026-07-13', prefTo: '2026-07-15' },
     { id: 105, client_id: 2, scheme: 'ACS Domestic', category_ids: [1, 2], mlp: true, igas: true },
     { id: 106, client_id: 4, scheme: 'OFTEC', category_ids: [24, 25] },
     { id: 107, client_id: 5, scheme: 'Renewables', category_ids: [27], kind: 'REASSESS' },
