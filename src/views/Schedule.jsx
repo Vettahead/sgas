@@ -227,6 +227,7 @@ function DragAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
+  const { data: categories } = useData(listCategories)
   const [pool, setPool] = useState(() => getPool())
   const drag = useRef(null)           // { type:'staff'|'delegate', id }
   const [sel, setSel] = useState(null) // click-to-place selection
@@ -355,6 +356,7 @@ function DragAssign({ f }) {
 
                     <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
                     {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
+                    <AddQualForm b={b} categories={categories || []} onDone={reload} />
                     <div className="drop-hint muted small">
                       {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
@@ -414,7 +416,7 @@ function AddQualForm({ b, categories, onDone }) {
     setCatId(''); onDone()
   }
   return (
-    <div className="addqual">
+    <div className="addqual" onClick={(e) => e.stopPropagation()}>
       <div className="fl">+ Add a qualification to a delegate</div>
       <div className="addqual-row">
         <select value={delId} onChange={(e) => { setDelId(e.target.value); setCatId('') }}>
