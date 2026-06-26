@@ -550,6 +550,47 @@ export async function createClient(d) {
   return { ...row, company: co(d.company_id)?.name }
 }
 
+// ---- Inquiries (lead capture, item 1) -----------------------------------
+function inqShape(r) {
+  return {
+    inquiryId: r.inquiry_id, name: r.name, email: r.email || '', mobile: r.mobile || '',
+    courses: r.courses || '', prefFrom: r.pref_date_from || null, prefTo: r.pref_date_to || null,
+    notes: r.notes || '', createdAt: r.created_at,
+  }
+}
+export async function listInquiries() {
+  if (LIVE) {
+    const { data } = await supabase.from('inquiry').select('*').eq('status', 'open').order('created_at', { ascending: false })
+    return (data || []).map(inqShape)
+  }
+  return D.inquiries.filter((x) => x.status === 'open')
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(inqShape)
+}
+export async function createInquiry(d) {
+  const row = {
+    name: d.name, email: d.email || null, mobile: d.mobile || null, courses: d.courses || null,
+    pref_date_from: d.prefFrom || null, pref_date_to: d.prefTo || null, notes: d.notes || null,
+  }
+  if (LIVE) {
+    const { data, error } = await supabase.from('inquiry').insert(row).select().single()
+    if (error) throw new Error(error.message)
+    return inqShape(data)
+  }
+  const inquiry_id = ++D.seq.inquiry
+  const full = { inquiry_id, ...row, status: 'open', created_at: new Date().toISOString(), handled_at: null }
+  D.inquiries.unshift(full)
+  return inqShape(full)
+}
+export async function setInquiryStatus(inquiryId, status) {
+  if (LIVE) {
+    const { error } = await supabase.from('inquiry').update({ status, handled_at: new Date().toISOString() }).eq('inquiry_id', inquiryId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const r = D.inquiries.find((x) => x.inquiry_id === inquiryId)
+  if (r) { r.status = status; r.handled_at = new Date().toISOString() }
+}
+
 // Add a draft booking to the staging pool (one entry per course/scheme ticked).
 // client: { client_id, forename, surname, company_id }
 // cats:   array of { category_id, scheme }

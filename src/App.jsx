@@ -5,6 +5,7 @@ import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
 import { ToastHost } from './components/ToastHost.jsx'
 import Login from './views/Login.jsx'
 import Dashboard from './views/Dashboard.jsx'
+import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
 import Assess from './views/Assess.jsx'
@@ -19,6 +20,7 @@ const SESSION_KEY = 'sgas_user'
 
 const TITLES = {
   dash: ['Dashboard', 'The renewal engine, scheduled sessions, and what is outstanding'],
+  inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   sched: ['Schedule', 'Assign a trainer, assessor and verifier to each Teamup block, then add delegates'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
@@ -33,6 +35,7 @@ const TITLES = {
 const NAV_GROUPS = [
   { grp: 'Operations', items: [
     { v: 'dash', ic: '▦', label: 'Dashboard' },
+    { v: 'inquiries', ic: '💬', label: 'Inquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
     { v: 'assess', ic: '✓', label: 'Assess' },
@@ -75,6 +78,7 @@ export default function App() {
   const [user, setUser] = useState(loadSession)
   const [view, setView] = useState(() => defaultView(loadSession()?.role))
   const [openDelegate, setOpenDelegate] = useState(null)
+  const [bookPrefill, setBookPrefill] = useState(null)
 
   function onLogin(u) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(u))
@@ -91,7 +95,11 @@ export default function App() {
   const isAdmin = user.role === 'ADMIN'
   const allowed = viewsForRole(user.role)
   const nav = buildNav(user.role)
-  const go = (v, delegateId = null) => { setOpenDelegate(delegateId); setView(v) }
+  const go = (v, param = null) => {
+    setOpenDelegate(v === 'delegates' ? param : null)
+    setBookPrefill(v === 'book' ? param : null)
+    setView(v)
+  }
   // Guard: any view the current role can't see falls back to its default view.
   const activeView = allowed.includes(view) ? view : defaultView(user.role)
   const [title, sub] = TITLES[activeView]
@@ -132,7 +140,8 @@ export default function App() {
         </div>
         <div className="content">
           {activeView === 'dash' && <Dashboard go={go} user={user} />}
-          {activeView === 'book' && <Book />}
+          {activeView === 'inquiries' && <Inquiries go={go} />}
+          {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'sched' && <Schedule />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}

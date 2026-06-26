@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { listDelegates, listCompanies, listCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
 import { lookupPostcode } from '../lib/postcode.js'
 import { useData } from '../lib/hooks.js'
@@ -11,7 +11,7 @@ const GAS_SCHEMES = new Set(['ACS Domestic', 'ACS Commercial', 'LPG', 'Catering'
 
 const EMPTY_OPTS = { mlp: false, igas: false, prefFrom: '', prefTo: '' }
 
-export default function Book() {
+export default function Book({ prefill = null }) {
   const { data: delegates, loading: l1, reload: reloadDelegates } = useData(listDelegates)
   const { data: companies, loading: l2, reload: reloadCompanies } = useData(listCompanies)
   const { data: categories, loading: l3 } = useData(listCategories)
@@ -27,6 +27,16 @@ export default function Book() {
   const [showNewCompany, setShowNewCompany] = useState(false)
   const [nc, setNc] = useState({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
   const [nco, setNco] = useState({ name: '', address: '', contact_name: '', phone: '', email: '', sage_ref: '' })
+
+  // Convert-from-inquiry: open the new-delegate form pre-filled from the inquiry.
+  useEffect(() => {
+    if (!prefill) return
+    const parts = (prefill.name || '').trim().split(/\s+/)
+    const forename = parts.shift() || ''
+    const surname = parts.join(' ')
+    setNc((p) => ({ ...p, forename, surname, email: prefill.email || '', mobile: prefill.mobile || '' }))
+    setShowNewClient(true)
+  }, [prefill])
 
   const schemeName = useMemo(() => {
     const m = {}
