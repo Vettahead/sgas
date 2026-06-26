@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { listDelegates, listCompanies, listCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
+import { lookupPostcode } from '../lib/postcode.js'
 import { useData } from '../lib/hooks.js'
 import { toast } from '../lib/toast.js'
 
@@ -24,7 +25,7 @@ export default function Book() {
   const [mlpCourses, setMlpCourses] = useState(() => new Set())
   const [showNewClient, setShowNewClient] = useState(false)
   const [showNewCompany, setShowNewCompany] = useState(false)
-  const [nc, setNc] = useState({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '' })
+  const [nc, setNc] = useState({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
   const [nco, setNco] = useState({ name: '', address: '', contact_name: '', phone: '', email: '', sage_ref: '' })
 
   const schemeName = useMemo(() => {
@@ -83,9 +84,21 @@ export default function Book() {
     const row = await createClient({ ...nc, company_id: Number(nc.company_id) })
     reloadDelegates()
     setClientId(String(row.client_id))
-    setNc({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '' })
+    setNc({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
     setShowNewClient(false)
     toast(`Delegate added: ${row.forename} ${row.surname}`)
+  }
+
+  // Sole-trader helper: open the New company form pre-filled from the delegate's
+  // own details (address, contact, phone, email). User just adds the trading name.
+  function copyToCompany() {
+    const addr = [[nc.premise, nc.street].filter(Boolean).join(' '), nc.town, nc.county, nc.postcode].filter(Boolean).join(', ')
+    setNco({
+      name: '', address: addr,
+      contact_name: `${nc.forename} ${nc.surname}`.trim(),
+      phone: nc.mobile || '', email: nc.email || '', sage_ref: '', _postcode: nc.postcode || '',
+    })
+    setShowNewCompany(true)
   }
 
   async function createBooking() {
@@ -139,21 +152,34 @@ export default function Book() {
                   <Inp label="Mobile" v={nc.mobile} on={(v) => setNc({ ...nc, mobile: v })} />
                   <Inp label="Email" v={nc.email} on={(v) => setNc({ ...nc, email: v })} />
                 </div>
+                <div className="twocol">
+                  <Inp label="House name / number" v={nc.premise} on={(v) => setNc({ ...nc, premise: v })} />
+                  <Inp label="Street" v={nc.street} on={(v) => setNc({ ...nc, street: v })} />
+                </div>
+                <PostcodeLookup value={nc.postcode} onChange={(v) => setNc({ ...nc, postcode: v })}
+                  onResolved={(a) => setNc((p) => ({ ...p, postcode: a.postcode, town: a.town || p.town, county: a.county || p.county }))} />
+                <div className="twocol">
+                  <Inp label="Town" v={nc.town} on={(v) => setNc({ ...nc, town: v })} />
+                  <Inp label="County" v={nc.county} on={(v) => setNc({ ...nc, county: v })} />
+                </div>
                 <div className="field">
                   <label className="fl">Associated company <span className="muted">(pays for their courses)</span></label>
                   <div className="inrow">
                     <select value={nc.company_id} onChange={(e) => setNc({ ...nc, company_id: e.target.value })}>
-                      <option value="">— choose company —</option>
+                      <option value="">— add to existing company —</option>
                       {companies.map((c) => <option key={c.company_id} value={c.company_id}>{c.name}</option>)}
                     </select>
                     <button className="btn ghost sm" onClick={() => setShowNewCompany(!showNewCompany)}>＋ New</button>
                   </div>
+                  <button className="btn ghost sm" type="button" style={{ marginTop: 6 }} onClick={copyToCompany} title="Sole trader? Create their company from these details — just add the trading name.">📋 Copy delegate → new company</button>
                 </div>
                 {showNewCompany && (
                   <div className="subform" style={{ background: '#fff' }}>
                     <div className="sfh">New company</div>
                     <Inp label="Company name" v={nco.name} on={(v) => setNco({ ...nco, name: v })} />
                     <Inp label="Address" v={nco.address} on={(v) => setNco({ ...nco, address: v })} />
+                    <PostcodeLookup value={nco._postcode || ''} onChange={(v) => setNco({ ...nco, _postcode: v })}
+                      onResolved={(a) => setNco((p) => ({ ...p, _postcode: a.postcode, address: p.address?.trim() ? p.address : [a.town, a.county, a.postcode].filter(Boolean).join(', ') }))} />
                     <div className="twocol">
                       <Inp label="Contact" v={nco.contact_name} on={(v) => setNco({ ...nco, contact_name: v })} />
                       <Inp label="Phone" v={nco.phone} on={(v) => setNco({ ...nco, phone: v })} />
@@ -254,6 +280,33 @@ export default function Book() {
         <span className="muted small">Adds the delegate to the unscheduled pool. Confirmation email queues automatically (Flow 1).</span>
       </div>
     </>
+  )
+}
+
+function PostcodeLookup({ value, onChange, onResolved }) {
+  const [msg, setMsg] = useState(null)
+  const [busy, setBusy] = useState(false)
+  async function look() {
+    setBusy(true); setMsg({ text: 'Looking up…', cls: 'muted' })
+    try {
+      const a = await lookupPostcode(value)
+      onResolved(a)
+      setMsg({ text: `✓ ${a.postcode}${a.town ? ' · ' + a.town : ''}${a.county ? ', ' + a.county : ''}`, cls: 'ok' })
+    } catch (e) {
+      setMsg({ text: e.message, cls: 'error' })
+    } finally { setBusy(false) }
+  }
+  return (
+    <div className="field">
+      <label className="fl">Postcode <span className="muted">(look up to fill town/county)</span></label>
+      <div className="inrow">
+        <input type="text" value={value} placeholder="e.g. FY1 4PT" style={{ textTransform: 'uppercase' }}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); look() } }} />
+        <button className="btn ghost sm" type="button" disabled={busy} onClick={look}>🔍 Look up</button>
+      </div>
+      {msg && <div className={'pc-msg ' + msg.cls}>{msg.text}</div>}
+    </div>
   )
 }
 

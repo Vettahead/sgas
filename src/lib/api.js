@@ -538,6 +538,8 @@ export async function createClient(d) {
     const { data, error } = await supabase.from('client').insert({
       company_id: d.company_id, ni_number: d.ni_number, forename: d.forename, surname: d.surname,
       date_of_birth: d.date_of_birth || null, mobile: d.mobile, email: d.email,
+      premise: d.premise || null, street: d.street || null, town: d.town || null,
+      county: d.county || null, postcode: d.postcode || null,
     }).select('client_id,forename,surname,company_id,company:company_id(name)').single()
     if (error) throw error
     return { ...data, company: data.company?.name }

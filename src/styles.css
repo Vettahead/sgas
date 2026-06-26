@@ -102,6 +102,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .subform .sfh{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px}
 .subform .field{margin-bottom:11px}
 .inrow{display:flex;gap:8px}.inrow select,.inrow input{flex:1}
+.pc-msg{font-size:12px;margin-top:5px}
+.pc-msg.ok{color:var(--green)}
+.pc-msg.error{color:var(--red)}
+.pc-msg.muted{color:var(--muted)}
 .seg-tabs{display:flex;gap:8px;margin-bottom:14px}
 .asr-pool{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-bottom:18px}
 .asr-pool .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-right:4px}
