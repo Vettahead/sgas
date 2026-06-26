@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import { appLogin } from '../lib/api.js'
-import logoUrl from '../assets/sgas-logo.svg'
+import logoUrl from '../assets/sgas-logo.png'
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('')
