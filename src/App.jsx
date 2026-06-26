@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { LIVE } from './lib/supabase.js'
-import logoUrl from './assets/sgas-logo.png'
+import logoUrl from './assets/sgas-logo-white.svg'
 import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
 import { ToastHost } from './components/ToastHost.jsx'
 import Login from './views/Login.jsx'
