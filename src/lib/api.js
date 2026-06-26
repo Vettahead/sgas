@@ -917,7 +917,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -928,6 +928,7 @@ export async function listBlocks() {
         bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
         kind: delegateKind(b.disposition, b.is_reassessment),
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
+        categoryIds: (b.booking_category || []).map((x) => x.category_id),
       })),
     }))
   }
@@ -943,6 +944,7 @@ export async function listBlocks() {
         bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
         kind: delegateKind(b.disposition, b.is_reassessment),
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
+        categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
       })),
     })
   })
@@ -996,6 +998,34 @@ export async function addDelegatesToBlock(blockId, poolIds) {
     if (i >= 0) poolList.splice(i, 1)
   }
   return items.length
+}
+
+// Add one or more qualifications to a delegate's EXISTING booking (item 13 —
+// "he's also going to do this"). cats = [{ category_id, kind:'NEW'|'REASSESS' }].
+// Skips qualifications already on the booking; keeps booking.is_reassessment in sync.
+export async function addQualsToBooking(bookingId, cats) {
+  if (!cats || !cats.length) return 0
+  if (LIVE) {
+    const { data: existing } = await supabase.from('booking_category').select('category_id').eq('booking_id', bookingId)
+    const have = new Set((existing || []).map((x) => x.category_id))
+    const rows = cats.filter((c) => !have.has(c.category_id))
+      .map((c) => ({ booking_id: bookingId, category_id: c.category_id, result: 'PENDING', is_reassessment: c.kind === 'REASSESS' }))
+    if (rows.length) {
+      const { error } = await supabase.from('booking_category').insert(rows)
+      if (error) throw new Error(error.message)
+      if (rows.some((r) => r.is_reassessment)) await supabase.from('booking').update({ is_reassessment: true }).eq('booking_id', bookingId)
+    }
+    return rows.length
+  }
+  const have = new Set(D.booking_categories.filter((x) => x.booking_id === bookingId).map((x) => x.category_id))
+  let n = 0
+  for (const c of cats) {
+    if (have.has(c.category_id)) continue
+    D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: bookingId, category_id: c.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: c.kind === 'REASSESS' })
+    have.add(c.category_id); n++
+  }
+  if (n) { const b = D.bookings.find((x) => x.booking_id === bookingId); if (b && cats.some((c) => c.kind === 'REASSESS')) b.is_reassessment = true }
+  return n
 }
 
 // STUB: real Teamup push lands here once API + access keys are in place. It will

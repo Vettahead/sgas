@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, assignBlockRole, addDelegatesToBlock, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, assignBlockRole, addDelegatesToBlock, addQualsToBooking, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -129,6 +129,7 @@ function MenuAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
+  const { data: categories } = useData(listCategories)
   const [pool, setPool] = useState(() => getPool())
   const [picks, setPicks] = useState({})
 
@@ -191,6 +192,7 @@ function MenuAssign({ f }) {
                       </div>
                     ))}
                     <BlockDelegates b={b} />
+                    <AddQualForm b={b} categories={categories || []} onDone={reload} />
                     {poolForScheme.length > 0 && (
                       <div style={{ marginTop: 10 }}>
                         <div className="fl">Add from pool ({b.scheme}{f.delegateType ? ' · ' + kindLabel(f.delegateType) : ''})</div>
@@ -392,6 +394,43 @@ function BlockDelegates({ b }) {
       <div className="fl">Delegates on this block ({b.delegates.length})</div>
       {b.delegates.length === 0 && <div className="muted small" style={{ padding: '4px 0' }}>None yet.</div>}
       {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
+    </div>
+  )
+}
+
+function AddQualForm({ b, categories, onDone }) {
+  const [delId, setDelId] = useState(b.delegates[0]?.bookingId || '')
+  const [catId, setCatId] = useState('')
+  const [kind, setKind] = useState('REASSESS')
+  if (!b.delegates.length) return null
+  const del = b.delegates.find((d) => String(d.bookingId) === String(delId)) || b.delegates[0]
+  const held = new Set(del?.categoryIds || [])
+  const schemeCats = b.scheme ? categories.filter((c) => c.scheme === b.scheme) : categories
+  const available = schemeCats.filter((c) => !held.has(c.category_id))
+  async function add() {
+    if (!delId || !catId) return toast('Pick a delegate and a qualification')
+    const n = await addQualsToBooking(Number(delId), [{ category_id: Number(catId), kind }])
+    toast(n ? `Added ${kind === 'REASSESS' ? 'reassessment' : 'new'} qualification to ${del.name}` : 'Already on this booking')
+    setCatId(''); onDone()
+  }
+  return (
+    <div className="addqual">
+      <div className="fl">+ Add a qualification to a delegate</div>
+      <div className="addqual-row">
+        <select value={delId} onChange={(e) => { setDelId(e.target.value); setCatId('') }}>
+          {b.delegates.map((d) => <option key={d.bookingId} value={d.bookingId}>{d.name}</option>)}
+        </select>
+        <select value={catId} onChange={(e) => setCatId(e.target.value)}>
+          <option value="">- qualification -</option>
+          {available.map((c) => <option key={c.category_id} value={c.category_id}>{c.code}</option>)}
+        </select>
+        <span className="seg">
+          <button className={'kind-re ' + (kind === 'REASSESS' ? 'on' : '')} onClick={() => setKind('REASSESS')}>Re</button>
+          <button className={'kind-new ' + (kind === 'NEW' ? 'on' : '')} onClick={() => setKind('NEW')}>New</button>
+        </span>
+        <button className="btn ghost sm" disabled={!catId} onClick={add}>Add</button>
+      </div>
+      {available.length === 0 && <div className="muted small" style={{ marginTop: 6 }}>All qualifications already on {del?.name}.</div>}
     </div>
   )
 }

@@ -95,6 +95,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .cat.k-re .catstate{background:#0a5ad6;color:#fff}
 .cat.k-new{border-color:#1a8a4b;background:#e4f6ec}
 .cat.k-new .catstate{background:#1a8a4b;color:#fff}
+.addqual{margin-top:10px;padding:10px;border:1px dashed #cfd8e3;border-radius:9px;background:#f7f9fc}
+.addqual-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px}
+.addqual-row select{flex:1;min-width:120px}
 .subform{border:1px solid #cfd8e3;border-radius:10px;padding:12px 13px;margin:0 0 16px;background:#f7f9fc}
 .subform .sfh{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px}
 .subform .field{margin-bottom:11px}
