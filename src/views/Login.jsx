@@ -26,7 +26,6 @@ export default function Login({ onLogin }) {
       <form className="login-card" onSubmit={submit}>
         <div className="brand-lg">SGAS</div>
         <div className="brand-sub">Training Management — staff sign in</div>
-        <div className="brand-sub" style={{ color: '#1a8a4b', fontWeight: 700, marginTop: 4 }}>✅ Deploy test — ACS forms build is live</div>
         {err && <div className="login-err">{err}</div>}
         <div className="field">
           <label className="fl">Username</label>

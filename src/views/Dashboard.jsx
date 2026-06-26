@@ -94,6 +94,7 @@ export default function Dashboard({ go, user }) {
   return (
     <>
       <div className="dash-greet">👋 {greet}{user?.name ? ', ' + user.name : ''} <span className="role-chip">{roleLabel(role)}</span></div>
+      <div style={{ background: '#1a8a4b', color: '#fff', fontWeight: 700, padding: '8px 14px', borderRadius: 8, marginBottom: 14 }}>✅ Deploy test — ACS forms build is live</div>
 
       <div className="row c3" style={{ marginBottom: 18 }}>
         {statKeys.map((k) => {
