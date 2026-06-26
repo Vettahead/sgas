@@ -12,12 +12,12 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 const ROLES = [['trainer', 'Trainer']]
 
 // Booking-type colours for the waiting pool: green = new/full, blue = reassessment.
-const KIND_COLOR = { NEW: '#1a8a4b', REASSESS: '#0a5ad6', NYC: '#b7791f', NO_SHOW: '#c0392b' }
+const KIND_COLOR = { NEW: '#1a8a4b', REASSESS: '#0a5ad6', MIXED: '#7b2ff2', NYC: '#b7791f', NO_SHOW: '#c0392b' }
 const kindColor = (k) => KIND_COLOR[k] || '#48566a'
-const KIND_LABEL = { NEW: 'New', REASSESS: 'Reassessment', NYC: 'NYC (not yet complete)', NO_SHOW: 'No-show' }
+const KIND_LABEL = { NEW: 'New', REASSESS: 'Reassessment', MIXED: 'Mixed (new + reassessment)', NYC: 'NYC (not yet complete)', NO_SHOW: 'No-show' }
 const kindLabel = (k) => KIND_LABEL[k] || 'New'
-const kindTag = (k) => ({ REASSESS: 're', NYC: 'NYC', NO_SHOW: 'no-show' }[k] || '')
-const DELEGATE_TYPES = [['NEW', 'New'], ['REASSESS', 'Reassessment'], ['NYC', 'NYC'], ['NO_SHOW', 'No-show']]
+const kindTag = (k) => ({ REASSESS: 're', MIXED: 'mix', NYC: 'NYC', NO_SHOW: 'no-show' }[k] || '')
+const DELEGATE_TYPES = [['NEW', 'New'], ['REASSESS', 'Reassessment'], ['MIXED', 'Mixed'], ['NYC', 'NYC'], ['NO_SHOW', 'No-show']]
 
 // Preferred-date range for a waiting-pool delegate, if any.
 const prefLabel = (p) => (p.prefFrom || p.prefTo) ? `${p.prefFrom ? fmt(p.prefFrom) : '…'} – ${p.prefTo ? fmt(p.prefTo) : '…'}` : null
@@ -297,7 +297,7 @@ function DragAssign({ f }) {
       </div>
       <div className="asr-pool">
         <span className="lbl">Delegates waiting{f.courseType || f.delegateType ? ' (filtered)' : ''} — drag onto a block card, or click then click a card
-          <span className="kind-legend"><i style={{ background: KIND_COLOR.NEW }}></i>New <i style={{ background: KIND_COLOR.REASSESS }}></i>Reassessment <i style={{ background: KIND_COLOR.NYC }}></i>NYC <i style={{ background: KIND_COLOR.NO_SHOW }}></i>No-show</span>
+          <span className="kind-legend"><i style={{ background: KIND_COLOR.NEW }}></i>New <i style={{ background: KIND_COLOR.REASSESS }}></i>Reassessment <i style={{ background: KIND_COLOR.MIXED }}></i>Mixed <i style={{ background: KIND_COLOR.NYC }}></i>NYC <i style={{ background: KIND_COLOR.NO_SHOW }}></i>No-show</span>
         </span>
         {waiting.length === 0 && <span className="muted small">{allWaiting.length ? 'No waiting delegates match the filter.' : 'Pool empty — book delegates in “Book a Delegate”.'}</span>}
         {waiting.map((p) => {

@@ -448,7 +448,7 @@ export function getPool() {
     const forename = p.forename ?? c?.forename ?? '?'
     const surname = p.surname ?? c?.surname ?? '?'
     return { id: p.id, clientId: p.client_id, name: `${forename} ${surname}`, forename, surname, scheme: p.scheme, categoryIds: p.category_ids, count: p.category_ids.length,
-      kind: p.kind || 'NEW', mlp: !!p.mlp, igas: !!p.igas, prefFrom: p.prefFrom || null, prefTo: p.prefTo || null }
+      kind: p.kind || 'NEW', catKinds: p.cat_kinds || null, mlp: !!p.mlp, igas: !!p.igas, prefFrom: p.prefFrom || null, prefTo: p.prefTo || null }
   })
 }
 
@@ -491,15 +491,15 @@ function reschedEntry(bookingId, clientId, companyId, forename, surname, scheme,
 export async function rescheduleDelegate(bookingId, targetSessionId) {
   if (LIVE) {
     const { data: orig, error: e0 } = await supabase.from('booking')
-      .select('client_id,company_id,booking_category(category_id,result)').eq('booking_id', bookingId).single()
+      .select('client_id,company_id,booking_category(category_id,result,is_reassessment)').eq('booking_id', bookingId).single()
     if (e0) throw e0
-    const cats = (orig.booking_category || []).filter((x) => x.result !== 'PASS').map((x) => x.category_id)
+    const cats = (orig.booking_category || []).filter((x) => x.result !== 'PASS')
     const { data: bk, error: e1 } = await supabase.from('booking')
       .insert({ client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id || null, overall_result: 'PENDING' })
       .select().single()
     if (e1) throw e1
     if (cats.length) {
-      const { error: e2 } = await supabase.from('booking_category').insert(cats.map((cid) => ({ booking_id: bk.booking_id, category_id: cid, result: 'PENDING' })))
+      const { error: e2 } = await supabase.from('booking_category').insert(cats.map((x) => ({ booking_id: bk.booking_id, category_id: x.category_id, result: 'PENDING', is_reassessment: !!x.is_reassessment })))
       if (e2) throw e2
     }
     const { error: e3 } = await supabase.from('booking').update({ rescheduled: true }).eq('booking_id', bookingId)
@@ -508,10 +508,10 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
   }
   const orig = D.bookings.find((x) => x.booking_id === bookingId)
   if (!orig) return
-  const cats = D.booking_categories.filter((x) => x.booking_id === bookingId && x.result !== 'PASS').map((x) => x.category_id)
+  const cats = D.booking_categories.filter((x) => x.booking_id === bookingId && x.result !== 'PASS')
   const newId = ++D.seq.booking
   D.bookings.push({ booking_id: newId, client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_mlp: orig.flag_mlp, flag_igas: orig.flag_igas, flag_payment_outstanding: false, flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null, is_reassessment: orig.is_reassessment, pref_date_from: null, pref_date_to: null, rescheduled: false, last_chased: null, confirmation_sent_at: null })
-  for (const cid of cats) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: newId, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null })
+  for (const x of cats) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: newId, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
   orig.rescheduled = true
 }
 
@@ -554,14 +554,19 @@ export async function createClient(d) {
 // opts:   { kind:'NEW'|'REASSESS', mlp, igas, prefFrom, prefTo } — applied to every entry
 export function addToPool(client, cats, opts = {}) {
   const bySch = {}
-  for (const c of cats) (bySch[c.scheme] = bySch[c.scheme] || []).push(c.category_id)
+  for (const c of cats) (bySch[c.scheme] = bySch[c.scheme] || []).push(c)
   const added = []
-  for (const [scheme, ids] of Object.entries(bySch)) {
+  for (const [scheme, list] of Object.entries(bySch)) {
+    const ids = list.map((c) => c.category_id)
+    const catKinds = {}
+    list.forEach((c) => { catKinds[c.category_id] = c.kind === 'REASSESS' ? 'REASSESS' : 'NEW' })
+    const kinds = new Set(Object.values(catKinds))
+    const summary = kinds.size > 1 ? 'MIXED' : (kinds.has('REASSESS') ? 'REASSESS' : 'NEW')
     const entry = {
       id: ++D.seq.pool, client_id: client.client_id,
       forename: client.forename, surname: client.surname, company_id: client.company_id,
-      scheme, category_ids: ids,
-      kind: opts.kind || 'NEW', mlp: !!opts.mlp, igas: !!opts.igas,
+      scheme, category_ids: ids, cat_kinds: catKinds,
+      kind: summary, mlp: !!opts.mlp, igas: !!opts.igas,
       prefFrom: opts.prefFrom || null, prefTo: opts.prefTo || null,
     }
     poolList.push(entry)
@@ -570,11 +575,19 @@ export function addToPool(client, cats, opts = {}) {
   return added
 }
 
-// Booking columns carrying the options captured at Book time.
+// Is a given category in this pool entry a reassessment? Per-qualification now;
+// falls back to the entry-level kind for older entries without cat_kinds.
+function catReassess(p, cid) {
+  if (p.cat_kinds) return p.cat_kinds[cid] === 'REASSESS'
+  return p.kind === 'REASSESS' || p.kind === 'MIXED'
+}
+
+// Booking columns carrying the options captured at Book time. booking.is_reassessment
+// is a SUMMARY (any qualification a reassessment); the per-qual flag lives on booking_category.
 function bookingAttrs(p) {
   return {
     flag_mlp: !!p.mlp, flag_igas: !!p.igas,
-    is_reassessment: p.kind === 'REASSESS',
+    is_reassessment: p.kind === 'REASSESS' || p.kind === 'MIXED',
     pref_date_from: p.prefFrom || null, pref_date_to: p.prefTo || null,
   }
 }
@@ -591,7 +604,7 @@ export async function scheduleCourse({ scheme, courseId, assessorId, poolIds, fr
         client_id: p.client_id, session_id: sess.session_id, company_id: p.company_id || null, overall_result: 'PENDING', ...bookingAttrs(p),
       }).select().single()
       if (e2) throw e2
-      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING' }))
+      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING', is_reassessment: catReassess(p, cid) }))
       if (rows.length) {
         const { error: e3 } = await supabase.from('booking_category').insert(rows)
         if (e3) throw e3
@@ -604,7 +617,7 @@ export async function scheduleCourse({ scheme, courseId, assessorId, poolIds, fr
       const booking_id = ++D.seq.booking
       D.bookings.push({ booking_id, client_id: p.client_id, session_id, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
       for (const cid of p.category_ids) {
-        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null })
+        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
       }
     }
   }
@@ -904,7 +917,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category:category_id(code)))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -963,7 +976,7 @@ export async function addDelegatesToBlock(blockId, poolIds) {
         .insert({ client_id: p.client_id, session_id: blockId, company_id: p.company_id || null, overall_result: 'PENDING', ...bookingAttrs(p) })
         .select().single()
       if (e1) throw new Error(e1.message)
-      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING' }))
+      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING', is_reassessment: catReassess(p, cid) }))
       if (rows.length) {
         const { error: e2 } = await supabase.from('booking_category').insert(rows)
         if (e2) throw new Error(e2.message)
@@ -974,7 +987,7 @@ export async function addDelegatesToBlock(blockId, poolIds) {
       const booking_id = ++D.seq.booking
       D.bookings.push({ booking_id, client_id: p.client_id, session_id: blockId, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
       for (const cid of p.category_ids) {
-        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null })
+        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
       }
     }
   }

@@ -91,8 +91,6 @@ export const store = {
   ],
   bookings: [
     bk(1, 1, 1, 1, false, false, false, null),
-    // Demo colours on Block 1/2 (Domestic): Tom=new(green), Gary=reassessment(blue),
-    // Hassan=NYC(amber), Liam=no-show(red) — so the schedule chips show all four kinds.
     { ...bk(2, 2, 1, 1, false, false, true, null), is_reassessment: true },
     { ...bk(3, 3, 2, 2, false, false, false, null), disposition: 'NYC' },
     bk(4, 4, 3, 3, false, false, false, null),
@@ -119,7 +117,7 @@ export const store = {
   pool: [
     { id: 101, client_id: 3, scheme: 'ACS Domestic', category_ids: [1, 2, 4], prefFrom: '2026-07-13', prefTo: '2026-07-24' },
     { id: 102, client_id: 6, scheme: 'ACS Domestic', category_ids: [1, 3], prefFrom: '2026-07-20', prefTo: '2026-07-31' },
-    { id: 103, client_id: 7, scheme: 'ACS Domestic', category_ids: [1, 2] },
+    { id: 103, client_id: 7, scheme: 'ACS Domestic', category_ids: [1, 2], kind: 'MIXED', cat_kinds: { 1: 'REASSESS', 2: 'NEW' } },
     { id: 104, client_id: 1, scheme: 'ACS Domestic', category_ids: [1], kind: 'REASSESS', prefFrom: '2026-07-13', prefTo: '2026-07-15' },
     { id: 105, client_id: 2, scheme: 'ACS Domestic', category_ids: [1, 2], mlp: true, igas: true },
     { id: 106, client_id: 4, scheme: 'OFTEC', category_ids: [24, 25] },
@@ -181,6 +179,6 @@ function bk(id, client_id, session_id, company_id, flag_mlp, flag_igas, flag_pay
     igas_evidence_date: null, last_chased, confirmation_sent_at: null,
   }
 }
-function bc(id, booking_id, category_id, result, achieved_date, expiry_date) {
-  return { booking_category_id: id, booking_id, category_id, result, achieved_date, expiry_date }
+function bc(id, booking_id, category_id, result, achieved_date, expiry_date, reassess = false) {
+  return { booking_category_id: id, booking_id, category_id, result, achieved_date, expiry_date, is_reassessment: reassess }
 }

@@ -90,6 +90,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .cat .code{font-weight:650}
 .cat .desc{font-size:11px;color:var(--muted);display:block}
 .cat .yr{margin-left:auto;font-size:10px;color:var(--muted);white-space:nowrap}
+.cat .catstate{flex:none;width:38px;text-align:center;font-size:10px;font-weight:700;padding:3px 0;border-radius:6px;background:#eef1f5;color:var(--pend);text-transform:uppercase;letter-spacing:.3px}
+.cat.k-re{border-color:#0a5ad6;background:#eaf1fd}
+.cat.k-re .catstate{background:#0a5ad6;color:#fff}
+.cat.k-new{border-color:#1a8a4b;background:#e4f6ec}
+.cat.k-new .catstate{background:#1a8a4b;color:#fff}
 .subform{border:1px solid #cfd8e3;border-radius:10px;padding:12px 13px;margin:0 0 16px;background:#f7f9fc}
 .subform .sfh{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-bottom:10px}
 .subform .field{margin-bottom:11px}

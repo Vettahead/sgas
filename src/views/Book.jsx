@@ -8,7 +8,7 @@ import { toast } from '../lib/toast.js'
 // F-gas and Water are deliberately excluded.
 const GAS_SCHEMES = new Set(['ACS Domestic', 'ACS Commercial', 'LPG', 'Catering'])
 
-const EMPTY_OPTS = { kind: 'NEW', mlp: false, igas: false, prefFrom: '', prefTo: '' }
+const EMPTY_OPTS = { mlp: false, igas: false, prefFrom: '', prefTo: '' }
 
 export default function Book() {
   const { data: delegates, loading: l1, reload: reloadDelegates } = useData(listDelegates)
@@ -18,7 +18,7 @@ export default function Book() {
 
   const [clientId, setClientId] = useState('')
   const [query, setQuery] = useState('')
-  const [checked, setChecked] = useState(() => new Set())
+  const [catKind, setCatKind] = useState(() => new Map()) // category_id -> 'REASSESS' | 'NEW'
   const [collapsed, setCollapsed] = useState({})
   const [opts, setOpts] = useState(EMPTY_OPTS)
   const [mlpCourses, setMlpCourses] = useState(() => new Set())
@@ -51,14 +51,18 @@ export default function Book() {
   if (l1 || l2 || l3 || l4) return <div className="loading">Loading…</div>
 
   const selectedClient = delegates.find((d) => String(d.client_id) === String(clientId))
-  const hasGasQual = categories.some((c) => checked.has(c.category_id) && GAS_SCHEMES.has(c.scheme))
+  const hasGasQual = categories.some((c) => catKind.has(c.category_id) && GAS_SCHEMES.has(c.scheme))
   // IGAS only applies to gas certs; auto-off when no gas qualification is ticked.
   const igasEffective = opts.igas && hasGasQual
 
-  function toggleCat(id) {
-    setChecked((prev) => {
-      const n = new Set(prev)
-      n.has(id) ? n.delete(id) : n.add(id)
+  // Click a qualification to cycle: off -> Reassessment -> New -> off.
+  function cycleCat(id) {
+    setCatKind((prev) => {
+      const n = new Map(prev)
+      const cur = n.get(id)
+      if (!cur) n.set(id, 'REASSESS')
+      else if (cur === 'REASSESS') n.set(id, 'NEW')
+      else n.delete(id)
       return n
     })
   }
@@ -86,18 +90,20 @@ export default function Book() {
 
   async function createBooking() {
     if (!clientId) return toast('Pick a delegate first')
-    if (checked.size === 0) return toast('Tick at least one qualification')
+    if (catKind.size === 0) return toast('Set at least one qualification (click to choose Reassessment or New)')
     if (opts.mlp && mlpCourses.size === 0) return toast('Pick the courses in this MLP, or untick MLP')
-    const cats = categories.filter((c) => checked.has(c.category_id)).map((c) => ({ category_id: c.category_id, scheme: c.scheme }))
+    const cats = categories.filter((c) => catKind.has(c.category_id)).map((c) => ({ category_id: c.category_id, scheme: c.scheme, kind: catKind.get(c.category_id) }))
     addToPool(selectedClient, cats, {
-      kind: opts.kind, mlp: opts.mlp, igas: igasEffective,
+      mlp: opts.mlp, igas: igasEffective,
       prefFrom: opts.prefFrom || null, prefTo: opts.prefTo || null,
     })
     if (opts.mlp && mlpCourses.size) await createMLP(selectedClient.client_id, [...mlpCourses])
     const schemes = [...new Set(cats.map((c) => schemeName[c.scheme] || c.scheme))]
-    const tags = [opts.kind === 'REASSESS' ? 'Reassessment' : 'New', opts.mlp && `MLP (${mlpCourses.size} courses)`, igasEffective && 'IGAS'].filter(Boolean).join(', ')
-    toast(`${selectedClient.forename} ${selectedClient.surname} → ${schemes.join(' + ')} pool · ${tags} · ${checked.size} qualifications`)
-    setClientId(''); setChecked(new Set()); setOpts(EMPTY_OPTS); setMlpCourses(new Set()); setQuery('')
+    const kinds = new Set([...catKind.values()])
+    const typeLabel = kinds.size > 1 ? 'Mixed (new + reassessment)' : (kinds.has('REASSESS') ? 'Reassessment' : 'New')
+    const tags = [typeLabel, opts.mlp && `MLP (${mlpCourses.size} courses)`, igasEffective && 'IGAS'].filter(Boolean).join(', ')
+    toast(`${selectedClient.forename} ${selectedClient.surname} → ${schemes.join(' + ')} pool · ${tags} · ${catKind.size} qualifications`)
+    setClientId(''); setCatKind(new Map()); setOpts(EMPTY_OPTS); setMlpCourses(new Set()); setQuery('')
   }
 
   return (
@@ -181,10 +187,7 @@ export default function Book() {
               <div className="sfh">Booking options</div>
               <div className="field">
                 <label className="fl">Assessment type</label>
-                <span className="seg">
-                  <button className={'kind-new ' + (opts.kind === 'NEW' ? 'on' : '')} onClick={() => setOpts({ ...opts, kind: 'NEW' })}>New (full)</button>
-                  <button className={'kind-re ' + (opts.kind === 'REASSESS' ? 'on' : '')} onClick={() => setOpts({ ...opts, kind: 'REASSESS' })}>Reassessment</button>
-                </span>
+                <div className="small muted">Set <b>per qualification</b> on the right — click one to cycle <b style={{ color: '#0a5ad6' }}>Reassessment</b> → <b style={{ color: '#1a8a4b' }}>New</b> → off. A delegate can mix both in one booking.</div>
               </div>
               <label className="chk"><input type="checkbox" checked={opts.mlp} onChange={(e) => setOpts({ ...opts, mlp: e.target.checked })} /> On a Managed Learning Programme (MLP)</label>
               {opts.mlp && (
@@ -213,11 +216,11 @@ export default function Book() {
         </div>
 
         <div className="card">
-          <h3>② Qualifications to attempt <span className="tag">{checked.size} selected</span></h3>
+          <h3>② Qualifications to attempt <span className="tag">{catKind.size} selected</span></h3>
           <div className="body">
-            <div className="hint">Ticked <b>once, here</b>. After the assessment you flip these to pass/fail — no re-ticking.</div>
+            <div className="hint">Click each qualification to cycle <b style={{ color: '#0a5ad6' }}>Reassessment</b> → <b style={{ color: '#1a8a4b' }}>New</b> → off. Set <b>once, here</b>; after the assessment you flip these to pass/fail.</div>
             {Object.entries(grouped).map(([scheme, arr]) => {
-              const sel = arr.filter((c) => checked.has(c.category_id)).length
+              const sel = arr.filter((c) => catKind.has(c.category_id)).length
               const isCollapsed = collapsed[scheme] ?? true
               return (
                 <div className={'cgroup' + (isCollapsed ? ' collapsed' : '')} key={scheme}>
@@ -228,13 +231,16 @@ export default function Book() {
                   </div>
                   <div className="cbody">
                     <div className="cats">
-                      {arr.map((c) => (
-                        <div className={'cat' + (checked.has(c.category_id) ? ' on' : '')} key={c.category_id} onClick={() => toggleCat(c.category_id)}>
-                          <input type="checkbox" readOnly checked={checked.has(c.category_id)} />
-                          <span><span className="code">{c.code}</span><span className="desc">{c.description}</span></span>
-                          <span className="yr">{c.renewal_years ? c.renewal_years + 'yr' : '—'}</span>
-                        </div>
-                      ))}
+                      {arr.map((c) => {
+                        const k = catKind.get(c.category_id)
+                        return (
+                          <div className={'cat' + (k === 'REASSESS' ? ' k-re' : k === 'NEW' ? ' k-new' : '')} key={c.category_id} onClick={() => cycleCat(c.category_id)} title="Click to cycle: Reassessment -> New -> off">
+                            <span className="catstate">{k === 'REASSESS' ? 'Re' : k === 'NEW' ? 'New' : '+'}</span>
+                            <span><span className="code">{c.code}</span><span className="desc">{c.description}</span></span>
+                            <span className="yr">{c.renewal_years ? c.renewal_years + 'yr' : '—'}</span>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 </div>
