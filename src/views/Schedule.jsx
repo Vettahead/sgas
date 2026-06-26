@@ -1,9 +1,9 @@
 import { useRef, useState } from 'react'
-import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, assignBlockRole, addDelegatesToBlock, pushBlockToTeamup, getBlockFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, assignBlockRole, addDelegatesToBlock, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
-import { downloadCombined, downloadZip } from '../lib/acspdf.js'
+import { downloadCombined, downloadZip, downloadForm } from '../lib/acspdf.js'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -18,6 +18,33 @@ const KIND_LABEL = { NEW: 'New', REASSESS: 'Reassessment', NYC: 'NYC (not yet co
 const kindLabel = (k) => KIND_LABEL[k] || 'New'
 const kindTag = (k) => ({ REASSESS: 're', NYC: 'NYC', NO_SHOW: 'no-show' }[k] || '')
 const DELEGATE_TYPES = [['NEW', 'New'], ['REASSESS', 'Reassessment'], ['NYC', 'NYC'], ['NO_SHOW', 'No-show']]
+
+// Preferred-date range for a waiting-pool delegate, if any.
+const prefLabel = (p) => (p.prefFrom || p.prefTo) ? `${p.prefFrom ? fmt(p.prefFrom) : '…'} – ${p.prefTo ? fmt(p.prefTo) : '…'}` : null
+
+// Download a single delegate's ACS form (used from a delegate chip in a block).
+async function delForm(bookingId) {
+  try {
+    const d = await getFormData(bookingId)
+    if (!d) return toast('No form data for this delegate')
+    await downloadForm(d)
+    toast('ACS form generated')
+  } catch (e) { toast(e.message) }
+}
+
+// One delegate inside a block: coloured by kind (new/reassess/NYC/no-show),
+// shows the course codes they're booked for, and the name prints their ACS form.
+function DelegateChip({ d }) {
+  const col = kindColor(d.kind)
+  return (
+    <div className="delg" style={{ borderLeft: `4px solid ${col}` }} title={kindLabel(d.kind)}>
+      <span className="av" style={{ background: col, color: '#fff' }}>{initials(...d.name.split(' '))}</span>
+      <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
+      {d.codes?.length > 0 && <span className="dcodes muted small">· {d.codes.join(', ')}</span>}
+      {kindTag(d.kind) && <span className="b" style={{ marginLeft: 4, background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
+    </div>
+  )
+}
 
 export default function Schedule() {
   const [tab, setTab] = useState('menus')
@@ -174,6 +201,7 @@ function MenuAssign({ f }) {
                             {p.mlp && <span className="b scheme" style={{ marginLeft: 4 }}>MLP</span>}
                             {p.igas && <span className="b scheme">IGAS</span>}
                             <span className="muted small">{p.count} quals</span>
+                            {prefLabel(p) && <span className="muted small" title="Preferred dates">📅 {prefLabel(p)}</span>}
                             <input type="checkbox" readOnly checked={chosen.has(p.id)} />
                           </div>
                         ))}
@@ -280,7 +308,7 @@ function DragAssign({ f }) {
               onDragStart={(e) => { drag.current = { type: 'delegate', id: p.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'delegate') }}
               onDragEnd={() => { drag.current = null }}
               onClick={() => setSel(on ? null : { type: 'delegate', id: p.id })}>
-              {on ? '✓ ' : ''}{p.name} <span className="rm">· {p.scheme || '—'}{kindTag(p.kind) ? ' · ' + kindTag(p.kind) : ''}</span>
+              {on ? '✓ ' : ''}{p.name} <span className="rm">· {p.scheme || '—'}{kindTag(p.kind) ? ' · ' + kindTag(p.kind) : ''}{prefLabel(p) ? ' · 📅 ' + prefLabel(p) : ''}</span>
             </span>
           )
         })}
@@ -324,9 +352,7 @@ function DragAssign({ f }) {
                     })}
 
                     <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
-                    {b.delegates.map((d) => (
-                      <div className="delg" key={d.bookingId}><span className="av">{initials(...d.name.split(' '))}</span>{d.name}</div>
-                    ))}
+                    {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
                     <div className="drop-hint muted small">
                       {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
@@ -365,9 +391,7 @@ function BlockDelegates({ b }) {
     <div style={{ marginTop: 10 }}>
       <div className="fl">Delegates on this block ({b.delegates.length})</div>
       {b.delegates.length === 0 && <div className="muted small" style={{ padding: '4px 0' }}>None yet.</div>}
-      {b.delegates.map((d) => (
-        <div className="delg" key={d.bookingId}><span className="av">{initials(...d.name.split(' '))}</span>{d.name}</div>
-      ))}
+      {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
     </div>
   )
 }

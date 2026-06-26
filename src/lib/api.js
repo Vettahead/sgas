@@ -894,19 +894,28 @@ export async function createStaff(d) {
   return { staff_id, name: d.name }
 }
 
+// Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
+// otherwise reassessment vs new. Mirrors the waiting-pool colour kinds.
+const delegateKind = (disposition, isReassess) =>
+  disposition === 'NO_SHOW' ? 'NO_SHOW' : disposition === 'NYC' ? 'NYC' : isReassess ? 'REASSESS' : 'NEW'
+
 // A "block" = a course session (course + dates) with its three role slots and delegates.
 export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,client:client_id(forename,surname))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category:category_id(code)))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
       course: s.course?.name, scheme: s.course?.scheme,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
-      delegates: (s.booking || []).map((b) => ({ bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}` })),
+      delegates: (s.booking || []).map((b) => ({
+        bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
+        kind: delegateKind(b.disposition, b.is_reassessment),
+        codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
+      })),
     }))
   }
   return D.sessions.map((s) => {
@@ -917,7 +926,11 @@ export async function listBlocks() {
       course: course?.name, scheme: course?.scheme,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
-      delegates: bks.map((b) => ({ bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}` })),
+      delegates: bks.map((b) => ({
+        bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
+        kind: delegateKind(b.disposition, b.is_reassessment),
+        codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
+      })),
     })
   })
 }

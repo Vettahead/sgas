@@ -31,6 +31,7 @@ export default function Dashboard({ go, user }) {
   const { data, loading, reload } = useData(() => getDashboard({ windowDays }), [windowDays])
   const [callTarget, setCallTarget] = useState(null) // the renewal row we're logging a call for
   const [openLog, setOpenLog] = useState(null)        // `${clientId}:${code}` whose history is expanded
+  const [blockMonth, setBlockMonth] = useState('')    // '' = all months, else 'YYYY-MM'
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
   const { renewals, coldList, chase, counts, mlps, awaitingBlocks, assessBlocks } = data
   const role = user?.role || 'ADMIN'
@@ -47,6 +48,12 @@ export default function Dashboard({ go, user }) {
   }
   const statKeys = STAT_KEYS[role] || STAT_KEYS.ADMIN
   const logKey = (r) => `${r.clientId}:${r.code}`
+
+  // Month filter for "blocks awaiting assignment" (the meeting asked to filter by month).
+  const monthKey = (iso) => (iso ? iso.slice(0, 7) : '')
+  const monthName = (key) => { const [y, m] = key.split('-'); return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }) }
+  const blockMonths = [...new Set((awaitingBlocks || []).map((b) => monthKey(b.start)).filter(Boolean))].sort()
+  const shownAwaiting = blockMonth ? (awaitingBlocks || []).filter((b) => monthKey(b.start) === blockMonth) : (awaitingBlocks || [])
 
   // Send one individualised renewal email (GDPR: one-by-one, never bulk).
   async function emailRenewal(r) {
@@ -149,12 +156,22 @@ export default function Dashboard({ go, user }) {
 
       {see.scheduling && (
         <div className="card" style={{ marginBottom: 18 }}>
-          <h3>🗓 Blocks awaiting assignment <span className="tag">{awaitingBlocks.length}</span></h3>
+          <h3>🗓 Blocks awaiting assignment <span className="tag">{blockMonth ? `${shownAwaiting.length} of ${awaitingBlocks.length}` : awaitingBlocks.length}</span></h3>
+          {blockMonths.length > 1 && (
+            <div className="body" style={{ paddingBottom: 0 }}>
+              <label className="renew-window">Month:&nbsp;
+                <select value={blockMonth} onChange={(e) => setBlockMonth(e.target.value)}>
+                  <option value="">All months</option>
+                  {blockMonths.map((k) => <option key={k} value={k}>{monthName(k)}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
           <table>
             <thead><tr><th>Course</th><th>Dates</th><th>Still needs</th><th></th></tr></thead>
             <tbody>
-              {awaitingBlocks.length === 0 && <tr><td colSpan={4} className="empty">Every block has a trainer and delegates</td></tr>}
-              {awaitingBlocks.map((b) => (
+              {shownAwaiting.length === 0 && <tr><td colSpan={4} className="empty">{blockMonth ? 'No blocks awaiting assignment this month' : 'Every block has a trainer and delegates'}</td></tr>}
+              {shownAwaiting.map((b) => (
                 <tr key={b.id}>
                   <td><b>{b.course}</b></td>
                   <td className="nowrap">{fmt(b.start)} – {fmt(b.end)}</td>
