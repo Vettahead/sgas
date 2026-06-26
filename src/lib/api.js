@@ -550,6 +550,50 @@ export async function createClient(d) {
   return { ...row, company: co(d.company_id)?.name }
 }
 
+// ---- Course & qualification catalogue (item 5) --------------------------
+export async function createCourse(d) {
+  const row = { name: d.name, scheme: d.scheme || null, price: d.price ?? null, teamup_designator: d.teamup_designator || null, is_active: d.is_active !== false }
+  if (LIVE) {
+    const { data, error } = await supabase.from('course').insert(row).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  }
+  const course_id = ++D.seq.course
+  const full = { course_id, ...row, scheme: d.scheme || '', teamup_designator: d.teamup_designator || '' }
+  D.courses.push(full)
+  return full
+}
+export async function updateCourse(courseId, d) {
+  if (LIVE) {
+    const { error } = await supabase.from('course').update(d).eq('course_id', courseId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const c = crs(courseId)
+  if (c) Object.assign(c, d)
+}
+export async function createCategory(d) {
+  const row = { code: d.code, description: d.description || null, scheme: d.scheme || null, renewal_years: d.renewal_years ?? null, is_active: true }
+  if (LIVE) {
+    const { data, error } = await supabase.from('category').insert(row).select().single()
+    if (error) throw new Error(error.message)
+    return data
+  }
+  const category_id = ++D.seq.cat
+  const full = { category_id, ...row, description: d.description || '', scheme: d.scheme || '' }
+  D.categories.push(full)
+  return full
+}
+export async function updateCategory(categoryId, d) {
+  if (LIVE) {
+    const { error } = await supabase.from('category').update(d).eq('category_id', categoryId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const c = cat(categoryId)
+  if (c) Object.assign(c, d)
+}
+
 // ---- Inquiries (lead capture, item 1) -----------------------------------
 function inqShape(r) {
   return {
