@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { LIVE } from './lib/supabase.js'
+import logoUrl from './assets/sgas-logo.png'
 import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
 import { ToastHost } from './components/ToastHost.jsx'
 import Login from './views/Login.jsx'
@@ -100,7 +101,7 @@ export default function App() {
   return (
     <div className="app">
       <aside className="side">
-        <div className="brand"><b>SGAS</b><span>Training Management</span></div>
+        <div className="brand"><img className="brand-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" /><span>Training Management</span></div>
         <nav className="nav">
           {nav.map((item, i) =>
             item.grp ? (

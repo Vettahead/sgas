@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 170" role="img" aria-label="SGAS — Specialist Gas Assessment Services">
+  <defs>
+    <linearGradient id="sgasBlue" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#86d6f7"/>
+      <stop offset="0.45" stop-color="#2ba8e0"/>
+      <stop offset="1" stop-color="#0f6cb2"/>
+    </linearGradient>
+    <linearGradient id="sgasDrop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#bdeafc"/>
+      <stop offset="0.55" stop-color="#33aae2"/>
+      <stop offset="1" stop-color="#0f6cb2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- flame / water-drop mark -->
+  <path d="M150 12 C 163 33, 176 44, 176 56 a 26 26 0 1 1 -52 0 C 124 44, 137 33, 150 12 Z"
+        fill="url(#sgasDrop)"/>
+  <path d="M150 22 C 158 36, 166 45, 166 55 a 16 16 0 0 1 -32 0 C 134 45, 142 36, 150 22 Z"
+        fill="#ffffff" opacity="0.28"/>
+
+  <!-- wordmark -->
+  <text x="150" y="124" text-anchor="middle"
+        font-family="'Arial Black','Helvetica Neue',Arial,sans-serif" font-weight="900"
+        font-size="62" letter-spacing="3" fill="url(#sgasBlue)">SGAS</text>
+
+  <!-- strapline -->
+  <text x="150" y="152" text-anchor="middle"
+        font-family="Arial,Helvetica,sans-serif" font-weight="700"
+        font-size="11" letter-spacing="1.6" fill="#46586c">SPECIALIST GAS ASSESSMENT SERVICES</text>
+</svg>

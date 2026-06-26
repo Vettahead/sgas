@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import { appLogin } from '../lib/api.js'
+import logoUrl from '../assets/sgas-logo.png'
 
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState('')
@@ -24,7 +25,7 @@ export default function Login({ onLogin }) {
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
-        <div className="brand-lg">SGAS</div>
+        <img className="login-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" />
         <div className="brand-sub">Training Management — staff sign in</div>
         {err && <div className="login-err">{err}</div>}
         <div className="field">
