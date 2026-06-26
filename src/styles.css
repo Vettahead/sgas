@@ -121,9 +121,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .delg .dn-link{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit}
 .delg .dn-link:hover{color:var(--brand);text-decoration-style:solid}
 .delg .dcodes{font-weight:600;color:var(--muted)}
-.delg .dn-link{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;color:inherit}
-.delg .dn-link:hover{color:var(--brand);text-decoration-style:solid}
-.delg .dcodes{font-weight:600;color:var(--muted)}
+.delg-wrap{margin-bottom:5px}
+.delg-wrap .delg{margin-bottom:0}
+.delg-wrap .addqual{margin-top:6px}
+.delg .addq-btn{margin-left:auto;flex:none;width:22px;height:22px;border:none;border-radius:50%;background:var(--brand);color:#fff;font-size:15px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.delg .addq-btn:hover{background:var(--brand-dark)}
 .asr-drop{margin-top:8px;border:1px dashed #cfd8e3;border-radius:9px;padding:10px;text-align:center;color:var(--pend);font-size:12px;transition:.12s}
 .asr-drop.over{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-dark)}
 .asr-drop.set{border-style:solid;background:#fff;color:var(--ink);text-align:left;display:flex;align-items:center;gap:9px}

@@ -34,14 +34,20 @@ async function delForm(bookingId) {
 
 // One delegate inside a block: coloured by kind (new/reassess/NYC/no-show),
 // shows the course codes they're booked for, and the name prints their ACS form.
-function DelegateChip({ d }) {
+function DelegateChip({ d, scheme, categories, onAdded }) {
   const col = kindColor(d.kind)
+  const [open, setOpen] = useState(false)
+  const canAdd = Boolean(categories && onAdded)
   return (
-    <div className="delg" style={{ borderLeft: `4px solid ${col}` }} title={kindLabel(d.kind)}>
-      <span className="av" style={{ background: col, color: '#fff' }}>{initials(...d.name.split(' '))}</span>
-      <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
-      {d.codes?.length > 0 && <span className="dcodes muted small">· {d.codes.join(', ')}</span>}
-      {kindTag(d.kind) && <span className="b" style={{ marginLeft: 4, background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
+    <div className="delg-wrap">
+      <div className="delg" style={{ borderLeft: `4px solid ${col}` }} title={kindLabel(d.kind)}>
+        <span className="av" style={{ background: col, color: '#fff' }}>{initials(...d.name.split(' '))}</span>
+        <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
+        {d.codes?.length > 0 && <span className="dcodes muted small">· {d.codes.join(', ')}</span>}
+        {kindTag(d.kind) && <span className="b" style={{ marginLeft: 4, background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
+        {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
+      </div>
+      {open && canAdd && <AddQualRow d={d} scheme={scheme} categories={categories} onAdded={() => { onAdded(); setOpen(false) }} />}
     </div>
   )
 }
@@ -191,8 +197,7 @@ function MenuAssign({ f }) {
                         </select>
                       </div>
                     ))}
-                    <BlockDelegates b={b} />
-                    <AddQualForm b={b} categories={categories || []} onDone={reload} />
+                    <BlockDelegates b={b} categories={categories || []} onAdded={reload} />
                     {poolForScheme.length > 0 && (
                       <div style={{ marginTop: 10 }}>
                         <div className="fl">Add from pool ({b.scheme}{f.delegateType ? ' · ' + kindLabel(f.delegateType) : ''})</div>
@@ -355,8 +360,7 @@ function DragAssign({ f }) {
                     })}
 
                     <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
-                    {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
-                    <AddQualForm b={b} categories={categories || []} onDone={reload} />
+                    {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} categories={categories || []} onAdded={reload} key={d.bookingId} />)}
                     <div className="drop-hint muted small">
                       {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
@@ -390,41 +394,35 @@ function BlockHeader({ b, open, onToggle }) {
     </div>
   )
 }
-function BlockDelegates({ b }) {
+function BlockDelegates({ b, categories, onAdded }) {
   return (
     <div style={{ marginTop: 10 }}>
       <div className="fl">Delegates on this block ({b.delegates.length})</div>
       {b.delegates.length === 0 && <div className="muted small" style={{ padding: '4px 0' }}>None yet.</div>}
-      {b.delegates.map((d) => <DelegateChip d={d} key={d.bookingId} />)}
+      {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
     </div>
   )
 }
 
-function AddQualForm({ b, categories, onDone }) {
-  const [delId, setDelId] = useState(b.delegates[0]?.bookingId || '')
+// Per-delegate add-qualification panel, revealed by the + on a delegate chip.
+function AddQualRow({ d, scheme, categories, onAdded }) {
   const [catId, setCatId] = useState('')
   const [kind, setKind] = useState('REASSESS')
-  if (!b.delegates.length) return null
-  const del = b.delegates.find((d) => String(d.bookingId) === String(delId)) || b.delegates[0]
-  const held = new Set(del?.categoryIds || [])
-  const schemeCats = b.scheme ? categories.filter((c) => c.scheme === b.scheme) : categories
+  const held = new Set(d.categoryIds || [])
+  const schemeCats = scheme ? categories.filter((c) => c.scheme === scheme) : categories
   const available = schemeCats.filter((c) => !held.has(c.category_id))
   async function add() {
-    if (!delId || !catId) return toast('Pick a delegate and a qualification')
-    const n = await addQualsToBooking(Number(delId), [{ category_id: Number(catId), kind }])
-    toast(n ? `Added ${kind === 'REASSESS' ? 'reassessment' : 'new'} qualification to ${del.name}` : 'Already on this booking')
-    setCatId(''); onDone()
+    if (!catId) return toast('Pick a qualification')
+    const n = await addQualsToBooking(Number(d.bookingId), [{ category_id: Number(catId), kind }])
+    toast(n ? `Added ${kind === 'REASSESS' ? 'reassessment' : 'new'} qualification to ${d.name}` : 'Already on this booking')
+    onAdded()
   }
   return (
     <div className="addqual" onClick={(e) => e.stopPropagation()}>
-      <div className="fl">+ Add a qualification to a delegate</div>
       <div className="addqual-row">
-        <select value={delId} onChange={(e) => { setDelId(e.target.value); setCatId('') }}>
-          {b.delegates.map((d) => <option key={d.bookingId} value={d.bookingId}>{d.name}</option>)}
-        </select>
         <select value={catId} onChange={(e) => setCatId(e.target.value)}>
           <option value="">- qualification -</option>
-          {available.map((c) => <option key={c.category_id} value={c.category_id}>{c.code}</option>)}
+          {available.map((c) => <option key={c.category_id} value={c.category_id}>{c.code} · {c.description}</option>)}
         </select>
         <span className="seg">
           <button className={'kind-re ' + (kind === 'REASSESS' ? 'on' : '')} onClick={() => setKind('REASSESS')}>Re</button>
@@ -432,7 +430,7 @@ function AddQualForm({ b, categories, onDone }) {
         </span>
         <button className="btn ghost sm" disabled={!catId} onClick={add}>Add</button>
       </div>
-      {available.length === 0 && <div className="muted small" style={{ marginTop: 6 }}>All qualifications already on {del?.name}.</div>}
+      {available.length === 0 && <div className="muted small" style={{ marginTop: 6 }}>All {scheme || 'scheme'} qualifications already on {d.name}.</div>}
     </div>
   )
 }
