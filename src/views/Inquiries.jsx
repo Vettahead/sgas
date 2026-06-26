@@ -57,21 +57,20 @@ export default function Inquiries({ go }) {
           <div className="hint">Anyone on reception can grab a lead in seconds — a name, a way to reach them, and what they want. Fill in what you have; the rest can wait.</div>
           <div className="field">
             <label className="fl">Name</label>
-            <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="First name is fine" autoFocus />
+            <input type="text" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="First name is fine" autoFocus />
           </div>
           <div className="twocol">
-            <div className="field"><label className="fl">Email</label><input value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
-            <div className="field"><label className="fl">Mobile</label><input value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></div>
+            <div className="field"><label className="fl">Email</label><input type="text" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></div>
+            <div className="field"><label className="fl">Mobile</label><input type="text" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} /></div>
           </div>
           <div className="small muted" style={{ marginTop: -8, marginBottom: 12 }}>At least one of email / mobile.</div>
 
           <label className="fl">Courses they're interested in</label>
-          <div className="cats" style={{ marginBottom: 14 }}>
+          <div className="inq-courses">
             {(courses || []).map((c) => (
-              <div key={c.course_id} className={'cat' + (picked.has(c.name) ? ' on' : '')} onClick={() => toggleCourse(c.name)}>
-                <input type="checkbox" readOnly checked={picked.has(c.name)} />
-                <span><span className="code">{c.name}</span></span>
-              </div>
+              <button type="button" key={c.course_id} className={'inq-chip' + (picked.has(c.name) ? ' on' : '')} onClick={() => toggleCourse(c.name)}>
+                {picked.has(c.name) ? '✓ ' : ''}{c.name}
+              </button>
             ))}
           </div>
 

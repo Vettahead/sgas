@@ -107,6 +107,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .pc-msg.ok{color:var(--green)}
 .pc-msg.error{color:var(--red)}
 .pc-msg.muted{color:var(--muted)}
+.inq-courses{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 16px}
+.inq-chip{border:1px solid #cfd8e3;background:#fff;border-radius:20px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;transition:.12s}
+.inq-chip:hover{border-color:var(--brand);color:var(--brand-dark)}
+.inq-chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-dark)}
 .seg-tabs{display:flex;gap:8px;margin-bottom:14px}
 .asr-pool{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-bottom:18px}
 .asr-pool .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-right:4px}
