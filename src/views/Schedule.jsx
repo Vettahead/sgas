@@ -276,12 +276,11 @@ function DragAssign({ f }) {
   }
   async function addDelegate(blockId, poolItem) {
     const blk = blocks.find((b) => b.id === blockId)
-    if (blk?.scheme && poolItem.scheme && poolItem.scheme !== blk.scheme) {
-      return toast(`${poolItem.name} booked ${poolItem.scheme}, not this course`)
-    }
+    // Allow-but-flag: a different-scheme delegate can still be placed; it's flagged on the roster.
+    const mismatch = blk?.scheme && poolItem.scheme && poolItem.scheme !== blk.scheme
     if (String(poolItem.id).startsWith('rb-')) await rescheduleDelegate(poolItem.bookingId, blockId)
     else await addDelegatesToBlock(blockId, [poolItem.id])
-    toast(`Added ${poolItem.name}${poolItem.origin ? ' (' + kindLabel(poolItem.origin) + ')' : ''}`)
+    toast(`Added ${poolItem.name}${mismatch ? ' ⚠ ' + poolItem.scheme + ' — different scheme, flagged' : ''}${poolItem.origin ? ' (' + kindLabel(poolItem.origin) + ')' : ''}`)
     setPool(getPool()); reloadResched(); reload()
   }
   // Staff drop onto a specific role slot. Delegates fall through to the whole card.
