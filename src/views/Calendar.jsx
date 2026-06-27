@@ -457,7 +457,7 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
   return (
     <div className="yc-row">
       <div className="yc-mlabel">{YMONTHS[m]}<small>{y}</small></div>
-      <div className="yc-track" style={{ gridTemplateColumns: `repeat(${YCOLS}, 1fr)`, gridTemplateRows: `22px repeat(${lanes}, 28px)` }}>
+      <div className="yc-track" style={{ gridTemplateColumns: `repeat(${YCOLS}, 1fr)`, gridTemplateRows: `24px repeat(${lanes}, 34px)` }}>
         {Array.from({ length: YCOLS }, (_, c) => {
           const inMonth = c >= offset && c < offset + dim
           const day = c - offset + 1

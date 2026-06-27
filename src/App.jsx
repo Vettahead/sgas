@@ -9,7 +9,6 @@ import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
 import Calendar from './views/Calendar.jsx'
-import Calendar2 from './views/Calendar2.jsx'
 import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
@@ -25,8 +24,7 @@ const TITLES = {
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   sched: ['Schedule', 'Assign a trainer, assessor and verifier to each Teamup block, then add delegates'],
-  calendar: ['Calendar 1 · DayPilot', 'Drag to create blocks, move or resize them, and see everything by month, week, day or staff'],
-  calendar2: ['Calendar 2 · Big Cal', 'A/B alternative — react-big-calendar (Google/Outlook style). Same blocks, drag-create / move / resize.'],
+  calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day, staff or year'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -42,8 +40,7 @@ const NAV_GROUPS = [
     { v: 'inquiries', ic: '💬', label: 'Inquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
-    { v: 'calendar', ic: '📅', label: 'Calendar 1 · DayPilot' },
-    { v: 'calendar2', ic: '🗓', label: 'Calendar 2 · Big Cal' },
+    { v: 'calendar', ic: '📅', label: 'Calendar' },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
@@ -150,7 +147,6 @@ export default function App() {
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'sched' && <Schedule />}
           {activeView === 'calendar' && <Calendar go={go} />}
-          {activeView === 'calendar2' && <Calendar2 go={go} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
