@@ -588,3 +588,4 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .att-edit input[type=date]{width:auto;padding:3px 6px;font-size:11px}
 .att-full{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--slate)}
 .att-full input{width:auto}
+.att-hint{font-size:10px}

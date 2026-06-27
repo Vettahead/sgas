@@ -377,38 +377,34 @@ function ViewChooser({ block, onPick, onClose }) {
 function AttendanceEdit({ d, block, busy, onSave }) {
   const full0 = !d.attendFrom && !d.attendTo
   const [editing, setEditing] = useState(false)
-  const [full, setFull] = useState(full0)
   const [from, setFrom] = useState(d.attendFrom || block.start)
   const [to, setTo] = useState(d.attendTo || block.end)
   if (!editing) {
     return (
       <span className="att-line">
-        <span className={'att-tag ' + (full0 ? 'full' : 'part')}>{full0 ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
+        <span className={'att-tag ' + (full0 ? 'full' : 'part')}>{full0 ? '🗓 Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
         <button className="att-change" onClick={() => setEditing(true)} disabled={busy}>Change</button>
       </span>
     )
   }
   function save() {
-    if (!full) {
-      if (from < block.start || to > block.end) return toast('Dates must be within the block')
-      if (from > to) return toast('From must be on or before To')
-    }
-    const isFull = full || (from === block.start && to === block.end)
+    if (from < block.start || to > block.end) return toast('Dates must be within the block (' + ddmm(block.start) + '–' + ddmm(block.end) + ')')
+    if (from > to) return toast('From must be on or before To')
+    // Leaving the dates at the full block span keeps it a full course (null/null).
+    const isFull = from === block.start && to === block.end
     onSave(isFull ? null : from, isFull ? null : to)
     setEditing(false)
   }
   return (
     <span className="att-edit">
-      <label className="att-full"><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} /> Full course</label>
-      {!full && (
-        <span className="att-dates">
-          <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
-          <span>–</span>
-          <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
-        </span>
-      )}
+      <span className="att-dates">
+        <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
+        <span>–</span>
+        <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
+      </span>
       <button className="att-change" onClick={save} disabled={busy}>Save</button>
       <button className="att-change" onClick={() => setEditing(false)} disabled={busy}>✕</button>
+      <span className="muted att-hint">full span = full course</span>
     </span>
   )
 }
