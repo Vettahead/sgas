@@ -569,3 +569,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .pool-grp-head strong{font-size:12.5px}
 .pool-grp-n{margin-left:auto;font-size:11px;color:var(--muted);background:#eef2f7;padding:1px 8px;border-radius:20px}
 .pool-grp .cal-delg{padding:6px 8px}
+
+/* admin view/edit chooser + mode toggle */
+.cal-modeseg{display:flex;margin-top:10px;border:1px solid #cfd8e3;border-radius:8px;overflow:hidden;width:fit-content}
+.cal-modeseg button{border:none;background:#fff;padding:5px 11px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--slate)}
+.cal-modeseg button.on{background:var(--brand);color:#fff}
+.chooser{display:flex;gap:10px;margin-top:12px}
+.chooser-opt{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:13px;border:1px solid #cfd8e3;border-radius:10px;background:#fff;cursor:pointer;text-align:left;font:inherit}
+.chooser-opt:hover{border-color:var(--brand);background:var(--brand-soft)}
+.chooser-ic{font-size:20px}
+.chooser-opt strong{font-size:13px}

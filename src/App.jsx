@@ -148,7 +148,7 @@ export default function App() {
           {activeView === 'inquiries' && <Inquiries go={go} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'sched' && <Schedule />}
-          {activeView === 'calendar' && <Calendar go={go} />}
+          {activeView === 'calendar' && <Calendar go={go} isAdmin={isAdmin} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
