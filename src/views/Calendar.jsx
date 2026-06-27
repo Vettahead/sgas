@@ -16,6 +16,7 @@ const VIEWS = [
   { v: 'Week', label: 'Week' },
   { v: 'Day', label: 'Day' },
   { v: 'Resources', label: 'Staff lanes' },
+  { v: 'Year', label: 'Year' },
 ]
 
 function loadPrefs() {
@@ -34,6 +35,10 @@ function endIso(dp) {
   return s.slice(0, 10)
 }
 const todayISO = () => new Date().toISOString().slice(0, 10)
+const YMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const YDOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
+const YCOLS = 37 // max columns to fit any month: weekday offset (0-6) + up to 31 days
+const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
 
 export default function Calendar({ go }) {
   const saved = loadPrefs()
@@ -43,6 +48,7 @@ export default function Calendar({ go }) {
   const [showFinished, setShowFinished] = useState(saved.showFinished ?? true)
   const [staffFilter, setStaffFilter] = useState(saved.staffFilter || '')
   const [anchor, setAnchor] = useState(new DayPilot.Date(todayISO()))
+  const [numMonths, setNumMonths] = useState(saved.numMonths || 12)
 
   const [blocks, setBlocks] = useState(null)
   const [courses, setCourses] = useState([])
@@ -58,7 +64,7 @@ export default function Calendar({ go }) {
     setBlocks(b); setCourses(c); setStaff(s)
   }
   useEffect(() => { refresh() }, [])
-  useEffect(() => { savePrefs({ view, scheme, colourBy, showFinished, staffFilter }) }, [view, scheme, colourBy, showFinished, staffFilter])
+  useEffect(() => { savePrefs({ view, scheme, colourBy, showFinished, staffFilter, numMonths }) }, [view, scheme, colourBy, showFinished, staffFilter, numMonths])
 
   const schemes = useMemo(() => [...new Set((courses || []).map((c) => c.scheme).filter(Boolean))].sort(), [courses])
 
@@ -113,7 +119,7 @@ export default function Calendar({ go }) {
   }, [filtered, staff])
 
   function move(dir) {
-    const map = { Month: 'months', Week: 'days', Day: 'days', Resources: 'days' }
+    const map = { Month: 'months', Week: 'days', Day: 'days', Resources: 'days', Year: 'months' }
     const n = view === 'Week' ? 7 : view === 'Month' ? 1 : 1
     const unit = map[view]
     setAnchor((a) => (unit === 'months' ? a.addMonths(dir) : a.addDays(dir * n)))
@@ -138,6 +144,7 @@ export default function Calendar({ go }) {
         staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter}
         colourBy={colourBy} setColourBy={setColourBy}
         showFinished={showFinished} setShowFinished={setShowFinished}
+        numMonths={numMonths} setNumMonths={setNumMonths}
       />
 
       {blocks === null ? (
@@ -171,6 +178,9 @@ export default function Calendar({ go }) {
           onBeforeEventRender={renderEvent}
           onEventClick={(args) => setOpenBlock(args.e.data.block)}
         />
+      ) : view === 'Year' ? (
+        <YearView blocks={filtered} colourFor={colourFor} numMonths={numMonths} anchor={anchor}
+          onOpen={setOpenBlock} onCreate={(from, to) => setCreating({ from, to })} />
       ) : (
         <DayPilotCalendar
           ref={calRef}
@@ -206,9 +216,9 @@ export default function Calendar({ go }) {
   )
 }
 
-function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, scheme, setScheme, staff, staffFilter, setStaffFilter, colourBy, setColourBy, showFinished, setShowFinished }) {
-  const label = view === 'Month'
-    ? anchor.toString('MMMM yyyy')
+function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, scheme, setScheme, staff, staffFilter, setStaffFilter, colourBy, setColourBy, showFinished, setShowFinished, numMonths, setNumMonths }) {
+  const label = (view === 'Month' || view === 'Year')
+    ? anchor.toString('MMMM yyyy') + (view === 'Year' ? ' →' : '')
     : anchor.toString('d MMM yyyy')
   return (
     <div className="cal-toolbar">
@@ -224,6 +234,13 @@ function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, scheme, s
         ))}
       </div>
       <div className="cal-filters">
+        {view === 'Year' && (
+          <label className="yc-months">Months
+            <select value={numMonths} onChange={(e) => setNumMonths(Number(e.target.value))}>
+              {[3, 6, 9, 12, 18, 24].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </label>
+        )}
         <select value={scheme} onChange={(e) => setScheme(e.target.value)}>
           <option value="">All schemes</option>
           {schemes.map((s) => <option key={s} value={s}>{s}</option>)}
@@ -319,6 +336,112 @@ function BlockDrawer({ b, go, onClose }) {
           <button className="btn ghost" onClick={onClose}>Close</button>
           {go && <button className="btn" onClick={() => { onClose(); go('sched') }}>Open in Schedule →</button>}
         </div>
+      </div>
+    </div>
+  )
+}
+
+/* ============================ Year view ============================ */
+/* Teamup-style: each month is a row, days are weekday-aligned columns, course
+ * blocks are colour bars that stack into lanes. Drag across day cells to create. */
+function YearView({ blocks, colourFor, numMonths, anchor, onOpen, onCreate }) {
+  const startY = Number(anchor.toString('yyyy'))
+  const startM = Number(anchor.toString('MM')) - 1
+  const [dragStart, setDragStart] = useState(null)
+  const [dragEnd, setDragEnd] = useState(null)
+
+  const months = []
+  let y = startY, m = startM
+  for (let i = 0; i < numMonths; i++) { months.push({ y, m }); m++; if (m > 11) { m = 0; y++ } }
+
+  const lo = dragStart && dragEnd ? (dragStart < dragEnd ? dragStart : dragEnd) : null
+  const hi = dragStart && dragEnd ? (dragStart < dragEnd ? dragEnd : dragStart) : null
+
+  function finish() {
+    if (dragStart && dragEnd) {
+      const a = dragStart < dragEnd ? dragStart : dragEnd
+      const b = dragStart < dragEnd ? dragEnd : dragStart
+      onCreate(a, b)
+    }
+    setDragStart(null); setDragEnd(null)
+  }
+
+  return (
+    <div className="yc" onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null) }}>
+      <div className="yc-head">
+        <div className="yc-mlabel" />
+        <div className="yc-dowrow">
+          {Array.from({ length: YCOLS }, (_, c) => <div className="yc-dow" key={c}>{YDOW[c % 7]}</div>)}
+        </div>
+      </div>
+      {months.map(({ y, m }) => (
+        <YMonthRow key={`${y}-${m}`} y={y} m={m} blocks={blocks} colourFor={colourFor} onOpen={onOpen}
+          lo={lo} hi={hi}
+          onCellDown={(d) => { setDragStart(d); setDragEnd(d) }}
+          onCellEnter={(d) => { if (dragStart) setDragEnd(d) }} />
+      ))}
+    </div>
+  )
+}
+
+function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCellEnter }) {
+  const dim = new Date(y, m + 1, 0).getDate()
+  const offset = (new Date(y, m, 1).getDay() + 6) % 7
+  const first = ymd(y, m, 1)
+  const last = ymd(y, m, dim)
+  const today = todayISO()
+
+  const bars = []
+  for (const b of blocks) {
+    if (!b.start || !b.end) continue
+    if (b.end < first || b.start > last) continue
+    const cs = b.start < first ? first : b.start
+    const ce = b.end > last ? last : b.end
+    const sd = Number(cs.slice(8, 10)), ed = Number(ce.slice(8, 10))
+    bars.push({ b, startCol: offset + sd - 1, endCol: offset + ed - 1 })
+  }
+  bars.sort((a, c) => a.startCol - c.startCol || a.endCol - c.endCol)
+  const laneEnds = []
+  for (const bar of bars) {
+    let placed = false
+    for (let i = 0; i < laneEnds.length; i++) {
+      if (laneEnds[i] < bar.startCol) { bar.lane = i; laneEnds[i] = bar.endCol; placed = true; break }
+    }
+    if (!placed) { bar.lane = laneEnds.length; laneEnds.push(bar.endCol) }
+  }
+  const lanes = laneEnds.length || 1
+  const todayCol = today.slice(0, 7) === first.slice(0, 7) ? offset + Number(today.slice(8, 10)) - 1 : -1
+
+  return (
+    <div className="yc-row">
+      <div className="yc-mlabel">{YMONTHS[m]}<small>{y}</small></div>
+      <div className="yc-track" style={{ gridTemplateColumns: `repeat(${YCOLS}, 1fr)`, gridTemplateRows: `18px repeat(${lanes}, 22px)` }}>
+        {Array.from({ length: YCOLS }, (_, c) => {
+          const inMonth = c >= offset && c < offset + dim
+          const day = c - offset + 1
+          const dateStr = inMonth ? ymd(y, m, day) : null
+          const isToday = dateStr === today
+          const isWknd = (c % 7) >= 5
+          const sel = dateStr && lo && hi && dateStr >= lo && dateStr <= hi
+          return (
+            <div key={c}
+              className={'yc-cell' + (inMonth ? '' : ' out') + (isWknd && inMonth ? ' wknd' : '') + (isToday ? ' today' : '') + (sel ? ' sel' : '')}
+              style={{ gridColumn: c + 1, gridRow: `1 / span ${lanes + 1}` }}
+              onMouseDown={inMonth ? () => onCellDown(dateStr) : undefined}
+              onMouseEnter={inMonth ? () => onCellEnter(dateStr) : undefined}>
+              {inMonth && <span className="yc-dn">{day}</span>}
+            </div>
+          )
+        })}
+        {todayCol >= 0 && <div className="yc-todaybar" style={{ gridColumn: todayCol + 1, gridRow: `1 / span ${lanes + 1}` }} />}
+        {bars.map(({ b, startCol, endCol, lane }) => (
+          <button key={b.id} className="yc-bar" title={`${b.course} · ${b.start}–${b.end} · ${b.delegates.length} delegate(s)`}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); onOpen(b) }}
+            style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: colourFor(b) }}>
+            <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
+          </button>
+        ))}
       </div>
     </div>
   )
