@@ -271,6 +271,7 @@ function DragAssign({ f }) {
   const [sel, setSel] = useState(null) // click-to-place selection
   const [over, setOver] = useState(null)
   const [selected, setSelected] = useState(null)
+  const [openSchemes, setOpenSchemes] = useState(() => new Set())
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
 
@@ -281,6 +282,10 @@ function DragAssign({ f }) {
   const selectedId = (selected != null && visible.some((b) => b.id === selected)) ? selected : null
   const sBlock = selectedId != null ? (visible.find((b) => b.id === selectedId) || null) : null
   const sLocked = !!(sBlock && sBlock.end && sBlock.end < todayISO())
+  const waitGrouped = {}
+  for (const wp of waiting) { const k = wp.scheme || '—'; (waitGrouped[k] = waitGrouped[k] || []).push(wp) }
+  const waitGroups = Object.entries(waitGrouped).sort((a, b) => (a[0] === sBlock?.scheme ? -1 : b[0] === sBlock?.scheme ? 1 : a[0].localeCompare(b[0])))
+  const toggleScheme = (sc) => setOpenSchemes((prev) => { const n = new Set(prev); n.has(sc) ? n.delete(sc) : n.add(sc); return n })
 
   async function assignRole(blockId, role, staffId) {
     const blk = blocks.find((b) => b.id === blockId)
@@ -355,20 +360,35 @@ function DragAssign({ f }) {
           <div className="pal-sec">
             <div className="pal-h">Waiting ({waiting.length}){f.courseType || f.delegateType ? ' · filtered' : ''}</div>
             {waiting.length === 0 && <div className="muted small">{allWaiting.length ? 'None match the filter.' : 'Pool empty — book in “Book a Delegate”.'}</div>}
-            <div className="pal-chips">
-              {waiting.map((p) => {
-                const on = sel?.type === 'delegate' && sel.id === p.id
-                return (
-                  <span key={p.id} className="asr-chip" style={{ background: kindColor(p.kind), outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
-                    draggable title={kindLabel(p.kind)}
-                    onDragStart={(e) => { drag.current = { type: 'delegate', id: p.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'delegate') }}
-                    onDragEnd={() => { drag.current = null }}
-                    onClick={() => setSel(on ? null : { type: 'delegate', id: p.id })}>
-                    {on ? '✓ ' : ''}{p.name} <span className="rm">· {p.scheme || '—'}{kindTag(p.kind) ? ' · ' + kindTag(p.kind) : ''}</span>
-                  </span>
-                )
-              })}
-            </div>
+            {waitGroups.map(([scheme, list]) => {
+              const matchOpen = scheme === sBlock?.scheme
+              const open = matchOpen || openSchemes.has(scheme) || waitGroups.length === 1
+              return (
+                <div className="wgroup" key={scheme}>
+                  <div className="wg-head" onClick={() => toggleScheme(scheme)} title={matchOpen ? 'Matches the open block' : 'Click to expand'}>
+                    <span className="wg-chev">{open ? '▾' : '▸'}</span>
+                    <span className="wg-name">{scheme}{matchOpen ? ' ◀' : ''}</span>
+                    <span className="wg-count">{list.length}</span>
+                  </div>
+                  {open && (
+                    <div className="pal-chips">
+                      {list.map((p) => {
+                        const on = sel?.type === 'delegate' && sel.id === p.id
+                        return (
+                          <span key={p.id} className="asr-chip" style={{ background: kindColor(p.kind), outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
+                            draggable title={kindLabel(p.kind)}
+                            onDragStart={(e) => { drag.current = { type: 'delegate', id: p.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'delegate') }}
+                            onDragEnd={() => { drag.current = null }}
+                            onClick={() => setSel(on ? null : { type: 'delegate', id: p.id })}>
+                            {on ? '✓ ' : ''}{p.name}{kindTag(p.kind) ? <span className="rm"> · {kindTag(p.kind)}</span> : ''}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </aside>
         <div className="work">
