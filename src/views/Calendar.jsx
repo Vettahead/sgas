@@ -218,7 +218,7 @@ export default function Calendar({ go, isAdmin }) {
         />
       ) : view === 'Year' ? (
         <YearView blocks={filtered} colourFor={colourFor} numMonths={numMonths} anchor={anchor}
-          onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
+          showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
       ) : (
         <DayPilotCalendar
           ref={calRef}
@@ -292,6 +292,7 @@ function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, selScheme
             <option value="course">Colour: course</option>
             <option value="scheme">Colour: scheme</option>
             <option value="status">Colour: status</option>
+            <option value="attendance">Colour: attendance</option>
           </select>
           <label className="cal-check"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Finished</label>
         </div>
@@ -570,7 +571,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwi
 /* ============================ Year view ============================ */
 /* Teamup-style: each month is a row, days are weekday-aligned columns, course
  * blocks are colour bars that stack into lanes. Drag across day cells to create. */
-function YearView({ blocks, colourFor, numMonths, anchor, onOpen, onCreate }) {
+function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, onCreate }) {
   const startY = Number(anchor.toString('yyyy'))
   const startM = Number(anchor.toString('MM')) - 1
   const [dragStart, setDragStart] = useState(null)
@@ -601,7 +602,7 @@ function YearView({ blocks, colourFor, numMonths, anchor, onOpen, onCreate }) {
         </div>
       </div>
       {months.map(({ y, m }) => (
-        <YMonthRow key={`${y}-${m}`} y={y} m={m} blocks={blocks} colourFor={colourFor} onOpen={onOpen}
+        <YMonthRow key={`${y}-${m}`} y={y} m={m} blocks={blocks} colourFor={colourFor} showStripes={showStripes} onOpen={onOpen}
           lo={lo} hi={hi}
           onCellDown={(d) => { setDragStart(d); setDragEnd(d) }}
           onCellEnter={(d) => { if (dragStart) setDragEnd(d) }} />
@@ -610,7 +611,7 @@ function YearView({ blocks, colourFor, numMonths, anchor, onOpen, onCreate }) {
   )
 }
 
-function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCellEnter }) {
+function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, lo, hi, onCellDown, onCellEnter }) {
   const dim = new Date(y, m + 1, 0).getDate()
   const offset = (new Date(y, m, 1).getDay() + 6) % 7
   const first = ymd(y, m, 1)
@@ -624,7 +625,7 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
     const cs = b.start < first ? first : b.start
     const ce = b.end > last ? last : b.end
     const sd = Number(cs.slice(8, 10)), ed = Number(ce.slice(8, 10))
-    bars.push({ b, startCol: offset + sd - 1, endCol: offset + ed - 1 })
+    bars.push({ b, startCol: offset + sd - 1, endCol: offset + ed - 1, cs, ce })
   }
   bars.sort((a, c) => a.startCol - c.startCol || a.endCol - c.endCol)
   const laneEnds = []
@@ -665,14 +666,27 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
           )
         })}
         {todayCol >= 0 && <div className="yc-todaybar" style={{ gridColumn: todayCol + 1, gridRow: `1 / span ${lanes + 1}` }} />}
-        {bars.map(({ b, startCol, endCol, lane }) => (
-          <button key={b.id} className="yc-bar" title={`${b.course} · ${b.start}–${b.end} · ${b.delegates.length} delegate(s)`}
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => { e.stopPropagation(); onOpen(b) }}
-            style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
-            <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
-          </button>
-        ))}
+        {bars.map(({ b, startCol, endCol, lane, cs, ce }) => {
+          const span = endCol - startCol + 1
+          // each PARTIAL attendee striped over the days they actually attend
+          const stripes = (showStripes ? (b.delegates || []) : []).filter((d) => d.attendFrom || d.attendTo).map((d) => {
+            const ws = d.attendFrom || b.start, we = d.attendTo || b.end
+            const wf = ws < cs ? cs : ws, wt = we > ce ? ce : we
+            if (wt < wf) return null
+            const sC = offset + Number(wf.slice(8, 10)) - 1
+            const eC = offset + Number(wt.slice(8, 10)) - 1
+            return { left: ((sC - startCol) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
+          }).filter(Boolean)
+          return (
+            <button key={b.id} className="yc-bar" title={`${b.course} · ${b.start}–${b.end} · ${b.delegates.length} delegate(s)`}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onOpen(b) }}
+              style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
+              {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
+              <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

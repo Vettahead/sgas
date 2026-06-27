@@ -599,3 +599,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .cal-fchip{cursor:pointer;padding:4px 11px;font-size:12px}
 .cal-fchip.on{outline:3px solid #0d1b2e;outline-offset:2px}
 .cal-fchip:not(.on){opacity:.85}
+
+/* partial-attendance stripes over the portion a partial delegate attends */
+.yc-stripe{position:absolute;top:0;bottom:0;pointer-events:none;background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 4px, rgba(255,255,255,0) 4px 9px)}
+.yc-bar-t{position:relative;z-index:1}
