@@ -594,21 +594,20 @@ function BlockFooter({ b }) {
 
 /* ============================ calendar ============================ */
 function CalendarTab({ f }) {
-  const { data: sessions, loading } = useData(listSessions)
-  const { data: staff } = useData(listStaff)
-  const { data: categories } = useData(listCategories)
-  if (loading || !sessions) return <div className="loading">Loading calendar…</div>
-  const schemes = schemesOf(categories)
-  const filtered = f.courseType ? sessions.filter((s) => s.scheme === f.courseType) : sessions
+  const { data: blocks, loading } = useData(listBlocks)
+  const { data: courses } = useData(listCourses)
+  if (loading || !blocks) return <div className="loading">Loading calendar…</div>
+  const schemes = [...new Set((courses || []).map((c) => c.scheme).filter(Boolean))].sort()
+  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
   return (
     <>
       <FilterBar schemes={schemes} f={f} showDelegate={false} />
-      <Calendar sessions={filtered} staff={staff || []} />
+      <Calendar blocks={visible} />
     </>
   )
 }
 
-function Calendar({ sessions, staff }) {
+function Calendar({ blocks }) {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth())
@@ -617,20 +616,21 @@ function Calendar({ sessions, staff }) {
   const startDow = (first.getDay() + 6) % 7
   const dim = new Date(year, month + 1, 0).getDate()
   const today = todayISO()
+  const legend = [...new Map(blocks.map((b) => [b.course, b.color])).entries()]
 
   const cells = []
   ;['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach((d) => cells.push(<div className="dow" key={'h' + d}>{d}</div>))
   for (let i = 0; i < startDow; i++) cells.push(<div className="day out" key={'o' + i}></div>)
   for (let dd = 1; dd <= dim; dd++) {
     const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(dd).padStart(2, '0')}`
-    const todays = sessions.filter((s) => dateStr >= s.start_date && dateStr <= s.end_date)
+    const todays = blocks.filter((b) => b.start && dateStr >= b.start && dateStr <= b.end)
     cells.push(
       <div className={'day' + (dateStr === today ? ' today' : '')} key={'d' + dd}>
         <div className="dn">{dd}</div>
-        {todays.map((s) => {
-          const start = dateStr === s.start_date
-          return <span className="chip" key={s.session_id} style={{ background: s.color }} title={`${s.course} · ${s.assessor || 'unassigned'}`}>
-            {start ? `${s.course}${s.assessor ? ' · ' + s.assessor.split(' ').pop() : ''}` : '· · ·'}
+        {todays.map((b) => {
+          const start = dateStr === b.start
+          return <span className="chip" key={b.id} style={{ background: b.color || '#48566a' }} title={`${b.course} · ${b.delegates.length}👤 · ${b.ready ? 'Ready' : 'Incomplete'}${b.trainer ? ' · trainer ' + b.trainer : ''}`}>
+            {start ? `${b.course} · ${b.delegates.length}👤` : '· · ·'}
           </span>
         })}
       </div>
@@ -653,8 +653,8 @@ function Calendar({ sessions, staff }) {
       </div>
       <div className="cal">{cells}</div>
       <div className="leg">
-        {staff.map((a) => <span key={a.staff_id}><i style={{ background: a.color }}></i>{a.name}{a.room ? ' · ' + a.room : ''}</span>)}
-        <span className="tu">⟳ blocks come from Teamup</span>
+        {legend.map(([course, color]) => <span key={course}><i style={{ background: color || '#48566a' }}></i>{course}</span>)}
+        {legend.length === 0 && <span className="muted small">No blocks in view this month.</span>}
       </div>
     </div>
   )
