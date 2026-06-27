@@ -621,7 +621,7 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
 function HoverCard({ b, x, y }) {
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
-  const left = Math.min(x + 14, vw - 296)
+  const left = Math.min(x + 14, vw - 376)
   const top = Math.min(y + 14, vh - 240)
   return (
     <div className="yc-hover" style={{ left, top }}>

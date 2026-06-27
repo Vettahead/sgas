@@ -605,13 +605,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-bar-t{position:relative;z-index:1}
 
 /* Year-view rich hover card (full staff detail) */
-.yc-hover{position:fixed;z-index:80;width:280px;max-height:62vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.24);padding:10px 12px;pointer-events:none;font-size:12px}
+.yc-hover{position:fixed;z-index:80;width:360px;max-height:62vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.24);padding:10px 12px;pointer-events:none;font-size:12px}
 .yc-hover-head{display:flex;flex-direction:column;gap:2px;padding-left:8px;margin-bottom:7px}
 .yc-hover-head strong{font-size:13px}
 .yc-hover-roles{display:flex;flex-wrap:wrap;gap:5px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;margin-bottom:7px;color:var(--slate)}
 .yc-hover-roles .ok{color:var(--green);font-weight:600}
 .yc-hover-roles .warn{color:var(--amber);font-weight:600}
 .yc-hover-delg{display:flex;flex-direction:column;gap:4px}
-.yc-hover-d{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.yc-hover-d{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap}
+.yc-hover-d>span:first-child{min-width:0}
+.yc-hover-d .att-tag{flex:none;white-space:nowrap}
 
 .kindtag{font-size:9.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:20px;white-space:nowrap}

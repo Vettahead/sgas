@@ -331,6 +331,7 @@ export async function getSessionBookings(sessionId) {
       .from('booking')
       .select('booking_id,client_id,overall_result,disposition,assess_notes,attend_from,attend_to,client:client_id(forename,surname),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
       .eq('session_id', sessionId)
+      .order('booking_id')
     const rows = data || []
     const clientIds = [...new Set(rows.map((b) => b.client_id))]
     const noShows = {}
@@ -346,7 +347,7 @@ export async function getSessionBookings(sessionId) {
       categories: (b.booking_category || []).map((x) => ({
         bookingCategoryId: x.booking_category_id, code: x.category.code, desc: x.category.description,
         result: x.result, expiry: x.expiry_date,
-      })),
+      })).sort((a, b) => a.bookingCategoryId - b.bookingCategoryId),
     }))
   }
   return D.bookings.filter((b) => b.session_id === sessionId).map((b) => {
@@ -359,7 +360,7 @@ export async function getSessionBookings(sessionId) {
       attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
       categories: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => ({
         bookingCategoryId: x.booking_category_id, code: cat(x.category_id).code, desc: cat(x.category_id).description, result: x.result, expiry: x.expiry_date,
-      })),
+      })).sort((a, b) => a.bookingCategoryId - b.bookingCategoryId),
     }
   })
 }
