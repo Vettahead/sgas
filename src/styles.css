@@ -159,6 +159,27 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .chip{display:block;font-size:10.5px;font-weight:600;color:#fff;padding:2px 6px;border-radius:5px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .leg{display:flex;gap:14px;flex-wrap:wrap;margin:10px 2px 0;font-size:11.5px;color:var(--muted)}
 .leg span{display:inline-flex;align-items:center;gap:6px}
+
+/* DayPilot calendar (Calendar.jsx) — toolbar, filters, create modal, roster drawer */
+.cal-wrap{display:flex;flex-direction:column}
+.cal-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.cal-nav-grp{display:flex;align-items:center;gap:8px}
+.cal-label{font-size:16px;font-weight:650;margin-left:6px;min-width:150px}
+.cal-views{display:flex;gap:6px}
+.cal-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+.cal-filters select{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+.cal-check{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);cursor:pointer}
+.cal-dates{display:flex;gap:10px}
+.cal-wrap .fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--slate);margin-top:10px;flex:1}
+.cal-wrap .fld select,.cal-wrap .fld input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;box-sizing:border-box}
+.cal-drawer{width:min(460px,94vw)}
+.cal-drawer-head{padding-left:12px;margin-bottom:8px}
+.cal-drawer-head h3{margin:0}
+.cal-drawer-roles{margin-bottom:10px}
+.cal-warn{color:#b7791f;font-weight:600}
+.cal-drawer-body{border-top:1px solid var(--line);padding-top:10px}
+.cal-delg{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
+.cal-delg li{font-size:13px;padding:5px 8px;background:#f6f8fb;border-radius:6px}
 .leg i{width:11px;height:11px;border-radius:3px;display:inline-block}
 .assess-deleg{border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}
 .assess-deleg .dh{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f7f9fc;border-bottom:1px solid var(--line)}

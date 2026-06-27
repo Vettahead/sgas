@@ -8,6 +8,7 @@ import Dashboard from './views/Dashboard.jsx'
 import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
+import Calendar from './views/Calendar.jsx'
 import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
@@ -23,6 +24,7 @@ const TITLES = {
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   sched: ['Schedule', 'Assign a trainer, assessor and verifier to each Teamup block, then add delegates'],
+  calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day or staff'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -38,6 +40,7 @@ const NAV_GROUPS = [
     { v: 'inquiries', ic: '💬', label: 'Inquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
+    { v: 'calendar', ic: '📅', label: 'Calendar' },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
@@ -143,6 +146,7 @@ export default function App() {
           {activeView === 'inquiries' && <Inquiries go={go} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'sched' && <Schedule />}
+          {activeView === 'calendar' && <Calendar go={go} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}

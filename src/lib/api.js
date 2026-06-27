@@ -1252,6 +1252,22 @@ export async function createBlock({ courseId, from, to }) {
   return session_id
 }
 
+// Move/resize a block on the calendar — persist new start/end dates (drag-move or
+// edge-resize). Dates are ISO 'YYYY-MM-DD'. Used by the DayPilot calendar.
+export async function updateBlock(sessionId, { from, to }) {
+  const patch = {}
+  if (from) patch.start_date = from
+  if (to) patch.end_date = to
+  if (!Object.keys(patch).length) return
+  if (LIVE) {
+    const { error } = await supabase.from('session').update(patch).eq('session_id', sessionId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const s = D.sessions.find((x) => x.session_id === sessionId)
+  if (s) Object.assign(s, patch)
+}
+
 // Set a delegate's attendance window inside the block (null/null = full course).
 export async function setBookingAttendance(bookingId, from, to) {
   const patch = { attend_from: from || null, attend_to: to || null }

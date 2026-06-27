@@ -4,6 +4,7 @@ import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 import { downloadCombined, downloadZip, downloadForm } from '../lib/acspdf.js'
+import CalendarView from './Calendar.jsx'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -593,18 +594,9 @@ function BlockFooter({ b }) {
 }
 
 /* ============================ calendar ============================ */
-function CalendarTab({ f }) {
-  const { data: blocks, loading } = useData(listBlocks)
-  const { data: courses } = useData(listCourses)
-  if (loading || !blocks) return <div className="loading">Loading calendar…</div>
-  const schemes = [...new Set((courses || []).map((c) => c.scheme).filter(Boolean))].sort()
-  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
-  return (
-    <>
-      <FilterBar schemes={schemes} f={f} showDelegate={false} />
-      <Calendar blocks={visible} />
-    </>
-  )
+function CalendarTab() {
+  // Reuse the full DayPilot calendar (the same one as the standalone Calendar tab).
+  return <CalendarView />
 }
 
 function Calendar({ blocks }) {
