@@ -142,6 +142,7 @@ function DelegateCard({ d, reload }) {
           <span className="exp">{x.result === 'PASS' && x.expiry ? '✓ expires ' + fmt(x.expiry) : ''}</span>
           <span className="seg">
             <button className={'pass ' + (x.result === 'PASS' ? 'on' : '')} onClick={() => mark(x, 'PASS')}>Pass</button>
+            <button className={'nyc ' + (x.result === 'NYC' ? 'on' : '')} onClick={() => mark(x, 'NYC')}>NYC</button>
             <button className={'fail ' + (x.result === 'FAIL' ? 'on' : '')} onClick={() => mark(x, 'FAIL')}>Fail</button>
           </span>
         </div>

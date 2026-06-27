@@ -42,6 +42,8 @@ const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).pad
 const ddmm = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '')
 // Kind colours (new vs reassessment etc.) for the Teamup-style multicolour bar.
 const KCOL = { NEW: '#1f9d55', REASSESS: '#2f6fd0', NYC: '#b7791f', NO_SHOW: '#c0392b' }
+const KIND_LABEL = { NEW: 'Full', REASSESS: 'Re', MIXED: 'Mixed', NYC: 'NYC', NO_SHOW: 'No-show' }
+const kindColour = (k) => k === 'MIXED' ? '#7b2ff2' : (KCOL[k] || '#1f9d55')
 function blockBackground(b, base) {
   const cols = []
   for (const d of b.delegates || []) {
@@ -521,7 +523,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwi
               return (
                 <li key={d.bookingId}>
                   <span className="cal-delg-info">
-                    <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
+                    <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null} <span className="kindtag" style={{ background: kindColour(d.kind) }}>{KIND_LABEL[d.kind] || 'Full'}</span></span>
                     {editing
                       ? <AttendanceEdit d={d} block={b} busy={busy} onSave={(f, t) => run(() => setBookingAttendance(d.bookingId, f, t), 'Attendance updated')} />
                       : <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>}
@@ -640,7 +642,7 @@ function HoverCard({ b, x, y }) {
           const full = !d.attendFrom && !d.attendTo
           return (
             <div key={d.bookingId} className="yc-hover-d">
-              <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
+              <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null} <span className="kindtag" style={{ background: kindColour(d.kind) }}>{KIND_LABEL[d.kind] || 'Full'}</span></span>
               <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full' : 'Part ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
             </div>
           )

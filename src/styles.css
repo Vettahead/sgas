@@ -613,3 +613,5 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-hover-roles .warn{color:var(--amber);font-weight:600}
 .yc-hover-delg{display:flex;flex-direction:column;gap:4px}
 .yc-hover-d{display:flex;align-items:center;justify-content:space-between;gap:6px}
+
+.kindtag{font-size:9.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:20px;white-space:nowrap}

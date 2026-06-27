@@ -22,7 +22,7 @@ const ses = (id) => D.sessions.find((x) => x.session_id === id)
 function demoRollup(bookingId) {
   const rows = D.booking_categories.filter((x) => x.booking_id === bookingId)
   if (!rows.length) return 'PENDING'
-  if (rows.some((x) => x.result === 'PENDING')) return 'PENDING'
+  if (rows.some((x) => x.result === 'PENDING' || x.result === 'NYC')) return 'PENDING'
   if (rows.every((x) => x.result === 'PASS')) return 'PASS'
   if (rows.every((x) => x.result === 'FAIL')) return 'FAIL'
   return 'PARTIAL'
@@ -806,7 +806,9 @@ export async function markCategory(bookingCategoryId, result) {
   if (LIVE) {
     const patch = result === 'PASS'
       ? { result: 'PASS', achieved_date: todayISO(), expiry_date: null } // trigger fills expiry
-      : { result: 'FAIL', achieved_date: null, expiry_date: null }
+      : result === 'NYC'
+        ? { result: 'NYC', achieved_date: null, expiry_date: null }
+        : { result: 'FAIL', achieved_date: null, expiry_date: null }
     const { error } = await supabase.from('booking_category').update(patch).eq('booking_category_id', bookingCategoryId)
     if (error) throw error
     return
