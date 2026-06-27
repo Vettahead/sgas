@@ -128,7 +128,7 @@ function SchedHeader() {
   return (
     <div className="sect-head">
       <h2>📚 Course blocks</h2>
-      <p className="muted small">Each block is a course with its dates (pulled from Teamup). Assign the staff and delegates to each one, then push it back to Teamup. Use the filters to focus on a course or delegate type; click a block to open or collapse just that one.</p>
+      <p className="muted small">Each block is a course with its dates. Drag staff onto the role slots and delegates onto a block; click a block for its full detail. Finished courses drop off automatically.</p>
     </div>
   )
 }
@@ -329,45 +329,51 @@ function DragAssign({ f }) {
   return (
     <>
       <SchedHeader />
-      <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
-      <CreateBlock courses={courses || []} onCreated={reload} />
-      <div className="asr-pool">
-        <span className="lbl">Staff — drag to a role, or click then click a slot</span>
-        {staff.map((s) => {
-          const on = sel?.type === 'staff' && sel.id === s.staff_id
-          return (
-            <span key={s.staff_id} className="asr-chip" style={{ background: s.color, outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
-              draggable
-              onDragStart={(e) => { drag.current = { type: 'staff', id: s.staff_id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'staff') }}
-              onDragEnd={() => { drag.current = null }}
-              onClick={() => setSel(on ? null : { type: 'staff', id: s.staff_id })}>
-              {on ? '✓ ' : '👤 '}{s.name}
-            </span>
-          )
-        })}
+      <div className="sched-toolbar">
+        <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
+        <CreateBlock courses={courses || []} onCreated={reload} />
       </div>
-      <div className="asr-pool">
-        <span className="lbl">Delegates waiting{f.courseType || f.delegateType ? ' (filtered)' : ''} — drag onto a block card, or click then click a card
-          <span className="kind-legend"><i style={{ background: KIND_COLOR.NEW }}></i>New <i style={{ background: KIND_COLOR.REASSESS }}></i>Reassessment <i style={{ background: KIND_COLOR.MIXED }}></i>Mixed <i style={{ background: KIND_COLOR.NYC }}></i>NYC <i style={{ background: KIND_COLOR.NO_SHOW }}></i>No-show</span>
-        </span>
-        {waiting.length === 0 && <span className="muted small">{allWaiting.length ? 'No waiting delegates match the filter.' : 'Pool empty — book delegates in “Book a Delegate”.'}</span>}
-        {waiting.map((p) => {
-          const on = sel?.type === 'delegate' && sel.id === p.id
-          return (
-            <span key={p.id} className="asr-chip" style={{ background: kindColor(p.kind), outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
-              draggable title={kindLabel(p.kind)}
-              onDragStart={(e) => { drag.current = { type: 'delegate', id: p.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'delegate') }}
-              onDragEnd={() => { drag.current = null }}
-              onClick={() => setSel(on ? null : { type: 'delegate', id: p.id })}>
-              {on ? '✓ ' : ''}{p.name} <span className="rm">· {p.scheme || '—'}{kindTag(p.kind) ? ' · ' + kindTag(p.kind) : ''}{prefLabel(p) ? ' · 📅 ' + prefLabel(p) : ''}</span>
-            </span>
-          )
-        })}
-      </div>
-
-      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>{!f.showPast && blocks.some((b) => b.end && b.end < todayISO()) ? 'No current blocks — finished courses are hidden. Tick "Show finished" to see them.' : 'No course blocks match the filter.'}</div>}
       <div className="drag-shell">
-        <div className="block-grid">
+        <aside className="palette">
+          <div className="pal-sec">
+            <div className="pal-h">Staff</div>
+            <div className="pal-chips">
+              {staff.map((s) => {
+                const on = sel?.type === 'staff' && sel.id === s.staff_id
+                return (
+                  <span key={s.staff_id} className="asr-chip" style={{ background: s.color, outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
+                    draggable
+                    onDragStart={(e) => { drag.current = { type: 'staff', id: s.staff_id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'staff') }}
+                    onDragEnd={() => { drag.current = null }}
+                    onClick={() => setSel(on ? null : { type: 'staff', id: s.staff_id })}>
+                    {on ? '✓ ' : '👤 '}{s.name}
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+          <div className="pal-sec">
+            <div className="pal-h">Waiting ({waiting.length}){f.courseType || f.delegateType ? ' · filtered' : ''}</div>
+            {waiting.length === 0 && <div className="muted small">{allWaiting.length ? 'None match the filter.' : 'Pool empty — book in “Book a Delegate”.'}</div>}
+            <div className="pal-chips">
+              {waiting.map((p) => {
+                const on = sel?.type === 'delegate' && sel.id === p.id
+                return (
+                  <span key={p.id} className="asr-chip" style={{ background: kindColor(p.kind), outline: on ? '3px solid #0d1b2e' : 'none', outlineOffset: 2 }}
+                    draggable title={kindLabel(p.kind)}
+                    onDragStart={(e) => { drag.current = { type: 'delegate', id: p.id }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'delegate') }}
+                    onDragEnd={() => { drag.current = null }}
+                    onClick={() => setSel(on ? null : { type: 'delegate', id: p.id })}>
+                    {on ? '✓ ' : ''}{p.name} <span className="rm">· {p.scheme || '—'}{kindTag(p.kind) ? ' · ' + kindTag(p.kind) : ''}</span>
+                  </span>
+                )
+              })}
+            </div>
+          </div>
+        </aside>
+        <div className="work">
+          {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>{!f.showPast && blocks.some((b) => b.end && b.end < todayISO()) ? 'No current blocks — finished courses are hidden. Tick "Show finished" to see them.' : 'No course blocks match the filter.'}</div>}
+          <div className="block-grid">
           {visible.map((b) => {
             const dropping = over === 'card:' + b.id || sel?.type === 'delegate'
             const finished = b.end && b.end < todayISO()
@@ -408,6 +414,7 @@ function DragAssign({ f }) {
               </div>
             )
           })}
+        </div>
         </div>
 
         {sBlock && (

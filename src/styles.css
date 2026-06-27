@@ -400,3 +400,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .bcard.finished{opacity:.7}
 .bcard.finished:hover{border-color:#d4dae3}
 .locked-banner{background:#fff3cd;border:1px solid #e3b341;color:#8a6d00;border-radius:7px;padding:5px 8px;font-size:11px;margin-bottom:8px}
+
+
+/* Left palette rail (staff + waiting) + compact toolbar */
+.sched-toolbar{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.sched-toolbar .sched-filters{margin-bottom:0;flex:1;min-width:0}
+.palette{flex:none;width:228px;position:sticky;top:8px;max-height:calc(100vh - 70px);overflow:auto;display:flex;flex-direction:column;gap:12px}
+.pal-sec{background:#fff;border:1px solid #e2e6ee;border-radius:11px;padding:9px 10px}
+.pal-h{font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);margin-bottom:7px}
+.pal-chips{display:flex;flex-direction:column;gap:5px}
+.pal-chips .asr-chip{width:100%;justify-content:flex-start;white-space:normal;text-align:left;margin:0}
+.work{flex:1;min-width:0}
