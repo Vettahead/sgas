@@ -143,6 +143,8 @@ function MenuAssign({ f }) {
   const [pool, setPool] = useState(() => getPool())
   useEffect(() => { loadPool().then(setPool) }, [])
   const [picks, setPicks] = useState({})
+  const [showOther, setShowOther] = useState(() => new Set())
+  const toggleOther = (id) => setShowOther((p) => { const n = new Set(p); n.has(id) ? n.delete(id) : n.add(id); return n })
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
 
@@ -185,7 +187,10 @@ function MenuAssign({ f }) {
       <div className="course-grid">
         {visible.map((b) => {
           const open = f.expanded.has(b.id)
-          const poolForScheme = [...pool, ...(resched || [])].filter((p) => p.scheme === b.scheme && passDelegate(p, f))
+          const waitingAll = [...pool, ...(resched || [])].filter((p) => passDelegate(p, f))
+          const poolForScheme = waitingAll.filter((p) => p.scheme === b.scheme)
+          const poolOther = waitingAll.filter((p) => p.scheme !== b.scheme)
+          const othersOpen = showOther.has(b.id)
           const chosen = picks[b.id] || new Set()
           return (
             <div className={'ccard' + (open ? '' : ' collapsed')} key={b.id}>
@@ -203,9 +208,10 @@ function MenuAssign({ f }) {
                       </div>
                     ))}
                     <BlockDelegates b={b} categories={categories || []} onAdded={reload} />
-                    {poolForScheme.length > 0 && (
+                    {(poolForScheme.length > 0 || poolOther.length > 0) && (
                       <div style={{ marginTop: 10 }}>
                         <div className="fl">Add from pool ({b.scheme}{f.delegateType ? ' · ' + kindLabel(f.delegateType) : ''})</div>
+                        {poolForScheme.length === 0 && <div className="muted small">No waiting delegates booked under {b.scheme}.</div>}
                         {poolForScheme.map((p) => (
                           <div className="delg" key={p.id} onClick={() => togglePick(b.id, p.id)} style={{ borderLeft: `4px solid ${kindColor(p.kind)}` }} title={kindLabel(p.kind)}>
                             <span className="av" style={{ background: kindColor(p.kind), color: '#fff' }}>{initials(p.forename, p.surname)}</span>{p.name}
@@ -217,6 +223,19 @@ function MenuAssign({ f }) {
                             <input type="checkbox" readOnly checked={chosen.has(p.id)} />
                           </div>
                         ))}
+                        {poolOther.length > 0 && (
+                          <div style={{ marginTop: 6 }}>
+                            <button className="btn ghost sm" onClick={() => toggleOther(b.id)}>{othersOpen ? '▾' : '▸'} Other schemes ({poolOther.length}) — add anyway</button>
+                            {othersOpen && poolOther.map((p) => (
+                              <div className="delg" key={p.id} onClick={() => togglePick(b.id, p.id)} style={{ borderLeft: `4px solid ${kindColor(p.kind)}` }} title={'Booked under ' + p.scheme}>
+                                <span className="av" style={{ background: kindColor(p.kind), color: '#fff' }}>{initials(p.forename, p.surname)}</span>{p.name}
+                                <span className="b mixed" title={'Booked under ' + p.scheme + ', not ' + b.scheme}>⚠ {p.scheme}</span>
+                                <span className="muted small">{p.count} quals</span>
+                                <input type="checkbox" readOnly checked={chosen.has(p.id)} />
+                              </div>
+                            ))}
+                          </div>
+                        )}
                         <button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => addDelegates(b.id)}>Add selected</button>
                       </div>
                     )}
