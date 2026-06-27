@@ -339,3 +339,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .delg .av{margin-top:1px}
 .delg-body .dcodes{line-height:1.35;word-break:break-word}
 .mixwarn{color:#b7791f;font-size:13px;cursor:help;flex:none}
+
+
+/* Return-to-pool button on a scheduled delegate */
+.delg .ret-btn{flex:none;width:22px;height:22px;border:1px solid #d4dae3;border-radius:50%;background:#fff;color:#48566a;font-size:13px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0}
+.delg .ret-btn:hover{background:#fdecea;color:#c0392b;border-color:#e3b3ad}

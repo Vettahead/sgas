@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getPool, loadPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, loadPool, getReschedulePool, rescheduleDelegate, returnToPool, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -34,7 +34,7 @@ async function delForm(bookingId) {
 
 // One delegate inside a block: coloured by kind (new/reassess/NYC/no-show),
 // shows the course codes they're booked for, and the name prints their ACS form.
-function DelegateChip({ d, scheme, block, categories, onAdded }) {
+function DelegateChip({ d, scheme, block, categories, onAdded, onReturn }) {
   const col = kindColor(d.kind)
   const [open, setOpen] = useState(false)
   const canAdd = Boolean(categories && onAdded)
@@ -50,6 +50,7 @@ function DelegateChip({ d, scheme, block, categories, onAdded }) {
             <span className="delg-actions">
               {kindTag(d.kind) && <span className="b" style={{ background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
               {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
+              {onReturn && <button className="ret-btn" title="Return to waiting pool (wrong block?)" onClick={(e) => { e.stopPropagation(); onReturn(d.bookingId) }}>↩</button>}
             </span>
           </div>
           {d.codes?.length > 0 && <div className="dcodes muted small">{d.codes.join(', ')}</div>}
@@ -168,6 +169,10 @@ function MenuAssign({ f }) {
       return { ...prev, [blockId]: set }
     })
   }
+  async function returnDelegate(bookingId) {
+    try { await returnToPool(bookingId); toast('Returned to waiting pool'); setPool(await loadPool()); reloadResched(); reload() }
+    catch (e) { toast(e.message) }
+  }
   async function addDelegates(blockId) {
     const ids = [...(picks[blockId] || [])]
     if (!ids.length) return toast('Pick at least one delegate to add')
@@ -213,7 +218,7 @@ function MenuAssign({ f }) {
                         </select>
                       </div>
                     ))}
-                    <BlockDelegates b={b} categories={categories || []} onAdded={reload} />
+                    <BlockDelegates b={b} categories={categories || []} onAdded={reload} onReturn={returnDelegate} />
                     {(poolForScheme.length > 0 || poolOther.length > 0) && (
                       <div style={{ marginTop: 10 }}>
                         <div className="fl">Add from pool ({b.scheme}{f.delegateType ? ' · ' + kindLabel(f.delegateType) : ''})</div>
@@ -279,6 +284,10 @@ function DragAssign({ f }) {
 
   async function assignRole(blockId, role, staffId) {
     await assignBlockRole(blockId, role, staffId); reload()
+  }
+  async function returnDelegate(bookingId) {
+    try { await returnToPool(bookingId); toast('Returned to waiting pool'); setPool(await loadPool()); reloadResched(); reload() }
+    catch (e) { toast(e.message) }
   }
   async function addDelegate(blockId, poolItem) {
     const blk = blocks.find((b) => b.id === blockId)
@@ -390,7 +399,7 @@ function DragAssign({ f }) {
                     })}
 
                     <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
-                    {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories || []} onAdded={reload} key={d.bookingId} />)}
+                    {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories || []} onAdded={reload} onReturn={returnDelegate} key={d.bookingId} />)}
                     <div className="drop-hint muted small">
                       {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
@@ -424,7 +433,7 @@ function BlockHeader({ b, open, onToggle }) {
     </div>
   )
 }
-function BlockDelegates({ b, categories, onAdded }) {
+function BlockDelegates({ b, categories, onAdded, onReturn }) {
   const groups = {}
   for (const d of b.delegates) { const k = d.employer || '— no employer —'; (groups[k] = groups[k] || []).push(d) }
   const employers = Object.keys(groups).sort()
@@ -435,7 +444,7 @@ function BlockDelegates({ b, categories, onAdded }) {
       {employers.map((emp) => (
         <div className="emp-group" key={emp}>
           {employers.length > 1 && <div className="emp-head muted small">🏢 {emp} ({groups[emp].length})</div>}
-          {groups[emp].map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
+          {groups[emp].map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories} onAdded={onAdded} onReturn={onReturn} key={d.bookingId} />)}
         </div>
       ))}
     </div>

@@ -1064,12 +1064,22 @@ export async function createStaff(d) {
 const delegateKind = (disposition, isReassess) =>
   disposition === 'NO_SHOW' ? 'NO_SHOW' : disposition === 'NYC' ? 'NYC' : isReassess ? 'REASSESS' : 'NEW'
 
+// Per-module kind: NEW (all new) / REASSESS (all reassessment) / MIXED (both).
+// disposition (NYC/No-show) still wins. flags = per-category is_reassessment booleans.
+const kindFromFlags = (disposition, flags) => {
+  if (disposition === 'NO_SHOW') return 'NO_SHOW'
+  if (disposition === 'NYC') return 'NYC'
+  if (!flags.length) return 'NEW'
+  const re = flags.filter(Boolean).length
+  return re === 0 ? 'NEW' : re === flags.length ? 'REASSESS' : 'MIXED'
+}
+
 // A "block" = a course session (course + dates) with its three role slots and delegates.
 export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1078,7 +1088,7 @@ export async function listBlocks() {
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
       delegates: (s.booking || []).map((b) => ({
         bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
-        kind: delegateKind(b.disposition, b.is_reassessment),
+        kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment)),
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
         categoryIds: (b.booking_category || []).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
@@ -1096,7 +1106,7 @@ export async function listBlocks() {
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
       delegates: bks.map((b) => ({
         bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
-        kind: delegateKind(b.disposition, b.is_reassessment),
+        kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment)),
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
         categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
@@ -1231,4 +1241,29 @@ export async function setBookingAttendance(bookingId, from, to) {
   }
   const b = D.bookings.find((x) => x.booking_id === bookingId)
   if (b) Object.assign(b, patch)
+}
+
+// Put a scheduled delegate back into the waiting pool (un-schedule) — for when a
+// delegate was placed on the wrong block.
+export async function returnToPool(bookingId) {
+  if (LIVE) {
+    const { error } = await supabase.from('booking').update({ session_id: null }).eq('booking_id', bookingId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const b = D.bookings.find((x) => x.booking_id === bookingId)
+  if (!b) return
+  const bcs = D.booking_categories.filter((x) => x.booking_id === bookingId)
+  const catIds = bcs.map((x) => x.category_id)
+  const catKinds = {}; bcs.forEach((x) => { catKinds[x.category_id] = x.is_reassessment ? 'REASSESS' : 'NEW' })
+  const kinds = new Set(Object.values(catKinds))
+  const client = cl(b.client_id)
+  poolList.push({
+    id: ++D.seq.pool, client_id: b.client_id, forename: client?.forename, surname: client?.surname, company_id: b.company_id,
+    scheme: cat(catIds[0])?.scheme || null, category_ids: catIds, cat_kinds: catKinds,
+    kind: kinds.size > 1 ? 'MIXED' : (kinds.has('REASSESS') ? 'REASSESS' : 'NEW'),
+    mlp: !!b.flag_mlp, igas: !!b.flag_igas, prefFrom: b.pref_date_from || null, prefTo: b.pref_date_to || null,
+  })
+  D.booking_categories = D.booking_categories.filter((x) => x.booking_id !== bookingId)
+  const i = D.bookings.findIndex((x) => x.booking_id === bookingId); if (i >= 0) D.bookings.splice(i, 1)
 }
