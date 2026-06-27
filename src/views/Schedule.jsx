@@ -286,6 +286,7 @@ function DragAssign({ f }) {
   for (const wp of waiting) { const k = wp.scheme || '—'; (waitGrouped[k] = waitGrouped[k] || []).push(wp) }
   const waitGroups = Object.entries(waitGrouped).sort((a, b) => (a[0] === sBlock?.scheme ? -1 : b[0] === sBlock?.scheme ? 1 : a[0].localeCompare(b[0])))
   const toggleScheme = (sc) => setOpenSchemes((prev) => { const n = new Set(prev); n.has(sc) ? n.delete(sc) : n.add(sc); return n })
+  const schemeColor = (sc) => (courses || []).find((c) => c.scheme === sc)?.color || '#cdd6e6'
 
   async function assignRole(blockId, role, staffId) {
     const blk = blocks.find((b) => b.id === blockId)
@@ -366,6 +367,7 @@ function DragAssign({ f }) {
                 <div className="wgroup" key={scheme}>
                   <div className="wg-head" onClick={() => toggleScheme(scheme)} title={matchOpen ? 'Matches the open block' : 'Click to expand'}>
                     <span className="wg-chev">{open ? '▾' : '▸'}</span>
+                    <span className="wg-dot" style={{ background: schemeColor(scheme) }}></span>
                     <span className="wg-name">{scheme}{matchOpen ? ' ◀' : ''}</span>
                     <span className="wg-count">{list.length}</span>
                   </div>
@@ -398,6 +400,7 @@ function DragAssign({ f }) {
             const finished = b.end && b.end < todayISO()
             return (
               <div key={b.id} className={'bcard' + (b.id === selectedId ? ' on' : '') + (dropping && !finished ? ' droptarget' : '') + (finished ? ' finished' : '')}
+                style={{ borderLeft: `4px solid ${b.color || '#cdd6e6'}` }}
                 onClick={() => { if (sel?.type === 'delegate') clickCardDelegate(b.id); else setSelected(b.id) }}
                 onDragOver={(e) => { if (drag.current?.type === 'delegate') { e.preventDefault(); setOver('card:' + b.id) } }}
                 onDragLeave={() => setOver((o) => (o === 'card:' + b.id ? null : o))}
@@ -438,6 +441,7 @@ function DragAssign({ f }) {
 
         {sBlock && (
           <div className={'block-drawer' + (sel?.type === 'delegate' ? ' droptarget' : '')}
+            style={{ borderLeft: `4px solid ${sBlock.color || '#cdd6e6'}` }}
             onDragOver={(e) => { if (drag.current?.type === 'delegate') { e.preventDefault(); setOver('card:' + sBlock.id) } }}
             onDrop={(e) => onDropDelegate(e, sBlock.id)}>
             <div className="drawer-head">

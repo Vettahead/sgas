@@ -44,6 +44,7 @@ export default function Courses() {
             <div className={'cgroup' + (open.has(c.course_id) ? '' : ' collapsed')} key={c.course_id}>
               <div className="ch" onClick={() => toggle(c.course_id)}>
                 <span className="tw">▼</span>
+                <span className="cdot" style={{ background: c.color || '#48566a' }}></span>
                 <span className="nm">{c.name}</span>
                 <span className="b scheme">{c.scheme || '—'}</span>
                 {c.price != null && <span className="b due" title="Optional fixed package price">pkg {money(c.price)}</span>}
@@ -162,11 +163,11 @@ function AddQualGlobal({ schemes, onDone }) {
 }
 
 function CourseEdit({ course, onSaved }) {
-  const [d, setD] = useState({ name: course.name || '', scheme: course.scheme || '', price: course.price ?? '', teamup_designator: course.teamup_designator || '', is_active: course.is_active !== false })
+  const [d, setD] = useState({ name: course.name || '', scheme: course.scheme || '', price: course.price ?? '', teamup_designator: course.teamup_designator || '', is_active: course.is_active !== false, color: course.color || '#48566a' })
   async function save() {
     if (!d.name.trim()) return toast('Course name is required')
     if (!d.scheme.trim()) return toast('Scheme is required')
-    await updateCourse(course.course_id, { name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: d.is_active })
+    await updateCourse(course.course_id, { name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: d.is_active, color: d.color })
     toast('Course updated')
     onSaved()
   }
@@ -191,8 +192,11 @@ function CourseEdit({ course, onSaved }) {
       </div>
       <div className="twocol">
         <div className="field">
-          <label className="fl">Status</label>
-          <label className="chk"><input type="checkbox" checked={d.is_active} onChange={(e) => setD({ ...d, is_active: e.target.checked })} /> Active (bookable)</label>
+          <label className="fl">Status &amp; colour</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <label className="chk" style={{ margin: 0 }}><input type="checkbox" checked={d.is_active} onChange={(e) => setD({ ...d, is_active: e.target.checked })} /> Active</label>
+            <input type="color" value={d.color} onChange={(e) => setD({ ...d, color: e.target.value })} title="Course colour — shows across the schedule" style={{ width: 40, height: 28, padding: 1, border: '1px solid #d4dae3', borderRadius: 6, cursor: 'pointer' }} />
+          </div>
         </div>
         <div className="field" style={{ alignSelf: 'end' }}>
           <ConfirmDelete what="this course" onConfirm={remove} />

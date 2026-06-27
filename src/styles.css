@@ -450,3 +450,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .basket-x:hover{background:#fdecea;color:#c0392b;border-color:#e3b3ad}
 .basket-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);margin-top:6px;padding-top:8px;font-size:14px}
 .basket-total b{font-size:16px;color:#0d1b2e}
+
+
+/* Course colour swatch + dots */
+.ch .cdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none;margin-right:2px}
+.wg-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}

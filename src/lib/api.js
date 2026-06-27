@@ -575,7 +575,7 @@ export async function createClient(d) {
 
 // ---- Course & qualification catalogue (item 5) --------------------------
 export async function createCourse(d) {
-  const row = { name: d.name, scheme: d.scheme || null, price: d.price ?? null, teamup_designator: d.teamup_designator || null, is_active: d.is_active !== false }
+  const row = { name: d.name, scheme: d.scheme || null, price: d.price ?? null, teamup_designator: d.teamup_designator || null, color: d.color || null, is_active: d.is_active !== false }
   if (LIVE) {
     const { data, error } = await supabase.from('course').insert(row).select().single()
     if (error) throw new Error(error.message)
@@ -1100,7 +1100,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
