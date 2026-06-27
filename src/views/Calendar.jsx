@@ -92,6 +92,18 @@ export default function Calendar({ go }) {
     block: b,
   })), [filtered, colourBy])
 
+  // DayPilot reads event colours via onBeforeEventRender on EVERY render, so a
+  // course-colour change (or a colour-by switch) always repaints. Setting
+  // backColor on the event data alone does NOT refresh on prop updates.
+  const renderEvent = (args) => {
+    const b = args.data.block
+    const c = b ? colourFor(b) : '#48566a'
+    args.data.backColor = c
+    args.data.barColor = c
+    args.data.borderColor = 'darker'
+    args.data.fontColor = '#fff'
+  }
+
   // Resource lanes = one column per trainer (+ an Unassigned lane), single day.
   const rescolumns = useMemo(() => {
     const used = new Set(filtered.map((b) => b.trainerId || 'none'))
@@ -141,6 +153,7 @@ export default function Calendar({ go }) {
           onTimeRangeSelected={(args) => { monthRef.current?.control.clearSelection(); setCreating({ from: isoOf(args.start), to: endIso(args.end) }) }}
           onEventMoved={doMoveResize}
           onEventResized={doMoveResize}
+          onBeforeEventRender={renderEvent}
           onEventClick={(args) => setOpenBlock(args.e.data.block)}
         />
       ) : view === 'Resources' ? (
@@ -155,6 +168,7 @@ export default function Calendar({ go }) {
           eventMoveHandling="Disabled"
           eventResizeHandling="Disabled"
           timeRangeSelectedHandling="Disabled"
+          onBeforeEventRender={renderEvent}
           onEventClick={(args) => setOpenBlock(args.e.data.block)}
         />
       ) : (
@@ -171,6 +185,7 @@ export default function Calendar({ go }) {
           onTimeRangeSelected={(args) => { calRef.current?.control.clearSelection(); setCreating({ from: isoOf(args.start), to: endIso(args.end) }) }}
           onEventMoved={doMoveResize}
           onEventResized={doMoveResize}
+          onBeforeEventRender={renderEvent}
           onEventClick={(args) => setOpenBlock(args.e.data.block)}
         />
       )}
