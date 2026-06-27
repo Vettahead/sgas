@@ -529,3 +529,5 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-num{line-height:24px;font-size:11px}
 /* faint hint that the empty bottom strip of each month row is draggable to add a block */
 .yc-track .yc-cell:hover{background:var(--brand-soft)}
+
+.yc-bar{height:21px;font-size:11px}
