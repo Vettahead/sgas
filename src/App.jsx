@@ -82,6 +82,7 @@ export default function App() {
   const [view, setView] = useState(() => defaultView(loadSession()?.role))
   const [openDelegate, setOpenDelegate] = useState(null)
   const [bookPrefill, setBookPrefill] = useState(null)
+  const [navOpen, setNavOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 820 : true))
 
   function onLogin(u) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(u))
@@ -110,7 +111,7 @@ export default function App() {
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
-    <div className="app">
+    <div className={'app' + (navOpen ? '' : ' nav-collapsed')}>
       <aside className="side">
         <div className="brand"><img className="brand-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" /><span>Training Management</span></div>
         <nav className="nav">
@@ -133,6 +134,7 @@ export default function App() {
 
       <div className="main">
         <div className="top">
+          <button className="navtoggle" onClick={() => setNavOpen((o) => !o)} title="Toggle menu">☰</button>
           <div><h1>{title}</h1><div className="sub">{sub}</div></div>
           <div className="right">
             <span className={'srcbadge ' + (LIVE ? 'live' : 'demo')}>{LIVE ? '● LIVE' : '● DEMO'}</span>

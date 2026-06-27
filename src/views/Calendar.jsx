@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, createBlock, updateBlock, deleteBlock } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -55,13 +55,21 @@ export default function Calendar({ go }) {
   const [staff, setStaff] = useState([])
   const [openBlock, setOpenBlock] = useState(null)
   const [creating, setCreating] = useState(null) // { from, to } while the create modal is open
+  const [pool, setPool] = useState([])
 
   const calRef = useRef(null)
   const monthRef = useRef(null)
 
   async function refresh() {
     const [b, c, s] = await Promise.all([listBlocks(), listCourses(), listStaff()])
-    setBlocks(b); setCourses(c); setStaff(s)
+    try { await loadPool() } catch { /* pool optional */ }
+    setBlocks(b); setCourses(c); setStaff(s); setPool(getPool())
+    return b
+  }
+  // Refresh data but keep the right panel open on the (now-updated) same block.
+  async function refreshKeepOpen() {
+    const b = await refresh()
+    setOpenBlock((prev) => (prev ? b.find((x) => x.id === prev.id) || null : null))
   }
   useEffect(() => { refresh() }, [])
   useEffect(() => { savePrefs({ view, scheme, colourBy, showFinished, staffFilter, numMonths }) }, [view, scheme, colourBy, showFinished, staffFilter, numMonths])
@@ -210,8 +218,8 @@ export default function Calendar({ go }) {
         />
       )}
       {openBlock && (
-        <BlockDrawer b={openBlock} courses={courses} go={go}
-          onChanged={refresh} onClose={() => setOpenBlock(null)} />
+        <BlockDrawer b={openBlock} courses={courses} staff={staff} pool={pool} go={go}
+          onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
       )}
     </div>
   )
@@ -312,33 +320,41 @@ function CreateModal({ range, courses, onClose, onCreated }) {
   )
 }
 
-function BlockDrawer({ b, courses, go, onChanged, onClose }) {
+function BlockDrawer({ b, courses, staff, pool, go, onChanged, onClose }) {
   const cur = (courses || []).find((c) => c.name === b.course)
   const [courseId, setCourseId] = useState(cur ? String(cur.course_id) : '')
   const [from, setFrom] = useState(b.start)
   const [to, setTo] = useState(b.end)
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+
+  async function run(fn, okMsg) {
+    setBusy(true)
+    try { await fn(); if (okMsg) toast(okMsg); if (onChanged) await onChanged() }
+    catch (e) { toast(e.message) }
+    finally { setBusy(false) }
+  }
   async function save() {
     if (from > to) return toast('Start must be on or before end')
-    setBusy(true)
-    try {
-      await updateBlock(b.id, { from, to, courseId: courseId ? Number(courseId) : undefined })
-      toast('Block updated'); if (onChanged) await onChanged(); onClose()
-    } catch (e) { toast(e.message); setBusy(false) }
+    await run(() => updateBlock(b.id, { from, to, courseId: courseId ? Number(courseId) : undefined }), 'Block updated')
+    onClose()
   }
-  async function del() {
-    setBusy(true)
-    try { await deleteBlock(b.id); toast('Block deleted'); if (onChanged) await onChanged(); onClose() }
-    catch (e) { toast(e.message); setBusy(false) }
-  }
+  async function del() { await run(() => deleteBlock(b.id), 'Block deleted'); onClose() }
+  const setTrainer = (id) => run(() => assignBlockRole(b.id, 'trainer', id ? Number(id) : null), 'Trainer updated')
+  const addDelegate = (pid) => run(() => addDelegatesToBlock(b.id, [pid]), 'Delegate added')
+  const removeDelegate = (bid) => run(() => returnToPool(bid), 'Returned to waiting pool')
+
+  const waiting = (pool || []).filter((p) => !b.scheme || p.scheme === b.scheme)
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal cal-drawer" onClick={(e) => e.stopPropagation()}>
-        <div className="cal-drawer-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
-          <h3>{b.course}</h3>
+    <div className="cal-rpanel-wrap">
+      <div className="cal-rpanel-backdrop" onClick={onClose} />
+      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-rpanel-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
+          <div className="cal-rpanel-title"><h3>{b.course}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">{b.scheme || '—'} · {b.delegates.length} delegate(s)</span>
         </div>
+
         <div className="cal-edit">
           <label className="fld">Course
             <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
@@ -349,36 +365,54 @@ function BlockDrawer({ b, courses, go, onChanged, onClose }) {
             <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
             <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
           </div>
+          <div className="cal-editbtns">
+            <button className="btn sm" onClick={save} disabled={busy}>Save dates</button>
+            {confirmDel
+              ? <button className="btn sm danger" onClick={del} disabled={busy}>Confirm delete</button>
+              : <button className="btn sm ghost" onClick={() => setConfirmDel(true)} disabled={busy}>Delete block</button>}
+          </div>
         </div>
-        <div className="cal-drawer-roles muted small">
-          Trainer: {b.trainer || '—'} · Assessor: {b.assessor || '—'} · Verifier: {b.verifier || '—'}
-          {!b.ready && <span className="cal-warn"> · ⚠ needs trainer + delegates</span>}
+
+        <div className="cal-sec">
+          <strong>Trainer</strong>
+          <select value={b.trainerId || ''} onChange={(e) => setTrainer(e.target.value)} disabled={busy}>
+            <option value="">— unassigned —</option>
+            {(staff || []).map((s) => <option key={s.staff_id ?? s.id} value={s.staff_id ?? s.id}>{s.name}</option>)}
+          </select>
+          {!b.ready && <div className="cal-warn small">⚠ needs a trainer and at least one delegate</div>}
         </div>
-        <div className="cal-drawer-body">
-          <strong>Delegates ({b.delegates.length})</strong>
-          {b.delegates.length === 0 && <div className="muted small">None yet.</div>}
+
+        <div className="cal-sec">
+          <strong>On this block ({b.delegates.length})</strong>
+          {b.delegates.length === 0 && <div className="muted small">No delegates yet.</div>}
           <ul className="cal-delg">
             {b.delegates.map((d) => (
-              <li key={d.bookingId}>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</li>
+              <li key={d.bookingId}>
+                <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
+                <button className="cal-mini" title="Return to waiting pool" onClick={() => removeDelegate(d.bookingId)} disabled={busy}>↩</button>
+              </li>
             ))}
           </ul>
         </div>
-        <div className="modal-foot">
-          {confirmDel ? (
-            <>
-              <span className="muted small" style={{ marginRight: 'auto' }}>Delete this block?</span>
-              <button className="btn ghost" onClick={() => setConfirmDel(false)}>Cancel</button>
-              <button className="btn danger" onClick={del} disabled={busy}>Delete</button>
-            </>
-          ) : (
-            <>
-              <button className="btn ghost" style={{ marginRight: 'auto' }} onClick={() => setConfirmDel(true)} disabled={busy}>Delete</button>
-              {go && <button className="btn ghost" onClick={() => { onClose(); go('sched') }}>Schedule →</button>}
-              <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
-            </>
-          )}
+
+        <div className="cal-sec">
+          <strong>Waiting pool{b.scheme ? ` · ${b.scheme}` : ''} ({waiting.length})</strong>
+          {waiting.length === 0 && <div className="muted small">No one waiting for this scheme.</div>}
+          <ul className="cal-delg">
+            {waiting.map((wp) => (
+              <li key={wp.id}>
+                <span>{wp.name}{wp.count ? <span className="muted"> · {wp.count} qual(s)</span> : null}</span>
+                <button className="cal-mini add" title="Add to this block" onClick={() => addDelegate(wp.id)} disabled={busy}>＋</button>
+              </li>
+            ))}
+          </ul>
         </div>
-      </div>
+
+        <div className="cal-rpanel-foot">
+          {go && <button className="btn ghost sm" onClick={() => { onClose(); go('sched') }}>Full Schedule →</button>}
+          <button className="btn sm" onClick={onClose}>Done</button>
+        </div>
+      </aside>
     </div>
   )
 }

@@ -531,3 +531,28 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-track .yc-cell:hover{background:var(--brand-soft)}
 
 .yc-bar{height:21px;font-size:11px}
+
+/* Collapsible sidebar (mobile + give the calendar room) */
+.side{transition:margin-left .22s ease}
+.app.nav-collapsed .side{margin-left:-230px}
+.navtoggle{background:#fff;border:1px solid var(--line);border-radius:8px;width:34px;height:34px;font-size:15px;cursor:pointer;color:var(--slate);flex:none}
+.navtoggle:hover{background:var(--brand-soft);border-color:var(--brand)}
+
+/* Calendar right-side "arrange" panel (open a block to schedule in place) */
+.cal-rpanel-wrap{position:fixed;inset:0;z-index:60;display:flex;justify-content:flex-end}
+.cal-rpanel-backdrop{position:absolute;inset:0;background:rgba(13,27,46,.35)}
+.cal-rpanel{position:relative;width:min(390px,94vw);height:100%;background:#fff;box-shadow:-10px 0 34px rgba(0,0,0,.22);display:flex;flex-direction:column;overflow:auto;padding:16px 18px}
+.cal-rpanel-head{padding:0 0 10px 12px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.cal-rpanel-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cal-rpanel-title h3{margin:0;font-size:15px}
+.cal-x{background:none;border:none;font-size:15px;color:var(--muted);cursor:pointer;line-height:1}
+.cal-editbtns{display:flex;gap:8px;margin-top:8px}
+.cal-sec{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.cal-sec>strong{font-size:12.5px}
+.cal-delg li{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cal-mini{flex:none;width:24px;height:24px;border:1px solid #cfd8e3;background:#fff;border-radius:6px;cursor:pointer;color:var(--slate);line-height:1}
+.cal-mini.add{border-color:var(--brand);color:var(--brand);font-weight:700}
+.cal-mini:hover{background:var(--brand-soft)}
+.cal-rpanel-foot{margin-top:auto;padding-top:14px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line)}
+.btn.danger{background:var(--red);border-color:var(--red);color:#fff}
+.btn.danger:hover{filter:brightness(1.05)}
