@@ -80,12 +80,12 @@ export default function Schedule() {
 
   return (
     <>
-      <div className="hint">
-        Course <b>blocks</b> (dates) are pulled in from <b>Teamup</b>. Assign a <b>Trainer</b>, <b>Assessor</b> and <b>Verifier</b> plus delegates to each block. Finished courses drop off automatically. <span className="tu">⟳ Teamup pull (stub)</span>
-      </div>
-      <div className="seg-tabs">
-        <button className={'btn sm' + (tab === 'drag' ? '' : ' ghost')} onClick={() => setTab('drag')}>🖐 Drag &amp; drop</button>
-        <button className={'btn sm' + (tab === 'cal' ? '' : ' ghost')} onClick={() => setTab('cal')}>📅 Calendar</button>
+      <div className="sched-top">
+        <SchedHeader />
+        <div className="seg-tabs">
+          <button className={'btn sm' + (tab === 'drag' ? '' : ' ghost')} onClick={() => setTab('drag')}>🖐 Drag &amp; drop</button>
+          <button className={'btn sm' + (tab === 'cal' ? '' : ' ghost')} onClick={() => setTab('cal')}>📅 Calendar</button>
+        </div>
       </div>
       {tab === 'drag' && <DragAssign f={f} />}
       {tab === 'cal' && <CalendarTab f={f} />}
@@ -128,7 +128,7 @@ function SchedHeader() {
   return (
     <div className="sect-head">
       <h2>📚 Course blocks</h2>
-      <p className="muted small">Each block is a course with its dates. Drag staff onto the role slots and delegates onto a block; click a block for its full detail. Finished courses drop off automatically.</p>
+      <p className="muted small">Drag staff onto a role slot and delegates onto a block; click a block to open its card. Finished courses drop off automatically.</p>
     </div>
   )
 }
@@ -333,7 +333,6 @@ function DragAssign({ f }) {
 
   return (
     <>
-      <SchedHeader />
       <div className="sched-toolbar">
         <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
         <CreateBlock courses={courses || []} onCreated={reload} />

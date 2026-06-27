@@ -426,3 +426,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .drag-shell .palette{order:1}
 .drag-shell .block-drawer{order:2}
 .drag-shell .work{order:3}
+
+
+/* Tight Schedule header band: info left, tab switcher right */
+.sched-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.sched-top .sect-head{margin:0;flex:1;min-width:240px}
+.sched-top .sect-head h2{margin:0 0 2px}
+.sched-top .seg-tabs{flex:none;margin:0}
