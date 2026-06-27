@@ -724,28 +724,55 @@ function bookingAttrs(p) {
   }
 }
 
+// Attach a waiting pool item to a block. booking has UNIQUE(client_id, session_id),
+// so a delegate has ONE booking per block — if they already have one, MERGE this
+// item's modules into it (one booking, many modules) rather than adding a second
+// (which would silently violate the constraint and appear to "do nothing").
+async function attachPoolItem(blockId, p) {
+  if (LIVE) {
+    const { data: existing } = await supabase.from('booking').select('booking_id').eq('session_id', blockId).eq('client_id', p.client_id).maybeSingle()
+    if (existing) {
+      const { data: have } = await supabase.from('booking_category').select('category_id').eq('booking_id', existing.booking_id)
+      const haveSet = new Set((have || []).map((x) => x.category_id))
+      const { data: wbcs } = await supabase.from('booking_category').select('booking_category_id,category_id').eq('booking_id', p.id)
+      for (const bc of wbcs || []) {
+        if (haveSet.has(bc.category_id)) await supabase.from('booking_category').delete().eq('booking_category_id', bc.booking_category_id)
+        else await supabase.from('booking_category').update({ booking_id: existing.booking_id }).eq('booking_category_id', bc.booking_category_id)
+      }
+      await supabase.from('booking').delete().eq('booking_id', p.id)
+    } else {
+      const { error } = await supabase.from('booking').update({ session_id: blockId }).eq('booking_id', p.id)
+      if (error) throw new Error(error.message)
+    }
+  } else {
+    const existing = D.bookings.find((b) => b.session_id === blockId && b.client_id === p.client_id)
+    if (existing) {
+      const have = new Set(D.booking_categories.filter((x) => x.booking_id === existing.booking_id).map((x) => x.category_id))
+      for (const cid of p.category_ids) {
+        if (!have.has(cid)) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: existing.booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
+      }
+    } else {
+      const booking_id = ++D.seq.booking
+      D.bookings.push({ booking_id, client_id: p.client_id, session_id: blockId, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
+      for (const cid of p.category_ids) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
+    }
+  }
+}
+
 export async function scheduleCourse({ scheme, courseId, assessorId, poolIds, from, to }) {
   const items = poolList.filter((p) => poolIds.includes(p.id))
+  let blockId
   if (LIVE) {
     const { data: sess, error: e1 } = await supabase.from('session').insert({
       assessor_id: assessorId, course_id: courseId, start_date: from, end_date: to,
     }).select().single()
     if (e1) throw e1
-    for (const p of items) {
-      const { error: e2 } = await supabase.from('booking').update({ session_id: sess.session_id }).eq('booking_id', p.id)
-      if (e2) throw e2
-    }
+    blockId = sess.session_id
   } else {
-    const session_id = ++D.seq.session
-    D.sessions.push({ session_id, assessor_id: assessorId, course_id: courseId, start_date: from, end_date: to, teamup_event_id: 'tu-' + session_id })
-    for (const p of items) {
-      const booking_id = ++D.seq.booking
-      D.bookings.push({ booking_id, client_id: p.client_id, session_id, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
-      for (const cid of p.category_ids) {
-        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
-      }
-    }
+    blockId = ++D.seq.session
+    D.sessions.push({ session_id: blockId, assessor_id: assessorId, course_id: courseId, start_date: from, end_date: to, teamup_event_id: 'tu-' + blockId })
   }
+  for (const p of items) await attachPoolItem(blockId, p)
   // remove scheduled items from the staging pool
   for (const p of items) {
     const i = poolList.findIndex((x) => x.id === p.id)
@@ -1101,21 +1128,7 @@ export async function assignBlockRole(blockId, role, staffId) {
 
 export async function addDelegatesToBlock(blockId, poolIds) {
   const items = poolList.filter((p) => poolIds.includes(p.id))
-  if (LIVE) {
-    // Pool items are already real bookings (session_id null) — just attach them to the block.
-    for (const p of items) {
-      const { error } = await supabase.from('booking').update({ session_id: blockId }).eq('booking_id', p.id)
-      if (error) throw new Error(error.message)
-    }
-  } else {
-    for (const p of items) {
-      const booking_id = ++D.seq.booking
-      D.bookings.push({ booking_id, client_id: p.client_id, session_id: blockId, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
-      for (const cid of p.category_ids) {
-        D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
-      }
-    }
-  }
+  for (const p of items) await attachPoolItem(blockId, p)
   for (const p of items) {
     const i = poolList.findIndex((x) => x.id === p.id)
     if (i >= 0) poolList.splice(i, 1)
