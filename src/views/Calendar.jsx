@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -374,6 +374,45 @@ function ViewChooser({ block, onPick, onClose }) {
   )
 }
 
+function AttendanceEdit({ d, block, busy, onSave }) {
+  const full0 = !d.attendFrom && !d.attendTo
+  const [editing, setEditing] = useState(false)
+  const [full, setFull] = useState(full0)
+  const [from, setFrom] = useState(d.attendFrom || block.start)
+  const [to, setTo] = useState(d.attendTo || block.end)
+  if (!editing) {
+    return (
+      <span className="att-line">
+        <span className={'att-tag ' + (full0 ? 'full' : 'part')}>{full0 ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
+        <button className="att-change" onClick={() => setEditing(true)} disabled={busy}>Change</button>
+      </span>
+    )
+  }
+  function save() {
+    if (!full) {
+      if (from < block.start || to > block.end) return toast('Dates must be within the block')
+      if (from > to) return toast('From must be on or before To')
+    }
+    const isFull = full || (from === block.start && to === block.end)
+    onSave(isFull ? null : from, isFull ? null : to)
+    setEditing(false)
+  }
+  return (
+    <span className="att-edit">
+      <label className="att-full"><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} /> Full course</label>
+      {!full && (
+        <span className="att-dates">
+          <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
+          <span>–</span>
+          <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
+        </span>
+      )}
+      <button className="att-change" onClick={save} disabled={busy}>Save</button>
+      <button className="att-change" onClick={() => setEditing(false)} disabled={busy}>✕</button>
+    </span>
+  )
+}
+
 function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwitchMode, go, onChanged, onClose }) {
   const editing = isAdmin && mode === 'edit'
   const cur = (courses || []).find((c) => c.name === b.course)
@@ -470,7 +509,9 @@ function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwi
                 <li key={d.bookingId}>
                   <span className="cal-delg-info">
                     <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
-                    <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
+                    {editing
+                      ? <AttendanceEdit d={d} block={b} busy={busy} onSave={(f, t) => run(() => setBookingAttendance(d.bookingId, f, t), 'Attendance updated')} />
+                      : <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>}
                   </span>
                   {editing && <button className="cal-mini" title="Return to waiting pool" onClick={() => removeDelegate(d.bookingId)} disabled={busy}>↩</button>}
                 </li>

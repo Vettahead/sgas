@@ -579,3 +579,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .chooser-opt:hover{border-color:var(--brand);background:var(--brand-soft)}
 .chooser-ic{font-size:20px}
 .chooser-opt strong{font-size:13px}
+
+/* per-delegate attendance editor in the arrange panel (edit view) */
+.att-line{display:inline-flex;align-items:center;gap:7px}
+.att-change{background:none;border:none;color:var(--brand);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
+.att-edit{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
+.att-edit .att-dates{display:inline-flex;align-items:center;gap:4px}
+.att-edit input[type=date]{width:auto;padding:3px 6px;font-size:11px}
+.att-full{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--slate)}
+.att-full input{width:auto}
