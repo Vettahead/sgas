@@ -394,3 +394,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .rrempty{color:#9aa6b8;margin-left:auto}
 .rrow .rdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
 .ff-check{display:flex;align-items:center;gap:5px;flex-direction:row}
+
+
+/* Finished (locked) blocks */
+.bcard.finished{opacity:.7}
+.bcard.finished:hover{border-color:#d4dae3}
+.locked-banner{background:#fff3cd;border:1px solid #e3b341;color:#8a6d00;border-radius:7px;padding:5px 8px;font-size:11px;margin-bottom:8px}

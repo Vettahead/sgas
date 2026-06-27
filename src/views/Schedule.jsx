@@ -34,7 +34,7 @@ async function delForm(bookingId) {
 
 // One delegate inside a block: coloured by kind (new/reassess/NYC/no-show),
 // shows the course codes they're booked for, and the name prints their ACS form.
-function DelegateChip({ d, scheme, block, categories, onAdded, onReturn }) {
+function DelegateChip({ d, scheme, block, categories, onAdded, onReturn, locked }) {
   const col = kindColor(d.kind)
   const [open, setOpen] = useState(false)
   const canAdd = Boolean(categories && onAdded)
@@ -49,15 +49,15 @@ function DelegateChip({ d, scheme, block, categories, onAdded, onReturn }) {
             {offScheme.length > 0 && <span className="mixwarn" title={'Mixed scheme — ' + offScheme.map((c) => c.code + ' (' + c.scheme + ')').join(', ')}>⚠</span>}
             <span className="delg-actions">
               {kindTag(d.kind) && <span className="b" style={{ background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
-              {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
-              {onReturn && <button className="ret-btn" title="Return to waiting pool (wrong block?)" onClick={(e) => { e.stopPropagation(); onReturn(d.bookingId) }}>↩</button>}
+              {canAdd && !locked && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
+              {onReturn && !locked && <button className="ret-btn" title="Return to waiting pool (wrong block?)" onClick={(e) => { e.stopPropagation(); onReturn(d.bookingId) }}>↩</button>}
             </span>
           </div>
           {d.codes?.length > 0 && <div className="dcodes muted small">{d.codes.join(', ')}</div>}
         </div>
       </div>
-      {open && canAdd && <AddQualRow d={d} scheme={scheme} categories={categories} onAdded={() => { onAdded(); setOpen(false) }} />}
-      {canAdd && block && <AttendanceRow d={d} block={block} onSaved={onAdded} />}
+      {open && canAdd && !locked && <AddQualRow d={d} scheme={scheme} categories={categories} onAdded={() => { onAdded(); setOpen(false) }} />}
+      {canAdd && block && <AttendanceRow d={d} block={block} onSaved={onAdded} locked={locked} />}
     </div>
   )
 }
@@ -280,8 +280,11 @@ function DragAssign({ f }) {
   const waiting = allWaiting.filter((p) => (!f.courseType || p.scheme === f.courseType) && passDelegate(p, f))
   const selectedId = (selected != null && visible.some((b) => b.id === selected)) ? selected : null
   const sBlock = selectedId != null ? (visible.find((b) => b.id === selectedId) || null) : null
+  const sLocked = !!(sBlock && sBlock.end && sBlock.end < todayISO())
 
   async function assignRole(blockId, role, staffId) {
+    const blk = blocks.find((b) => b.id === blockId)
+    if (blk && blk.end && blk.end < todayISO()) return toast('This course has finished — it is locked.')
     await assignBlockRole(blockId, role, staffId); reload()
   }
   async function returnDelegate(bookingId) {
@@ -290,6 +293,7 @@ function DragAssign({ f }) {
   }
   async function addDelegate(blockId, poolItem) {
     const blk = blocks.find((b) => b.id === blockId)
+    if (blk && blk.end && blk.end < todayISO()) return toast('This course has finished — it is locked.')
     // Allow-but-flag: a different-scheme delegate can still be placed; it's flagged on the roster.
     const mismatch = blk?.scheme && poolItem.scheme && poolItem.scheme !== blk.scheme
     if (String(poolItem.id).startsWith('rb-')) await rescheduleDelegate(poolItem.bookingId, blockId)
@@ -366,15 +370,16 @@ function DragAssign({ f }) {
         <div className="block-grid">
           {visible.map((b) => {
             const dropping = over === 'card:' + b.id || sel?.type === 'delegate'
+            const finished = b.end && b.end < todayISO()
             return (
-              <div key={b.id} className={'bcard' + (b.id === selectedId ? ' on' : '') + (dropping ? ' droptarget' : '')}
+              <div key={b.id} className={'bcard' + (b.id === selectedId ? ' on' : '') + (dropping && !finished ? ' droptarget' : '') + (finished ? ' finished' : '')}
                 onClick={() => { if (sel?.type === 'delegate') clickCardDelegate(b.id); else setSelected(b.id) }}
                 onDragOver={(e) => { if (drag.current?.type === 'delegate') { e.preventDefault(); setOver('card:' + b.id) } }}
                 onDragLeave={() => setOver((o) => (o === 'card:' + b.id ? null : o))}
                 onDrop={(e) => onDropDelegate(e, b.id)}>
                 <div className="bc-head">
                   <span className="bc-name">📚 {b.course}</span>
-                  {b.ready ? <span className="b pass">Ready</span> : <span className="b pend">Incomplete</span>}
+                  {finished ? <span className="b" title="Finished — locked">🔒</span> : b.ready ? <span className="b pass">Ready</span> : <span className="b pend">Incomplete</span>}
                 </div>
                 <div className="bc-date small muted">{fmt(b.start)}{b.end && b.end !== b.start ? ' – ' + fmt(b.end) : ''} · {b.scheme}</div>
                 <div className="bc-roles">
@@ -415,6 +420,7 @@ function DragAssign({ f }) {
               <button className="drawer-x" title="Close" onClick={() => setSelected(null)}>✕</button>
             </div>
             <div className="small muted" style={{ marginBottom: 8 }}>{fmt(sBlock.start)}{sBlock.end && sBlock.end !== sBlock.start ? ' – ' + fmt(sBlock.end) : ''} · {sBlock.designator || sBlock.scheme}</div>
+            {sLocked && <div className="locked-banner">🔒 This course has finished — locked (no scheduling changes). Assess it from the Assess tab.</div>}
             <div className="cbd" style={{ cursor: sel?.type === 'delegate' ? 'pointer' : 'default' }} onClick={() => clickCardDelegate(sBlock.id)}>
               {ROLES.map(([role, label]) => {
                 const sid = sBlock[role + 'Id']
@@ -431,15 +437,15 @@ function DragAssign({ f }) {
                         <>
                           <span className="dot" style={{ background: ASSESSOR_COLOR[sid] || '#48566a' }}></span>
                           <b>{sBlock[role]}</b>
-                          <span className="x" onClick={(e) => { e.stopPropagation(); assignRole(sBlock.id, role, null) }}>✕</span>
+                          {!sLocked && <span className="x" onClick={(e) => { e.stopPropagation(); assignRole(sBlock.id, role, null) }}>✕</span>}
                         </>
-                      ) : (sel?.type === 'staff' ? `Click to place ${label.toLowerCase()}` : `Drop ${label.toLowerCase()} here`)}
+                      ) : (sLocked ? '—' : sel?.type === 'staff' ? `Click to place ${label.toLowerCase()}` : `Drop ${label.toLowerCase()} here`)}
                     </div>
                   </div>
                 )
               })}
               <div className="fl" style={{ marginTop: 10 }}>Delegates ({sBlock.delegates.length})</div>
-              {sBlock.delegates.map((d) => <DelegateChip d={d} scheme={sBlock.scheme} block={sBlock} categories={categories || []} onAdded={reload} onReturn={returnDelegate} key={d.bookingId} />)}
+              {sBlock.delegates.map((d) => <DelegateChip d={d} scheme={sBlock.scheme} block={sBlock} categories={categories || []} onAdded={reload} onReturn={returnDelegate} locked={sLocked} key={d.bookingId} />)}
               <div className="drop-hint muted small">{sel?.type === 'delegate' ? '➕ Click here to add the selected delegate' : '⬇ Drag a delegate here'}</div>
             </div>
             <BlockFooter b={sBlock} />
@@ -624,7 +630,7 @@ function Calendar({ sessions, staff }) {
   )
 }
 
-function AttendanceRow({ d, block, onSaved }) {
+function AttendanceRow({ d, block, onSaved, locked }) {
   const isFull = !d.attendFrom && !d.attendTo
   const [editing, setEditing] = useState(false)
   const [from, setFrom] = useState(d.attendFrom || block.start)
@@ -642,7 +648,7 @@ function AttendanceRow({ d, block, onSaved }) {
   if (!editing) return (
     <div className="attend-row muted small">
       {isFull ? '🗓 Full course' : '🗓 ' + fmt(d.attendFrom) + ' – ' + fmt(d.attendTo)}
-      <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(true)}>Change</button>
+      {!locked && <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(true)}>Change</button>}
     </div>
   )
   return (
