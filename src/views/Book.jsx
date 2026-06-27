@@ -50,6 +50,8 @@ export default function Book({ prefill = null }) {
     return g
   }, [categories])
 
+  const catById = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.category_id, c)); return m }, [categories])
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return delegates || []
@@ -65,6 +67,12 @@ export default function Book({ prefill = null }) {
   const hasGasQual = categories.some((c) => catKind.has(c.category_id) && GAS_SCHEMES.has(c.scheme))
   // IGAS only applies to gas certs; auto-off when no gas qualification is ticked.
   const igasEffective = opts.igas && hasGasQual
+  const money = (v) => (v == null ? '—' : '£' + Number(v).toFixed(2).replace(/\.00$/, ''))
+  const selected = [...catKind.entries()].map(([id, kind]) => ({ cat: catById.get(id), kind })).filter((x) => x.cat)
+  const selByScheme = {}
+  for (const x of selected) (selByScheme[x.cat.scheme] = selByScheme[x.cat.scheme] || []).push(x)
+  const totalPrice = selected.reduce((n, x) => n + (x.cat.price != null ? Number(x.cat.price) : 0), 0)
+  const pricedCount = selected.filter((x) => x.cat.price != null).length
 
   // Click a qualification to cycle: off -> Reassessment -> New -> off.
   function cycleCat(id) {
@@ -250,6 +258,32 @@ export default function Book({ prefill = null }) {
             </div>
 
             <div className="small muted">Tick qualifications on the right. The delegate joins the <b>unscheduled pool</b> for each course group you tick.</div>
+
+            <div className="basket">
+              <div className="basket-h">🧾 Selected qualifications <span className="tag">{catKind.size}</span></div>
+              {catKind.size === 0 ? (
+                <div className="muted small" style={{ padding: '8px 0' }}>None yet — tick qualifications on the right and they list here, grouped by course, with a running cost.</div>
+              ) : (
+                <>
+                  {Object.entries(selByScheme).map(([scheme, items]) => (
+                    <div className="basket-grp" key={scheme}>
+                      <div className="basket-grp-h">{schemeName[scheme] || scheme} <span className="muted">({items.length})</span></div>
+                      {items.map(({ cat, kind }) => (
+                        <div className="basket-row" key={cat.category_id}>
+                          <span className="b" style={{ background: kind === 'REASSESS' ? '#0a5ad6' : '#1a8a4b', color: '#fff' }}>{kind === 'REASSESS' ? 'Re' : 'New'}</span>
+                          <span className="basket-code">{cat.code}</span>
+                          <span className="basket-desc muted small">{cat.description}</span>
+                          <span className="basket-price">{money(cat.price)}</span>
+                          <button className="basket-x" title="Remove" onClick={() => setCatKind((prev) => { const nn = new Map(prev); nn.delete(cat.category_id); return nn })}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  <div className="basket-total"><span>Estimated cost</span><b>{money(totalPrice)}</b></div>
+                  {pricedCount < selected.length && <div className="muted small" style={{ marginTop: 4 }}>{selected.length - pricedCount} module(s) have no price set yet — total is partial. Discounts/VAT come later.</div>}
+                </>
+              )}
+            </div>
           </div>
         </div>
 
