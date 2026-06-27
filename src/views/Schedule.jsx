@@ -326,6 +326,7 @@ function DragAssign({ f }) {
     <>
       <SchedHeader />
       <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
+      <CreateBlock courses={courses || []} onCreated={reload} />
       <div className="asr-pool">
         <span className="lbl">Staff — drag to a role, or click then click a slot</span>
         {staff.map((s) => {
