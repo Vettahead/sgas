@@ -496,13 +496,28 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
       .select('client_id,company_id,booking_category(category_id,result,is_reassessment)').eq('booking_id', bookingId).single()
     if (e0) throw e0
     const cats = (orig.booking_category || []).filter((x) => x.result !== 'PASS')
-    const { data: bk, error: e1 } = await supabase.from('booking')
-      .insert({ client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id || null, overall_result: 'PENDING' })
-      .select().single()
-    if (e1) throw e1
-    if (cats.length) {
-      const { error: e2 } = await supabase.from('booking_category').insert(cats.map((x) => ({ booking_id: bk.booking_id, category_id: x.category_id, result: 'PENDING', is_reassessment: !!x.is_reassessment })))
-      if (e2) throw e2
+    // One booking per delegate per block: merge into an existing booking if they're already on the target.
+    const { data: existing } = await supabase.from('booking').select('booking_id').eq('session_id', targetSessionId).eq('client_id', orig.client_id).maybeSingle()
+    let targetId
+    if (existing) {
+      targetId = existing.booking_id
+      const { data: have } = await supabase.from('booking_category').select('category_id').eq('booking_id', targetId)
+      const haveSet = new Set((have || []).map((x) => x.category_id))
+      const toAdd = cats.filter((x) => !haveSet.has(x.category_id))
+      if (toAdd.length) {
+        const { error: em } = await supabase.from('booking_category').insert(toAdd.map((x) => ({ booking_id: targetId, category_id: x.category_id, result: 'PENDING', is_reassessment: !!x.is_reassessment })))
+        if (em) throw em
+      }
+    } else {
+      const { data: bk, error: e1 } = await supabase.from('booking')
+        .insert({ client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id || null, overall_result: 'PENDING' })
+        .select().single()
+      if (e1) throw e1
+      targetId = bk.booking_id
+      if (cats.length) {
+        const { error: e2 } = await supabase.from('booking_category').insert(cats.map((x) => ({ booking_id: targetId, category_id: x.category_id, result: 'PENDING', is_reassessment: !!x.is_reassessment })))
+        if (e2) throw e2
+      }
     }
     const { error: e3 } = await supabase.from('booking').update({ rescheduled: true }).eq('booking_id', bookingId)
     if (e3) throw e3
@@ -511,9 +526,15 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
   const orig = D.bookings.find((x) => x.booking_id === bookingId)
   if (!orig) return
   const cats = D.booking_categories.filter((x) => x.booking_id === bookingId && x.result !== 'PASS')
-  const newId = ++D.seq.booking
-  D.bookings.push({ booking_id: newId, client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_mlp: orig.flag_mlp, flag_igas: orig.flag_igas, flag_payment_outstanding: false, flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null, is_reassessment: orig.is_reassessment, pref_date_from: null, pref_date_to: null, rescheduled: false, last_chased: null, confirmation_sent_at: null })
-  for (const x of cats) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: newId, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
+  const existing = D.bookings.find((x) => x.session_id === targetSessionId && x.client_id === orig.client_id)
+  if (existing) {
+    const have = new Set(D.booking_categories.filter((x) => x.booking_id === existing.booking_id).map((x) => x.category_id))
+    for (const x of cats) if (!have.has(x.category_id)) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: existing.booking_id, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
+  } else {
+    const newId = ++D.seq.booking
+    D.bookings.push({ booking_id: newId, client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_mlp: orig.flag_mlp, flag_igas: orig.flag_igas, flag_payment_outstanding: false, flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null, is_reassessment: orig.is_reassessment, pref_date_from: null, pref_date_to: null, rescheduled: false, last_chased: null, confirmation_sent_at: null })
+    for (const x of cats) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: newId, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
+  }
   orig.rescheduled = true
 }
 
