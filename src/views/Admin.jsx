@@ -17,6 +17,7 @@ export default function Admin({ currentUser }) {
   const [loading, setLoading] = useState(!LIVE)
   const [showAdd, setShowAdd] = useState(false)
   const [nu, setNu] = useState({ username: '', name: '', email: '', role: 'STANDARD', password: '' })
+  const [created, setCreated] = useState(null) // show copyable details after creating a user
   const [resetId, setResetId] = useState(null)
   const [resetPw, setResetPw] = useState('')
 
@@ -45,6 +46,7 @@ export default function Admin({ currentUser }) {
     try {
       await createUser(nu, adminAuth)
       toast(`User created: ${nu.username}`)
+      setCreated({ username: nu.username, name: nu.name, email: nu.email, role: nu.role, password: nu.password })
       setNu({ username: '', name: '', email: '', role: 'STANDARD', password: '' })
       setShowAdd(false)
       load(adminAuth)
@@ -155,7 +157,37 @@ export default function Admin({ currentUser }) {
           </table>
         )}
       </div>
+      {created && <CreatedModal u={created} onClose={() => setCreated(null)} />}
     </>
+  )
+}
+
+function CreatedModal({ u, onClose }) {
+  const [copied, setCopied] = useState(false)
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+  const text = `SGAS Training Management — your login details
+Sign in at: ${origin}
+Username: ${u.username}
+Temporary password: ${u.password}
+Role: ${ROLE_LABELS[u.role] || u.role}
+
+Please sign in and change your password after your first login.`
+  async function copy() {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1600) }
+    catch { toast('Could not copy — select the text and copy manually') }
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <h3>User created — share these details</h3>
+        <p className="muted small">No email is sent yet. Copy this and pass it to {u.name || u.username} securely.</p>
+        <textarea readOnly rows={7} value={text} onFocus={(e) => e.target.select()} />
+        <div className="modal-foot">
+          <button className="btn ghost" onClick={onClose}>Close</button>
+          <button className="btn" onClick={copy}>{copied ? '✓ Copied' : 'Copy details'}</button>
+        </div>
+      </div>
+    </div>
   )
 }
 
