@@ -99,6 +99,8 @@ function DelegateCard({ d, reload }) {
   const [note, setNote] = useState(d.assessNotes || '')
   const locked = d.disposition && d.disposition !== 'NONE'
   const status = delegateStatus(d.overall, d.disposition)
+  const counts = { PASS: 0, FAIL: 0, NYC: 0, PENDING: 0 }
+  d.categories.forEach((x) => { counts[x.result] = (counts[x.result] || 0) + 1 })
 
   async function mark(x, result) {
     await markCategory(x.bookingCategoryId, result)
@@ -133,7 +135,18 @@ function DelegateCard({ d, reload }) {
         <span className="nm">{d.name}</span>
         <span className="muted small">Booking #{d.bookingId}</span>
         {d.noShows > 1 && <span className="noshow-alert">⚠ {d.noShows} no-shows on record</span>}
-        <span className="ov"><span className={'b ' + resultClass(status)}>{dispLabel(d.disposition) || status}</span></span>
+        <span className="ov result-sum">
+          {locked ? (
+            <span className={'b ' + resultClass(status)}>{dispLabel(d.disposition)}</span>
+          ) : (
+            <>
+              {counts.PASS > 0 && <span className="b pass">✓ {counts.PASS} pass</span>}
+              {counts.FAIL > 0 && <span className="b fail">✗ {counts.FAIL} fail</span>}
+              {counts.NYC > 0 && <span className="b nyc">NYC {counts.NYC}</span>}
+              {counts.PENDING > 0 && <span className="b pend">• {counts.PENDING} to do</span>}
+            </>
+          )}
+        </span>
       </div>
       {d.categories.map((x) => (
         <div className={'qrow' + (locked ? ' locked' : '')} key={x.bookingCategoryId}>

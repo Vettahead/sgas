@@ -617,3 +617,5 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-hover-d .att-tag{flex:none;white-space:nowrap}
 
 .kindtag{font-size:9.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:20px;white-space:nowrap}
+.result-sum{display:inline-flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.b.nyc{background:var(--amber-soft);color:var(--amber)}
