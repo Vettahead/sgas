@@ -1,9 +1,9 @@
 // Source-agnostic data access layer.
 // Every function returns the SAME view-friendly shape whether the data comes
-// from live Supabase or the bundled demo store. Views never touch raw tables.
+// from live Supabase or the bundled seed store. Views never touch raw tables.
 
 import { supabase, LIVE } from './supabase.js'
-import { store, ASSESSOR_COLOR } from './demo.js'
+import { store, ASSESSOR_COLOR } from './core.js'
 import { todayISO, addMonths, daysUntil } from './util.js'
 import { hashPassword, verifyPassword, randomSaltHex } from './auth.js'
 
@@ -310,7 +310,7 @@ export async function listSessions() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,assessor:assessor_id(assessor_id,name,assigned_room),course:course_id(name)')
+      .select('session_id,start_date,end_date,assessor:assessor_id(assessor_id,name,assigned_room),course:course_id(name,scheme)')
       .order('start_date')
     return (data || []).map((s) => ({
       session_id: s.session_id, start_date: s.start_date, end_date: s.end_date,
@@ -1004,7 +1004,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1124,4 +1124,29 @@ export async function pushBlockToTeamup(blockId) {
   if (!b) throw new Error('Block not found')
   const targets = [b.trainer, b.assessor, b.verifier].filter(Boolean)
   return { course: b.course, targets, note: 'Teamup integration not yet connected — this is a preview of what will be pushed.' }
+}
+
+// --- Catalogue tidy tools (move = updateCourse/updateCategory with {scheme}; delete below) ---
+export async function deleteCourse(courseId) {
+  if (LIVE) {
+    const { error } = await supabase.from('course').delete().eq('course_id', courseId)
+    if (error) throw new Error(error.code === '23503' ? 'This course has sessions/bookings — cannot delete. Set it inactive instead.' : error.message)
+    return
+  }
+  if (D.sessions.some((s) => s.course_id === courseId)) throw new Error('This course has sessions — cannot delete. Set it inactive instead.')
+  if (D.mlp_courses.some((m) => m.course_id === courseId)) throw new Error('This course is part of an MLP — cannot delete.')
+  const i = D.courses.findIndex((c) => c.course_id === courseId)
+  if (i >= 0) D.courses.splice(i, 1)
+}
+
+export async function deleteCategory(categoryId) {
+  if (LIVE) {
+    const { error } = await supabase.from('category').delete().eq('category_id', categoryId)
+    if (error) throw new Error(error.code === '23503' ? 'This qualification is used in bookings — cannot delete. Set it inactive instead.' : error.message)
+    return
+  }
+  if (D.booking_categories.some((bc) => bc.category_id === categoryId)) throw new Error('This qualification is used in bookings — cannot delete. Set it inactive instead.')
+  if (D.pool.some((p) => (p.category_ids || []).includes(categoryId))) throw new Error('This qualification is in the scheduling pool — cannot delete.')
+  const i = D.categories.findIndex((c) => c.category_id === categoryId)
+  if (i >= 0) D.categories.splice(i, 1)
 }

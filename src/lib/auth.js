@@ -1,6 +1,6 @@
 // Password hashing for app-managed accounts. PBKDF2-HMAC-SHA256, 100k iters,
-// 32-byte key — must match the seed in ../../sgas_app_users.sql and the demo
-// hashes in demo.js (all generated with the same parameters).
+// 32-byte key — must match the seed in ../../sgas_app_users.sql and the seed
+// hashes in core.js (all generated with the same parameters).
 
 const ITERATIONS = 100000
 const KEYLEN = 32
