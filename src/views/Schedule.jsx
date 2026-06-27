@@ -63,14 +63,15 @@ function DelegateChip({ d, scheme, block, categories, onAdded, onReturn }) {
 }
 
 export default function Schedule() {
-  const [tab, setTab] = useState('menus')
+  const [tab, setTab] = useState('drag')
   // Filters + per-block collapse state are lifted here so they persist across tabs.
   const [courseType, setCourseType] = useState('')   // '' = all course types (scheme)
   const [delegateType, setDelegateType] = useState('') // '' = all delegate types (kind)
-  const [expanded, setExpanded] = useState(() => new Set()) // block ids that are open (collapsed by default)
+  const [expanded, setExpanded] = useState(() => new Set())
+  const [showPast, setShowPast] = useState(false) // hide finished (past) blocks by default
 
   const f = {
-    courseType, setCourseType, delegateType, setDelegateType,
+    courseType, setCourseType, delegateType, setDelegateType, showPast, setShowPast,
     expanded,
     toggle: (id) => setExpanded((p) => { const s = new Set(p); s.has(id) ? s.delete(id) : s.add(id); return s }),
     expandAll: (ids) => setExpanded(new Set(ids)),
@@ -80,14 +81,12 @@ export default function Schedule() {
   return (
     <>
       <div className="hint">
-        Course <b>blocks</b> (dates) are pulled in from <b>Teamup</b>. Assign a <b>Trainer</b>, <b>Assessor</b> and <b>Verifier</b> plus delegates to each. Two assignment styles below — try both and tell me which you prefer. <span className="tu">⟳ Teamup pull (stub)</span>
+        Course <b>blocks</b> (dates) are pulled in from <b>Teamup</b>. Assign a <b>Trainer</b>, <b>Assessor</b> and <b>Verifier</b> plus delegates to each block. Finished courses drop off automatically. <span className="tu">⟳ Teamup pull (stub)</span>
       </div>
       <div className="seg-tabs">
-        <button className={'btn sm' + (tab === 'menus' ? '' : ' ghost')} onClick={() => setTab('menus')}>🧩 Menus</button>
         <button className={'btn sm' + (tab === 'drag' ? '' : ' ghost')} onClick={() => setTab('drag')}>🖐 Drag &amp; drop</button>
         <button className={'btn sm' + (tab === 'cal' ? '' : ' ghost')} onClick={() => setTab('cal')}>📅 Calendar</button>
       </div>
-      {tab === 'menus' && <MenuAssign f={f} />}
       {tab === 'drag' && <DragAssign f={f} />}
       {tab === 'cal' && <CalendarTab f={f} />}
     </>
@@ -118,10 +117,7 @@ function FilterBar({ schemes, f, blockIds, showDelegate = true }) {
       {active && <button className="btn ghost sm" onClick={() => { f.setCourseType(''); f.setDelegateType('') }}>Clear</button>}
       <span className="ff-spacer"></span>
       {blockIds && (
-        <>
-          <button className="btn ghost sm" onClick={() => f.expandAll(blockIds)}>Expand all</button>
-          <button className="btn ghost sm" onClick={f.collapseAll}>Collapse all</button>
-        </>
+        <label className="ff ff-check"><input type="checkbox" checked={f.showPast} onChange={(e) => f.setShowPast(e.target.checked)} /> Show finished</label>
       )}
     </div>
   )
@@ -156,7 +152,7 @@ function MenuAssign({ f }) {
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
 
   const schemes = schemesOf(categories)
-  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
+  const visible = blocks.filter((b) => (f.showPast || !(b.end && b.end < todayISO())) && (!f.courseType || b.scheme === f.courseType))
 
   async function setRole(blockId, role, value) {
     await assignBlockRole(blockId, role, value ? Number(value) : null)
@@ -279,7 +275,7 @@ function DragAssign({ f }) {
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
 
   const schemes = schemesOf(categories)
-  const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
+  const visible = blocks.filter((b) => (f.showPast || !(b.end && b.end < todayISO())) && (!f.courseType || b.scheme === f.courseType))
   const allWaiting = [...pool, ...(resched || [])]
   const waiting = allWaiting.filter((p) => (!f.courseType || p.scheme === f.courseType) && passDelegate(p, f))
   const selectedId = (selected != null && visible.some((b) => b.id === selected)) ? selected : null
@@ -364,7 +360,7 @@ function DragAssign({ f }) {
         })}
       </div>
 
-      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>No course blocks match the filter.</div>}
+      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>{!f.showPast && blocks.some((b) => b.end && b.end < todayISO()) ? 'No current blocks — finished courses are hidden. Tick "Show finished" to see them.' : 'No course blocks match the filter.'}</div>}
       <div className="drag-shell">
         <div className="block-grid">
           {visible.map((b) => {
@@ -385,13 +381,15 @@ function DragAssign({ f }) {
                     const sid = b[role + 'Id']
                     const okey = `${b.id}:${role}`
                     return (
-                      <div key={role} className={'rslot' + (sid ? ' set' : '') + (over === okey || (!sid && sel?.type === 'staff') ? ' over' : '')}
-                        title={label + (sid ? ': ' + b[role] : ' — drop staff here')}
+                      <div key={role} className={'rrow' + (sid ? ' set' : '') + (over === okey || (!sid && sel?.type === 'staff') ? ' over' : '')}
+                        title={sid ? label + ': ' + b[role] : label + ' — drop a staff chip here'}
                         onClick={(e) => { e.stopPropagation(); clickZoneRole(b.id, role) }}
                         onDragOver={(e) => { e.preventDefault(); if (drag.current?.type === 'staff') setOver(okey) }}
                         onDrop={(e) => onDropRole(e, b.id, role)}>
-                        <span className="rk">{label[0]}</span>
-                        {sid ? <span className="rdot" style={{ background: ASSESSOR_COLOR[sid] || '#48566a' }}>{initials(...(b[role] || '').split(' '))}</span> : <span className="rempty">＋</span>}
+                        <span className="rrk">{label}</span>
+                        {sid
+                          ? <span className="rrn"><span className="rdot" style={{ background: ASSESSOR_COLOR[sid] || '#48566a' }}></span>{b[role]}</span>
+                          : <span className="rrempty">＋ drop</span>}
                       </div>
                     )
                   })}

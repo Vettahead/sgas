@@ -382,3 +382,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .rslot .rempty{color:#9aa6b8;font-size:12px}
 .bc-delg{display:flex;align-items:center;gap:4px;flex-wrap:wrap;font-size:11px}
 .bc-av{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;color:#fff;font-size:8px;font-weight:700}
+
+
+/* Full-name role rows on board cards + show-finished toggle */
+.bc-roles{display:flex;flex-direction:column;gap:4px}
+.rrow{display:flex;align-items:center;gap:6px;border:1px dashed #cdd6e6;border-radius:7px;padding:3px 7px;font-size:11px;background:#fafcff;cursor:pointer}
+.rrow.set{border-style:solid;border-color:#cfe0d6;background:#fff}
+.rrow.over{border-color:var(--brand);background:var(--brand-soft)}
+.rrk{font-weight:700;color:var(--muted);min-width:56px}
+.rrn{display:flex;align-items:center;gap:5px;color:#0d1b2e;font-weight:600;margin-left:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rrempty{color:#9aa6b8;margin-left:auto}
+.rrow .rdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none}
+.ff-check{display:flex;align-items:center;gap:5px;flex-direction:row}
