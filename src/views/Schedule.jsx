@@ -43,11 +43,17 @@ function DelegateChip({ d, scheme, block, categories, onAdded }) {
     <div className="delg-wrap">
       <div className="delg" style={{ borderLeft: `4px solid ${col}` }} title={kindLabel(d.kind)}>
         <span className="av" style={{ background: col, color: '#fff' }}>{initials(...d.name.split(' '))}</span>
-        <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
-        {d.codes?.length > 0 && <span className="dcodes muted small">· {d.codes.join(', ')}</span>}
-        {offScheme.length > 0 && <span className="b mixed" title={'Different scheme to this block: ' + offScheme.map((c) => c.code + ' (' + c.scheme + ')').join(', ')}>⚠ mixed scheme</span>}
-        {kindTag(d.kind) && <span className="b" style={{ marginLeft: 4, background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
-        {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
+        <div className="delg-body">
+          <div className="delg-line">
+            <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
+            {offScheme.length > 0 && <span className="mixwarn" title={'Mixed scheme — ' + offScheme.map((c) => c.code + ' (' + c.scheme + ')').join(', ')}>⚠</span>}
+            <span className="delg-actions">
+              {kindTag(d.kind) && <span className="b" style={{ background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
+              {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
+            </span>
+          </div>
+          {d.codes?.length > 0 && <div className="dcodes muted small">{d.codes.join(', ')}</div>}
+        </div>
       </div>
       {open && canAdd && <AddQualRow d={d} scheme={scheme} categories={categories} onAdded={() => { onAdded(); setOpen(false) }} />}
       {canAdd && block && <AttendanceRow d={d} block={block} onSaved={onAdded} />}

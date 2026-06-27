@@ -124,7 +124,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .ccard .cth{padding:11px 14px;background:#0d1b2e;color:#fff;display:flex;align-items:center;gap:8px}
 .ccard .cth .ct{margin-left:auto;font-size:11px;background:#22344f;padding:2px 9px;border-radius:20px;color:#bcd0ec}
 .ccard .cbd{padding:11px 14px;flex:1}
-.delg{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:7px;background:#f7f9fc;margin-bottom:5px;font-size:12.5px;cursor:pointer;user-select:none}
+.delg{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:7px;background:#f7f9fc;margin-bottom:5px;font-size:12.5px;cursor:pointer;user-select:none}
 .delg:hover{background:var(--brand-soft)}
 .delg .av{width:22px;height:22px;border-radius:50%;background:var(--brand-soft);color:var(--brand-dark);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700}
 .delg input{margin:0 0 0 auto;pointer-events:none}
@@ -329,3 +329,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .b.mixed { background: #fff3cd; color: #8a6d00; border: 1px solid #e3b341; margin-left: 4px; }
 .emp-group { margin-bottom: 6px; }
 .emp-head { font-weight: 600; padding: 4px 0 2px; border-top: 1px dashed #e2e6ee; margin-top: 4px; }
+
+
+/* Tidy delegate chip: name + actions on top line, codes on their own line */
+.delg-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.delg-line{display:flex;align-items:center;gap:6px}
+.delg-actions{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
+.delg-actions .addq-btn{margin-left:0}
+.delg .av{margin-top:1px}
+.delg-body .dcodes{line-height:1.35;word-break:break-word}
+.mixwarn{color:#b7791f;font-size:13px;cursor:help;flex:none}
