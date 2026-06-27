@@ -1254,10 +1254,11 @@ export async function createBlock({ courseId, from, to }) {
 
 // Move/resize a block on the calendar — persist new start/end dates (drag-move or
 // edge-resize). Dates are ISO 'YYYY-MM-DD'. Used by the DayPilot calendar.
-export async function updateBlock(sessionId, { from, to }) {
+export async function updateBlock(sessionId, { from, to, courseId }) {
   const patch = {}
   if (from) patch.start_date = from
   if (to) patch.end_date = to
+  if (courseId) patch.course_id = courseId
   if (!Object.keys(patch).length) return
   if (LIVE) {
     const { error } = await supabase.from('session').update(patch).eq('session_id', sessionId)
@@ -1266,6 +1267,18 @@ export async function updateBlock(sessionId, { from, to }) {
   }
   const s = D.sessions.find((x) => x.session_id === sessionId)
   if (s) Object.assign(s, patch)
+}
+
+// Delete a block (session). Blocked if delegates are booked on it.
+export async function deleteBlock(sessionId) {
+  if (LIVE) {
+    const { error } = await supabase.from('session').delete().eq('session_id', sessionId)
+    if (error) throw new Error(error.code === '23503' ? 'This block has delegates booked — remove them first.' : error.message)
+    return
+  }
+  if (D.bookings.some((b) => b.session_id === sessionId)) throw new Error('This block has delegates booked — remove them first.')
+  const i = D.sessions.findIndex((x) => x.session_id === sessionId)
+  if (i >= 0) D.sessions.splice(i, 1)
 }
 
 // Set a delegate's attendance window inside the block (null/null = full course).

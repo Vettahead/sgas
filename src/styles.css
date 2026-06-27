@@ -514,3 +514,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-bar-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .yc-cell{cursor:cell}
 .yc-cell.sel{background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}
+/* Year view: bigger to match Teamup/ClickUp + day numbers in their own strip */
+.yc-mlabel{font-size:13.5px;padding:8px 12px}
+.yc-dow{font-size:11px;padding:7px 0}
+.yc-num{font-size:10.5px;color:var(--muted);text-align:center;line-height:22px;border-right:1px solid #eef1f6;min-width:26px;background:#fcfdfe}
+.yc-num.out{background:#fafbfd;color:transparent}
+.yc-num.wknd{background:#f4f7fb}
+.yc-cell{min-width:26px}
+.yc-bar{height:24px;font-size:11.5px;border-radius:5px;margin:1px 1px}
+.cal-edit{display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:10px}

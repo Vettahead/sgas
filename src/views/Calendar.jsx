@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, createBlock, updateBlock } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, createBlock, updateBlock, deleteBlock } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -210,7 +210,8 @@ export default function Calendar({ go }) {
         />
       )}
       {openBlock && (
-        <BlockDrawer b={openBlock} go={go} onClose={() => setOpenBlock(null)} />
+        <BlockDrawer b={openBlock} courses={courses} go={go}
+          onChanged={refresh} onClose={() => setOpenBlock(null)} />
       )}
     </div>
   )
@@ -311,13 +312,43 @@ function CreateModal({ range, courses, onClose, onCreated }) {
   )
 }
 
-function BlockDrawer({ b, go, onClose }) {
+function BlockDrawer({ b, courses, go, onChanged, onClose }) {
+  const cur = (courses || []).find((c) => c.name === b.course)
+  const [courseId, setCourseId] = useState(cur ? String(cur.course_id) : '')
+  const [from, setFrom] = useState(b.start)
+  const [to, setTo] = useState(b.end)
+  const [busy, setBusy] = useState(false)
+  const [confirmDel, setConfirmDel] = useState(false)
+  async function save() {
+    if (from > to) return toast('Start must be on or before end')
+    setBusy(true)
+    try {
+      await updateBlock(b.id, { from, to, courseId: courseId ? Number(courseId) : undefined })
+      toast('Block updated'); if (onChanged) await onChanged(); onClose()
+    } catch (e) { toast(e.message); setBusy(false) }
+  }
+  async function del() {
+    setBusy(true)
+    try { await deleteBlock(b.id); toast('Block deleted'); if (onChanged) await onChanged(); onClose() }
+    catch (e) { toast(e.message); setBusy(false) }
+  }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal cal-drawer" onClick={(e) => e.stopPropagation()}>
         <div className="cal-drawer-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
           <h3>{b.course}</h3>
-          <span className="muted small">{b.start} – {b.end} · {b.scheme || '—'}</span>
+          <span className="muted small">{b.scheme || '—'} · {b.delegates.length} delegate(s)</span>
+        </div>
+        <div className="cal-edit">
+          <label className="fld">Course
+            <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+              {(courses || []).map((c) => <option key={c.course_id} value={c.course_id}>{c.name}{c.scheme ? ` (${c.scheme})` : ''}</option>)}
+            </select>
+          </label>
+          <div className="cal-dates">
+            <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          </div>
         </div>
         <div className="cal-drawer-roles muted small">
           Trainer: {b.trainer || '—'} · Assessor: {b.assessor || '—'} · Verifier: {b.verifier || '—'}
@@ -333,8 +364,19 @@ function BlockDrawer({ b, go, onClose }) {
           </ul>
         </div>
         <div className="modal-foot">
-          <button className="btn ghost" onClick={onClose}>Close</button>
-          {go && <button className="btn" onClick={() => { onClose(); go('sched') }}>Open in Schedule →</button>}
+          {confirmDel ? (
+            <>
+              <span className="muted small" style={{ marginRight: 'auto' }}>Delete this block?</span>
+              <button className="btn ghost" onClick={() => setConfirmDel(false)}>Cancel</button>
+              <button className="btn danger" onClick={del} disabled={busy}>Delete</button>
+            </>
+          ) : (
+            <>
+              <button className="btn ghost" style={{ marginRight: 'auto' }} onClick={() => setConfirmDel(true)} disabled={busy}>Delete</button>
+              {go && <button className="btn ghost" onClick={() => { onClose(); go('sched') }}>Schedule →</button>}
+              <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -415,7 +457,12 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
   return (
     <div className="yc-row">
       <div className="yc-mlabel">{YMONTHS[m]}<small>{y}</small></div>
-      <div className="yc-track" style={{ gridTemplateColumns: `repeat(${YCOLS}, 1fr)`, gridTemplateRows: `18px repeat(${lanes}, 22px)` }}>
+      <div className="yc-track" style={{ gridTemplateColumns: `repeat(${YCOLS}, 1fr)`, gridTemplateRows: `22px repeat(${lanes}, 28px)` }}>
+        {Array.from({ length: YCOLS }, (_, c) => {
+          const inMonth = c >= offset && c < offset + dim
+          const day = c - offset + 1
+          return <div key={'n' + c} className={'yc-num' + (inMonth ? '' : ' out') + (((c % 7) >= 5 && inMonth) ? ' wknd' : '')} style={{ gridColumn: c + 1, gridRow: 1 }}>{inMonth ? day : ''}</div>
+        })}
         {Array.from({ length: YCOLS }, (_, c) => {
           const inMonth = c >= offset && c < offset + dim
           const day = c - offset + 1
@@ -424,13 +471,11 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
           const isWknd = (c % 7) >= 5
           const sel = dateStr && lo && hi && dateStr >= lo && dateStr <= hi
           return (
-            <div key={c}
+            <div key={'c' + c}
               className={'yc-cell' + (inMonth ? '' : ' out') + (isWknd && inMonth ? ' wknd' : '') + (isToday ? ' today' : '') + (sel ? ' sel' : '')}
-              style={{ gridColumn: c + 1, gridRow: `1 / span ${lanes + 1}` }}
+              style={{ gridColumn: c + 1, gridRow: `2 / span ${lanes}` }}
               onMouseDown={inMonth ? () => onCellDown(dateStr) : undefined}
-              onMouseEnter={inMonth ? () => onCellEnter(dateStr) : undefined}>
-              {inMonth && <span className="yc-dn">{day}</span>}
-            </div>
+              onMouseEnter={inMonth ? () => onCellEnter(dateStr) : undefined} />
           )
         })}
         {todayCol >= 0 && <div className="yc-todaybar" style={{ gridColumn: todayCol + 1, gridRow: `1 / span ${lanes + 1}` }} />}
