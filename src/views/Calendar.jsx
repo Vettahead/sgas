@@ -60,10 +60,10 @@ function blockBackground(b, base) {
 export default function Calendar({ go, isAdmin }) {
   const saved = loadPrefs()
   const [view, setView] = useState(saved.view || 'Month')
-  const [scheme, setScheme] = useState(saved.scheme || '')
+  const [selSchemes, setSelSchemes] = useState(() => new Set(saved.schemes || []))
   const [colourBy, setColourBy] = useState(saved.colourBy || 'course') // course | scheme | status
   const [showFinished, setShowFinished] = useState(saved.showFinished ?? true)
-  const [staffFilter, setStaffFilter] = useState(saved.staffFilter || '')
+  const [selStaff, setSelStaff] = useState(() => new Set(saved.staffIds || []))
   const [anchor, setAnchor] = useState(new DayPilot.Date(todayISO()))
   const [numMonths, setNumMonths] = useState(saved.numMonths || 12)
 
@@ -98,23 +98,27 @@ export default function Calendar({ go, isAdmin }) {
     if (isAdmin) { setPendingBlock(b) }
     else { setPanelMode('view'); setOpenBlock(b) }
   }
-  useEffect(() => { savePrefs({ view, scheme, colourBy, showFinished, staffFilter, numMonths }) }, [view, scheme, colourBy, showFinished, staffFilter, numMonths])
+  useEffect(() => { savePrefs({ view, colourBy, showFinished, numMonths, schemes: [...selSchemes], staffIds: [...selStaff] }) }, [view, colourBy, showFinished, numMonths, selSchemes, selStaff])
 
   const schemes = useMemo(() => [...new Set((courses || []).map((c) => c.scheme).filter(Boolean))].sort(), [courses])
 
   // Apply the filters once; both the calendar AND the resource lanes use this.
   const filtered = useMemo(() => {
     let list = blocks || []
-    if (scheme) list = list.filter((b) => b.scheme === scheme)
-    if (staffFilter) list = list.filter((b) => String(b.trainerId) === staffFilter)
+    if (selSchemes.size) list = list.filter((b) => selSchemes.has(b.scheme))
+    if (selStaff.size) list = list.filter((b) => selStaff.has(String(b.trainerId)))
     if (!showFinished) list = list.filter((b) => !b.end || b.end >= todayISO())
     return list
-  }, [blocks, scheme, staffFilter, showFinished])
+  }, [blocks, selSchemes, selStaff, showFinished])
 
   function colourFor(b) {
     if (colourBy === 'status') return b.ready ? '#1f9d55' : '#b7791f'
     return b.color || '#48566a' // course colour is the default; scheme falls back to it too
   }
+  const schemeColor = (sc) => (courses || []).find((c) => c.scheme === sc)?.color || '#9aa7b8'
+  const toggleScheme = (sc) => setSelSchemes((x) => { const n = new Set(x); n.has(sc) ? n.delete(sc) : n.add(sc); return n })
+  const toggleStaff = (id) => setSelStaff((x) => { const n = new Set(x); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const clearFilters = () => { setSelSchemes(new Set()); setSelStaff(new Set()) }
 
   // Block -> DayPilot event. All-day blocks are shown across 09:00–17:00 so they
   // read as a band in the time-grid (Week/Day) and as a bar in Month.
@@ -174,11 +178,11 @@ export default function Calendar({ go, isAdmin }) {
     <div className="cal-wrap">
       <CalToolbar
         view={view} setView={setView} move={move} anchor={anchor} setAnchor={setAnchor}
-        schemes={schemes} scheme={scheme} setScheme={setScheme}
-        staff={staff} staffFilter={staffFilter} setStaffFilter={setStaffFilter}
+        schemes={schemes} selSchemes={selSchemes} toggleScheme={toggleScheme} schemeColor={schemeColor}
+        staff={staff} selStaff={selStaff} toggleStaff={toggleStaff}
         colourBy={colourBy} setColourBy={setColourBy}
         showFinished={showFinished} setShowFinished={setShowFinished}
-        numMonths={numMonths} setNumMonths={setNumMonths}
+        numMonths={numMonths} setNumMonths={setNumMonths} clearFilters={clearFilters}
       />
 
       {blocks === null ? (
@@ -257,45 +261,57 @@ export default function Calendar({ go, isAdmin }) {
   )
 }
 
-function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, scheme, setScheme, staff, staffFilter, setStaffFilter, colourBy, setColourBy, showFinished, setShowFinished, numMonths, setNumMonths }) {
+function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, selSchemes, toggleScheme, schemeColor, staff, selStaff, toggleStaff, colourBy, setColourBy, showFinished, setShowFinished, numMonths, setNumMonths, clearFilters }) {
   const label = (view === 'Month' || view === 'Year')
     ? anchor.toString('MMMM yyyy') + (view === 'Year' ? ' →' : '')
     : anchor.toString('d MMM yyyy')
+  const anySel = selSchemes.size || selStaff.size
   return (
-    <div className="cal-toolbar">
-      <div className="cal-nav-grp">
-        <button className="cal-nav" onClick={() => move(-1)}>‹</button>
-        <button className="btn ghost sm" onClick={() => setAnchor(new DayPilot.Date(todayISO()))}>Today</button>
-        <button className="cal-nav" onClick={() => move(1)}>›</button>
-        <span className="cal-label">{label}</span>
+    <div className="cal-toolbar-wrap">
+      <div className="cal-toolbar">
+        <div className="cal-nav-grp">
+          <button className="cal-nav" onClick={() => move(-1)}>‹</button>
+          <button className="btn ghost sm" onClick={() => setAnchor(new DayPilot.Date(todayISO()))}>Today</button>
+          <button className="cal-nav" onClick={() => move(1)}>›</button>
+          <span className="cal-label">{label}</span>
+        </div>
+        <div className="cal-views">
+          {VIEWS.map((x) => (
+            <button key={x.v} className={'btn sm' + (view === x.v ? '' : ' ghost')} onClick={() => setView(x.v)}>{x.label}</button>
+          ))}
+        </div>
+        <div className="cal-filters">
+          {view === 'Year' && (
+            <label className="yc-months">Months
+              <select value={numMonths} onChange={(e) => setNumMonths(Number(e.target.value))}>
+                {[3, 6, 9, 12, 18, 24].map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </label>
+          )}
+          <select value={colourBy} onChange={(e) => setColourBy(e.target.value)} title="Colour blocks by">
+            <option value="course">Colour: course</option>
+            <option value="scheme">Colour: scheme</option>
+            <option value="status">Colour: status</option>
+          </select>
+          <label className="cal-check"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Finished</label>
+        </div>
       </div>
-      <div className="cal-views">
-        {VIEWS.map((x) => (
-          <button key={x.v} className={'btn sm' + (view === x.v ? '' : ' ghost')} onClick={() => setView(x.v)}>{x.label}</button>
-        ))}
-      </div>
-      <div className="cal-filters">
-        {view === 'Year' && (
-          <label className="yc-months">Months
-            <select value={numMonths} onChange={(e) => setNumMonths(Number(e.target.value))}>
-              {[3, 6, 9, 12, 18, 24].map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-        )}
-        <select value={scheme} onChange={(e) => setScheme(e.target.value)}>
-          <option value="">All schemes</option>
-          {schemes.map((s) => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select value={staffFilter} onChange={(e) => setStaffFilter(e.target.value)}>
-          <option value="">All trainers</option>
-          {staff.map((s) => <option key={s.staff_id ?? s.id} value={String(s.staff_id ?? s.id)}>{s.name}</option>)}
-        </select>
-        <select value={colourBy} onChange={(e) => setColourBy(e.target.value)} title="Colour blocks by">
-          <option value="course">Colour: course</option>
-          <option value="scheme">Colour: scheme</option>
-          <option value="status">Colour: status</option>
-        </select>
-        <label className="cal-check"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Finished</label>
+      <div className="cal-chipbar">
+        <div className="cal-chipgrp">
+          <span className="cal-chiplabel">Schemes</span>
+          {schemes.map((sc) => {
+            const on = selSchemes.has(sc)
+            return <span key={sc} className={'asr-chip cal-fchip' + (on ? ' on' : '')} style={{ background: schemeColor(sc) }} onClick={() => toggleScheme(sc)}>{on ? '✓ ' : ''}{sc}</span>
+          })}
+        </div>
+        <div className="cal-chipgrp">
+          <span className="cal-chiplabel">Staff</span>
+          {(staff || []).map((st) => {
+            const id = String(st.staff_id ?? st.id); const on = selStaff.has(id)
+            return <span key={id} className={'asr-chip cal-fchip' + (on ? ' on' : '')} style={{ background: st.color || '#48566a' }} onClick={() => toggleStaff(id)}>{on ? '✓ ' : '👤 '}{st.name}</span>
+          })}
+        </div>
+        {anySel ? <button className="btn ghost sm" onClick={clearFilters}>Clear</button> : null}
       </div>
     </div>
   )

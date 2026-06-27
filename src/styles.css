@@ -589,3 +589,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .att-full{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--slate)}
 .att-full input{width:auto}
 .att-hint{font-size:10px}
+
+/* calendar filter chips (multi-select, colour-coded, like the Schedule page) */
+.cal-toolbar-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.cal-toolbar-wrap .cal-toolbar{margin-bottom:0}
+.cal-chipbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
+.cal-chipgrp{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.cal-chiplabel{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-right:2px}
+.cal-fchip{cursor:pointer;padding:4px 11px;font-size:12px}
+.cal-fchip.on{outline:3px solid #0d1b2e;outline-offset:2px}
+.cal-fchip:not(.on){opacity:.85}
