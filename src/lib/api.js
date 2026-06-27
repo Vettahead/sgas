@@ -641,7 +641,7 @@ export async function setInquiryStatus(inquiryId, status) {
 // client: { client_id, forename, surname, company_id }
 // cats:   array of { category_id, scheme }
 // opts:   { kind:'NEW'|'REASSESS', mlp, igas, prefFrom, prefTo } — applied to every entry
-export function addToPool(client, cats, opts = {}) {
+export async function addToPool(client, cats, opts = {}) {
   const bySch = {}
   for (const c of cats) (bySch[c.scheme] = bySch[c.scheme] || []).push(c)
   const added = []
@@ -651,8 +651,24 @@ export function addToPool(client, cats, opts = {}) {
     list.forEach((c) => { catKinds[c.category_id] = c.kind === 'REASSESS' ? 'REASSESS' : 'NEW' })
     const kinds = new Set(Object.values(catKinds))
     const summary = kinds.size > 1 ? 'MIXED' : (kinds.has('REASSESS') ? 'REASSESS' : 'NEW')
+    let entryId
+    if (LIVE) {
+      // A waiting delegate is a real booking with no block yet (session_id null).
+      const { data: bk, error } = await supabase.from('booking').insert({
+        client_id: client.client_id, session_id: null, company_id: client.company_id || null,
+        overall_result: 'PENDING', flag_mlp: !!opts.mlp, flag_igas: !!opts.igas,
+        is_reassessment: summary === 'REASSESS' || summary === 'MIXED',
+        pref_date_from: opts.prefFrom || null, pref_date_to: opts.prefTo || null,
+      }).select().single()
+      if (error) throw new Error(error.message)
+      entryId = bk.booking_id
+      const bcRows = ids.map((cid) => ({ booking_id: bk.booking_id, category_id: cid, result: 'PENDING', is_reassessment: catKinds[cid] === 'REASSESS' }))
+      if (bcRows.length) { const { error: e2 } = await supabase.from('booking_category').insert(bcRows); if (e2) throw new Error(e2.message) }
+    } else {
+      entryId = ++D.seq.pool
+    }
     const entry = {
-      id: ++D.seq.pool, client_id: client.client_id,
+      id: entryId, client_id: client.client_id,
       forename: client.forename, surname: client.surname, company_id: client.company_id,
       scheme, category_ids: ids, cat_kinds: catKinds,
       kind: summary, mlp: !!opts.mlp, igas: !!opts.igas,
@@ -662,6 +678,33 @@ export function addToPool(client, cats, opts = {}) {
     added.push(entry)
   }
   return added
+}
+
+// Hydrate the in-memory pool from the DB (LIVE = bookings with no block yet).
+export async function loadPool() {
+  if (LIVE) {
+    const { data } = await supabase
+      .from('booking')
+      .select('booking_id,client_id,company_id,is_reassessment,flag_mlp,flag_igas,pref_date_from,pref_date_to,client:client_id(forename,surname),booking_category(category_id,is_reassessment,category:category_id(scheme))')
+      .is('session_id', null)
+    poolList.length = 0
+    for (const b of data || []) {
+      const bcs = b.booking_category || []
+      if (!bcs.length) continue
+      const scheme = bcs[0].category?.scheme || null
+      const catKinds = {}
+      bcs.forEach((x) => { catKinds[x.category_id] = x.is_reassessment ? 'REASSESS' : 'NEW' })
+      const kinds = new Set(Object.values(catKinds))
+      poolList.push({
+        id: b.booking_id, client_id: b.client_id,
+        forename: b.client?.forename, surname: b.client?.surname, company_id: b.company_id,
+        scheme, category_ids: bcs.map((x) => x.category_id), cat_kinds: catKinds,
+        kind: kinds.size > 1 ? 'MIXED' : (kinds.has('REASSESS') ? 'REASSESS' : 'NEW'),
+        mlp: !!b.flag_mlp, igas: !!b.flag_igas, prefFrom: b.pref_date_from || null, prefTo: b.pref_date_to || null,
+      })
+    }
+  }
+  return getPool()
 }
 
 // Is a given category in this pool entry a reassessment? Per-qualification now;
@@ -689,15 +732,8 @@ export async function scheduleCourse({ scheme, courseId, assessorId, poolIds, fr
     }).select().single()
     if (e1) throw e1
     for (const p of items) {
-      const { data: bkRow, error: e2 } = await supabase.from('booking').insert({
-        client_id: p.client_id, session_id: sess.session_id, company_id: p.company_id || null, overall_result: 'PENDING', ...bookingAttrs(p),
-      }).select().single()
+      const { error: e2 } = await supabase.from('booking').update({ session_id: sess.session_id }).eq('booking_id', p.id)
       if (e2) throw e2
-      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING', is_reassessment: catReassess(p, cid) }))
-      if (rows.length) {
-        const { error: e3 } = await supabase.from('booking_category').insert(rows)
-        if (e3) throw e3
-      }
     }
   } else {
     const session_id = ++D.seq.session
@@ -1066,16 +1102,10 @@ export async function assignBlockRole(blockId, role, staffId) {
 export async function addDelegatesToBlock(blockId, poolIds) {
   const items = poolList.filter((p) => poolIds.includes(p.id))
   if (LIVE) {
+    // Pool items are already real bookings (session_id null) — just attach them to the block.
     for (const p of items) {
-      const { data: bkRow, error: e1 } = await supabase.from('booking')
-        .insert({ client_id: p.client_id, session_id: blockId, company_id: p.company_id || null, overall_result: 'PENDING', ...bookingAttrs(p) })
-        .select().single()
-      if (e1) throw new Error(e1.message)
-      const rows = p.category_ids.map((cid) => ({ booking_id: bkRow.booking_id, category_id: cid, result: 'PENDING', is_reassessment: catReassess(p, cid) }))
-      if (rows.length) {
-        const { error: e2 } = await supabase.from('booking_category').insert(rows)
-        if (e2) throw new Error(e2.message)
-      }
+      const { error } = await supabase.from('booking').update({ session_id: blockId }).eq('booking_id', p.id)
+      if (error) throw new Error(error.message)
     }
   } else {
     for (const p of items) {

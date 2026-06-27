@@ -116,10 +116,12 @@ export default function Book({ prefill = null }) {
     if (catKind.size === 0) return toast('Set at least one qualification (click to choose Reassessment or New)')
     if (opts.mlp && mlpCourses.size === 0) return toast('Pick the courses in this MLP, or untick MLP')
     const cats = categories.filter((c) => catKind.has(c.category_id)).map((c) => ({ category_id: c.category_id, scheme: c.scheme, kind: catKind.get(c.category_id) }))
-    addToPool(selectedClient, cats, {
-      mlp: opts.mlp, igas: igasEffective,
-      prefFrom: opts.prefFrom || null, prefTo: opts.prefTo || null,
-    })
+    try {
+      await addToPool(selectedClient, cats, {
+        mlp: opts.mlp, igas: igasEffective,
+        prefFrom: opts.prefFrom || null, prefTo: opts.prefTo || null,
+      })
+    } catch (e) { return toast('Could not save booking: ' + e.message) }
     if (opts.mlp && mlpCourses.size) await createMLP(selectedClient.client_id, [...mlpCourses])
     const schemes = [...new Set(cats.map((c) => schemeName[c.scheme] || c.scheme))]
     const kinds = new Set([...catKind.values()])

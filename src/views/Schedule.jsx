@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react'
-import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { useEffect, useRef, useState } from 'react'
+import { getPool, loadPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -141,6 +141,7 @@ function MenuAssign({ f }) {
   const { data: categories } = useData(listCategories)
   const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
+  useEffect(() => { loadPool().then(setPool) }, [])
   const [picks, setPicks] = useState({})
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
@@ -239,6 +240,7 @@ function DragAssign({ f }) {
   const { data: categories } = useData(listCategories)
   const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
+  useEffect(() => { loadPool().then(setPool) }, [])
   const drag = useRef(null)           // { type:'staff'|'delegate', id }
   const [sel, setSel] = useState(null) // click-to-place selection
   const [over, setOver] = useState(null)
