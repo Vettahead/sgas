@@ -545,38 +545,34 @@ function Calendar({ sessions, staff }) {
 function AttendanceRow({ d, block, onSaved }) {
   const isFull = !d.attendFrom && !d.attendTo
   const [editing, setEditing] = useState(false)
-  const [full, setFull] = useState(isFull)
   const [from, setFrom] = useState(d.attendFrom || block.start)
   const [to, setTo] = useState(d.attendTo || block.end)
   async function save() {
     try {
-      if (full) { await setBookingAttendance(d.bookingId, null, null) }
-      else {
-        if (from < block.start || to > block.end) return toast('Dates must be within the block (' + fmt(block.start) + ' – ' + fmt(block.end) + ')')
-        if (from > to) return toast('From date must be on or before To date')
-        await setBookingAttendance(d.bookingId, from, to)
-      }
-      toast('Attendance saved'); setEditing(false); onSaved && onSaved()
+      if (from < block.start || to > block.end) return toast('Dates must be within the block (' + fmt(block.start) + ' – ' + fmt(block.end) + ')')
+      if (from > to) return toast('From date must be on or before To date')
+      // Leaving the dates at the full block span keeps it "full course" (stored as null/null).
+      const full = from === block.start && to === block.end
+      await setBookingAttendance(d.bookingId, full ? null : from, full ? null : to)
+      toast(full ? 'Kept as full course' : 'Attendance updated'); setEditing(false); onSaved && onSaved()
     } catch (e) { toast(e.message) }
   }
   if (!editing) return (
     <div className="attend-row muted small">
       {isFull ? '🗓 Full course' : '🗓 ' + fmt(d.attendFrom) + ' – ' + fmt(d.attendTo)}
-      <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(true)}>edit</button>
+      <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(true)}>Change</button>
     </div>
   )
   return (
     <div className="attend-edit">
-      <label className="chk"><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} /> Full course</label>
-      {!full && (
-        <span className="attend-dates">
-          <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
-          <span> – </span>
-          <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
-        </span>
-      )}
+      <span className="attend-dates">
+        <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
+        <span> – </span>
+        <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
+      </span>
       <button className="btn sm" onClick={save}>Save</button>{' '}
-      <button className="btn ghost sm" onClick={() => setEditing(false)}>✕</button>
+      <button className="btn ghost sm" onClick={() => { setFrom(d.attendFrom || block.start); setTo(d.attendTo || block.end); setEditing(false) }}>✕</button>
+      <span className="muted small" style={{ marginLeft: 6 }}>full dates = stays full course</span>
     </div>
   )
 }
