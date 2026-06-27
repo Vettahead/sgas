@@ -246,8 +246,8 @@ export const store = {
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }
 
-function c(id, code, description, scheme, renewal_years) {
-  return { category_id: id, code, description, scheme, renewal_years }
+function c(id, code, description, scheme, renewal_years, price = null) {
+  return { category_id: id, code, description, scheme, renewal_years, price }
 }
 function s(id, course_id, start_date, end_date, teamup_event_id, trainer_id, assessor_id, verifier_id) {
   return { session_id: id, course_id, start_date, end_date, teamup_event_id, trainer_id, assessor_id, verifier_id }

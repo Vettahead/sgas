@@ -142,7 +142,7 @@ function MenuAssign({ f }) {
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
   if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
 
-  const schemes = schemesOf(blocks)
+  const schemes = schemesOf(categories)
   const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
 
   async function setRole(blockId, role, value) {
@@ -241,7 +241,7 @@ function DragAssign({ f }) {
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
   if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
 
-  const schemes = schemesOf(blocks)
+  const schemes = schemesOf(categories)
   const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
   const allWaiting = [...pool, ...(resched || [])]
   const waiting = allWaiting.filter((p) => (!f.courseType || p.scheme === f.courseType) && passDelegate(p, f))
@@ -476,8 +476,9 @@ function BlockFooter({ b }) {
 function CalendarTab({ f }) {
   const { data: sessions, loading } = useData(listSessions)
   const { data: staff } = useData(listStaff)
+  const { data: categories } = useData(listCategories)
   if (loading || !sessions) return <div className="loading">Loading calendar…</div>
-  const schemes = schemesOf(sessions)
+  const schemes = schemesOf(categories)
   const filtered = f.courseType ? sessions.filter((s) => s.scheme === f.courseType) : sessions
   return (
     <>

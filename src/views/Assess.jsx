@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { listBlocks, getSessionBookings, markCategory, setDisposition, setAssessNotes, assignBlockRole, listStaff, getFormData, getBlockFormData } from '../lib/api.js'
+import { listBlocks, getSessionBookings, markCategory, setDisposition, setAssessNotes, assignBlockRole, listStaff, listSchemes, getFormData, getBlockFormData } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials, resultClass, dispLabel, delegateStatus } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -8,19 +8,29 @@ import { downloadForm, downloadCombined } from '../lib/acspdf.js'
 export default function Assess() {
   const { data: blocks, loading, reload: reloadBlocks } = useData(listBlocks)
   const { data: staff } = useData(listStaff)
+  const { data: schemes } = useData(listSchemes)
   const [sid, setSid] = useState('')
+  const [schemeFilter, setSchemeFilter] = useState('')
   if (loading || !blocks) return <div className="loading">Loading sessions…</div>
 
   const block = blocks.find((b) => b.id === Number(sid))
+  const shownBlocks = schemeFilter ? blocks.filter((b) => b.scheme === schemeFilter) : blocks
 
   return (
     <>
       <div className="hint">Pick the course block being assessed. The <b>assessor</b> and <b>verifier</b> are chosen here (decided on the day), not at scheduling. Mark each qualification <b>Pass/Fail</b>; set a delegate to <b>NYC</b> (ran out of time) or <b>No-show</b> (didn't attend) to send them back round to scheduling.</div>
       <div className="field" style={{ maxWidth: 460 }}>
+        <label className="fl">Filter by scheme</label>
+        <select value={schemeFilter} onChange={(e) => { setSchemeFilter(e.target.value); setSid('') }}>
+          <option value="">All schemes</option>
+          {(schemes || []).map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+      </div>
+      <div className="field" style={{ maxWidth: 460 }}>
         <label className="fl">Select a session to assess</label>
         <select value={sid} onChange={(e) => setSid(e.target.value)}>
           <option value="">— choose session —</option>
-          {blocks.map((b) => (
+          {shownBlocks.map((b) => (
             <option key={b.id} value={b.id}>{b.course} · {fmt(b.start)}{b.end && b.end !== b.start ? '–' + fmt(b.end) : ''}{b.trainer ? ' · ' + b.trainer : ''}</option>
           ))}
         </select>

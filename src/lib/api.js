@@ -573,7 +573,7 @@ export async function updateCourse(courseId, d) {
   if (c) Object.assign(c, d)
 }
 export async function createCategory(d) {
-  const row = { code: d.code, description: d.description || null, scheme: d.scheme || null, renewal_years: d.renewal_years ?? null, is_active: true }
+  const row = { code: d.code, description: d.description || null, scheme: d.scheme || null, renewal_years: d.renewal_years ?? null, price: d.price ?? null, is_active: true }
   if (LIVE) {
     const { data, error } = await supabase.from('category').insert(row).select().single()
     if (error) throw new Error(error.message)
@@ -1149,4 +1149,13 @@ export async function deleteCategory(categoryId) {
   if (D.pool.some((p) => (p.category_ids || []).includes(categoryId))) throw new Error('This qualification is in the scheduling pool — cannot delete.')
   const i = D.categories.findIndex((c) => c.category_id === categoryId)
   if (i >= 0) D.categories.splice(i, 1)
+}
+
+// Distinct schemes from the category catalogue — single source for all filter dropdowns.
+export async function listSchemes() {
+  if (LIVE) {
+    const { data } = await supabase.from('category').select('scheme')
+    return [...new Set((data || []).map((r) => r.scheme).filter(Boolean))].sort()
+  }
+  return [...new Set(D.categories.map((c) => c.scheme).filter(Boolean))].sort()
 }
