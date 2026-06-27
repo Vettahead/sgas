@@ -20,9 +20,9 @@ export const ROLE_LABELS = {
 // Views each role may open, listed in nav order. Used to build the sidebar AND
 // to guard the active view (a hand-typed/stale view falls back to the default).
 export const ROLE_VIEWS = {
-  ADMIN: ['dash', 'inquiries', 'book', 'sched', 'calendar', 'calendar2', 'assess', 'pay', 'delegates', 'companies', 'staff', 'courses', 'admin'],
-  STANDARD: ['dash', 'inquiries', 'book', 'calendar', 'calendar2', 'delegates', 'companies'],
-  SCHEDULER: ['dash', 'inquiries', 'book', 'sched', 'calendar', 'calendar2'],
+  ADMIN: ['dash', 'inquiries', 'book', 'sched', 'calendar', 'calendar2', 'calyear', 'assess', 'pay', 'delegates', 'companies', 'staff', 'courses', 'admin'],
+  STANDARD: ['dash', 'inquiries', 'book', 'calendar', 'calendar2', 'calyear', 'delegates', 'companies'],
+  SCHEDULER: ['dash', 'inquiries', 'book', 'sched', 'calendar', 'calendar2', 'calyear'],
   ASSESSOR: ['dash', 'assess'],
   ACCOUNTS: ['dash', 'pay'],
 }
