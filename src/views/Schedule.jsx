@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, assignBlockRole, addDelegatesToBlock, addQualsToBooking, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, getReschedulePool, rescheduleDelegate, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -34,7 +34,7 @@ async function delForm(bookingId) {
 
 // One delegate inside a block: coloured by kind (new/reassess/NYC/no-show),
 // shows the course codes they're booked for, and the name prints their ACS form.
-function DelegateChip({ d, scheme, categories, onAdded }) {
+function DelegateChip({ d, scheme, block, categories, onAdded }) {
   const col = kindColor(d.kind)
   const [open, setOpen] = useState(false)
   const canAdd = Boolean(categories && onAdded)
@@ -48,6 +48,7 @@ function DelegateChip({ d, scheme, categories, onAdded }) {
         {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
       </div>
       {open && canAdd && <AddQualRow d={d} scheme={scheme} categories={categories} onAdded={() => { onAdded(); setOpen(false) }} />}
+      {canAdd && block && <AttendanceRow d={d} block={block} onSaved={onAdded} />}
     </div>
   )
 }
@@ -136,11 +137,11 @@ function MenuAssign({ f }) {
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
   const { data: categories } = useData(listCategories)
+  const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
   const [picks, setPicks] = useState({})
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
-  if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
 
   const schemes = schemesOf(categories)
   const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
@@ -175,8 +176,9 @@ function MenuAssign({ f }) {
   return (
     <>
       <SchedHeader />
+      <CreateBlock courses={courses || []} onCreated={reload} />
       <FilterBar schemes={schemes} f={f} blockIds={visible.map((b) => b.id)} />
-      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>No course blocks match the filter.</div>}
+      {visible.length === 0 && <div className="empty card" style={{ padding: 30 }}>{blocks.length === 0 ? 'No blocks yet — create one above to start scheduling.' : 'No course blocks match the filter.'}</div>}
       <div className="course-grid">
         {visible.map((b) => {
           const open = f.expanded.has(b.id)
@@ -233,13 +235,13 @@ function DragAssign({ f }) {
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
   const { data: categories } = useData(listCategories)
+  const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
   const drag = useRef(null)           // { type:'staff'|'delegate', id }
   const [sel, setSel] = useState(null) // click-to-place selection
   const [over, setOver] = useState(null)
 
   if (l1 || l2) return <div className="loading">Loading blocks…</div>
-  if (!blocks.length) return <div className="empty card" style={{ padding: 40 }}>No course blocks yet. These come from Teamup once connected.</div>
 
   const schemes = schemesOf(categories)
   const visible = f.courseType ? blocks.filter((b) => b.scheme === f.courseType) : blocks
@@ -360,7 +362,7 @@ function DragAssign({ f }) {
                     })}
 
                     <div className="fl" style={{ marginTop: 10 }}>Delegates ({b.delegates.length})</div>
-                    {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} categories={categories || []} onAdded={reload} key={d.bookingId} />)}
+                    {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories || []} onAdded={reload} key={d.bookingId} />)}
                     <div className="drop-hint muted small">
                       {sel?.type === 'delegate' ? '➕ Click anywhere on this card to add the selected delegate' : '⬇ Drag a delegate anywhere onto this card'}
                     </div>
@@ -399,7 +401,7 @@ function BlockDelegates({ b, categories, onAdded }) {
     <div style={{ marginTop: 10 }}>
       <div className="fl">Delegates on this block ({b.delegates.length})</div>
       {b.delegates.length === 0 && <div className="muted small" style={{ padding: '4px 0' }}>None yet.</div>}
-      {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
+      {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
     </div>
   )
 }
@@ -536,6 +538,82 @@ function Calendar({ sessions, staff }) {
         {staff.map((a) => <span key={a.staff_id}><i style={{ background: a.color }}></i>{a.name}{a.room ? ' · ' + a.room : ''}</span>)}
         <span className="tu">⟳ blocks come from Teamup</span>
       </div>
+    </div>
+  )
+}
+
+function AttendanceRow({ d, block, onSaved }) {
+  const isFull = !d.attendFrom && !d.attendTo
+  const [editing, setEditing] = useState(false)
+  const [full, setFull] = useState(isFull)
+  const [from, setFrom] = useState(d.attendFrom || block.start)
+  const [to, setTo] = useState(d.attendTo || block.end)
+  async function save() {
+    try {
+      if (full) { await setBookingAttendance(d.bookingId, null, null) }
+      else {
+        if (from < block.start || to > block.end) return toast('Dates must be within the block (' + fmt(block.start) + ' – ' + fmt(block.end) + ')')
+        if (from > to) return toast('From date must be on or before To date')
+        await setBookingAttendance(d.bookingId, from, to)
+      }
+      toast('Attendance saved'); setEditing(false); onSaved && onSaved()
+    } catch (e) { toast(e.message) }
+  }
+  if (!editing) return (
+    <div className="attend-row muted small">
+      {isFull ? '🗓 Full course' : '🗓 ' + fmt(d.attendFrom) + ' – ' + fmt(d.attendTo)}
+      <button className="btn ghost sm" style={{ marginLeft: 6 }} onClick={() => setEditing(true)}>edit</button>
+    </div>
+  )
+  return (
+    <div className="attend-edit">
+      <label className="chk"><input type="checkbox" checked={full} onChange={(e) => setFull(e.target.checked)} /> Full course</label>
+      {!full && (
+        <span className="attend-dates">
+          <input type="date" value={from} min={block.start} max={block.end} onChange={(e) => setFrom(e.target.value)} />
+          <span> – </span>
+          <input type="date" value={to} min={block.start} max={block.end} onChange={(e) => setTo(e.target.value)} />
+        </span>
+      )}
+      <button className="btn sm" onClick={save}>Save</button>{' '}
+      <button className="btn ghost sm" onClick={() => setEditing(false)}>✕</button>
+    </div>
+  )
+}
+
+function CreateBlock({ courses, onCreated }) {
+  const [open, setOpen] = useState(false)
+  const [d, setD] = useState({ courseId: '', from: '', to: '' })
+  async function save() {
+    if (!d.courseId) return toast('Pick a course')
+    if (!d.from || !d.to) return toast('Set start and end dates')
+    if (d.from > d.to) return toast('Start must be on or before end')
+    try {
+      await createBlock({ courseId: Number(d.courseId), from: d.from, to: d.to })
+      toast('Block created')
+      setD({ courseId: '', from: '', to: '' }); setOpen(false); onCreated()
+    } catch (e) { toast(e.message) }
+  }
+  return (
+    <div className="create-block" style={{ marginBottom: 10 }}>
+      <button className="btn sm" onClick={() => setOpen((o) => !o)}>{open ? 'Cancel' : '＋ Create block'}</button>
+      {open && (
+        <div className="subform" style={{ background: '#fff', marginTop: 8 }}>
+          <div className="sfh">New course block — schedule in advance</div>
+          <div className="field">
+            <label className="fl">Course</label>
+            <select value={d.courseId} onChange={(e) => setD({ ...d, courseId: e.target.value })}>
+              <option value="">— choose course —</option>
+              {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}{c.scheme ? ' · ' + c.scheme : ''}</option>)}
+            </select>
+          </div>
+          <div className="twocol">
+            <div className="field"><label className="fl">Start date</label><input type="date" value={d.from} onChange={(e) => setD({ ...d, from: e.target.value })} /></div>
+            <div className="field"><label className="fl">End date</label><input type="date" value={d.to} min={d.from || undefined} onChange={(e) => setD({ ...d, to: e.target.value })} /></div>
+          </div>
+          <button className="btn sm" onClick={save}>Create block</button>
+        </div>
+      )}
     </div>
   )
 }

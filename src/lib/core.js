@@ -259,6 +259,7 @@ function bk(id, client_id, session_id, company_id, flag_mlp, flag_igas, flag_pay
     flag_mlp, flag_igas, flag_payment_outstanding,
     flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null,
     is_reassessment: false, pref_date_from: null, pref_date_to: null, rescheduled: false,
+    attend_from: null, attend_to: null,
     igas_evidence_date: null, last_chased, confirmation_sent_at: null,
   }
 }

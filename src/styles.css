@@ -317,3 +317,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .btn.sm.danger:hover { background: #a93226; }
 .btn.ghost.sm.danger { background: transparent; color: #c0392b; }
 .movesel { font-size: 12px; padding: 3px 6px; max-width: 170px; border: 1px solid #d4dae3; border-radius: 6px; background: #fff; }
+
+/* Attendance window + create block */
+.attend-row { padding: 2px 0 4px 8px; }
+.attend-edit { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding: 4px 0 6px 8px; }
+.attend-edit input[type="date"] { font-size: 12px; padding: 3px 6px; border: 1px solid #d4dae3; border-radius: 6px; }
+.attend-dates { display: inline-flex; align-items: center; gap: 4px; }
+.create-block .subform { max-width: 460px; }

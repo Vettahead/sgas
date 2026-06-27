@@ -329,7 +329,7 @@ export async function getSessionBookings(sessionId) {
   if (LIVE) {
     const { data } = await supabase
       .from('booking')
-      .select('booking_id,client_id,overall_result,disposition,assess_notes,client:client_id(forename,surname),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
+      .select('booking_id,client_id,overall_result,disposition,assess_notes,attend_from,attend_to,client:client_id(forename,surname),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
       .eq('session_id', sessionId)
     const rows = data || []
     const clientIds = [...new Set(rows.map((b) => b.client_id))]
@@ -342,6 +342,7 @@ export async function getSessionBookings(sessionId) {
       bookingId: b.booking_id, clientId: b.client_id, name: `${b.client.forename} ${b.client.surname}`,
       forename: b.client.forename, surname: b.client.surname, overall: b.overall_result,
       disposition: b.disposition || 'NONE', assessNotes: b.assess_notes || '', noShows: noShows[b.client_id] || 0,
+      attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
       categories: (b.booking_category || []).map((x) => ({
         bookingCategoryId: x.booking_category_id, code: x.category.code, desc: x.category.description,
         result: x.result, expiry: x.expiry_date,
@@ -355,6 +356,7 @@ export async function getSessionBookings(sessionId) {
       overall: demoRollup(b.booking_id),
       disposition: b.disposition || 'NONE', assessNotes: b.assess_notes || '',
       noShows: D.bookings.filter((x) => x.client_id === b.client_id && x.disposition === 'NO_SHOW').length,
+      attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
       categories: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => ({
         bookingCategoryId: x.booking_category_id, code: cat(x.category_id).code, desc: cat(x.category_id).description, result: x.result, expiry: x.expiry_date,
       })),
@@ -1004,7 +1006,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1016,6 +1018,7 @@ export async function listBlocks() {
         kind: delegateKind(b.disposition, b.is_reassessment),
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
         categoryIds: (b.booking_category || []).map((x) => x.category_id),
+        attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
       })),
     }))
   }
@@ -1032,6 +1035,7 @@ export async function listBlocks() {
         kind: delegateKind(b.disposition, b.is_reassessment),
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
         categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
+        attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
       })),
     })
   })
@@ -1158,4 +1162,28 @@ export async function listSchemes() {
     return [...new Set((data || []).map((r) => r.scheme).filter(Boolean))].sort()
   }
   return [...new Set(D.categories.map((c) => c.scheme).filter(Boolean))].sort()
+}
+
+// Create an empty block (course + span) in advance — Simon authors these ahead of time.
+export async function createBlock({ courseId, from, to }) {
+  if (LIVE) {
+    const { data, error } = await supabase.from('session').insert({ course_id: courseId, start_date: from, end_date: to }).select().single()
+    if (error) throw new Error(error.message)
+    return data.session_id
+  }
+  const session_id = ++D.seq.session
+  D.sessions.push({ session_id, course_id: courseId, start_date: from, end_date: to, trainer_id: null, assessor_id: null, verifier_id: null, teamup_event_id: 'tu-' + session_id })
+  return session_id
+}
+
+// Set a delegate's attendance window inside the block (null/null = full course).
+export async function setBookingAttendance(bookingId, from, to) {
+  const patch = { attend_from: from || null, attend_to: to || null }
+  if (LIVE) {
+    const { error } = await supabase.from('booking').update(patch).eq('booking_id', bookingId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const b = D.bookings.find((x) => x.booking_id === bookingId)
+  if (b) Object.assign(b, patch)
 }
