@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -39,6 +39,23 @@ const YMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
 const YDOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const YCOLS = 37 // max columns to fit any month: weekday offset (0-6) + up to 31 days
 const ymd = (y, m, d) => `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+const ddmm = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '')
+// Kind colours (new vs reassessment etc.) for the Teamup-style multicolour bar.
+const KCOL = { NEW: '#1f9d55', REASSESS: '#2f6fd0', NYC: '#b7791f', NO_SHOW: '#c0392b' }
+function blockBackground(b, base) {
+  const cols = []
+  for (const d of b.delegates || []) {
+    if (d.kind === 'MIXED') { cols.push(KCOL.NEW, KCOL.REASSESS) }
+    else if (KCOL[d.kind]) cols.push(KCOL[d.kind])
+  }
+  const uniq = [...new Set(cols)]
+  if (uniq.length > 1) {
+    // hard-stop segments = multicolour bar (a 'mixed course')
+    const seg = uniq.map((c, i) => `${c} ${Math.round((i / uniq.length) * 100)}% ${Math.round(((i + 1) / uniq.length) * 100)}%`).join(', ')
+    return `linear-gradient(90deg, ${seg})`
+  }
+  return base
+}
 
 export default function Calendar({ go }) {
   const saved = loadPrefs()
@@ -56,14 +73,15 @@ export default function Calendar({ go }) {
   const [openBlock, setOpenBlock] = useState(null)
   const [creating, setCreating] = useState(null) // { from, to } while the create modal is open
   const [pool, setPool] = useState([])
+  const [categories, setCategories] = useState([])
 
   const calRef = useRef(null)
   const monthRef = useRef(null)
 
   async function refresh() {
-    const [b, c, s] = await Promise.all([listBlocks(), listCourses(), listStaff()])
+    const [b, c, s, cats] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories()])
     try { await loadPool() } catch { /* pool optional */ }
-    setBlocks(b); setCourses(c); setStaff(s); setPool(getPool())
+    setBlocks(b); setCourses(c); setStaff(s); setCategories(cats); setPool(getPool())
     return b
   }
   // Refresh data but keep the right panel open on the (now-updated) same block.
@@ -218,7 +236,7 @@ export default function Calendar({ go }) {
         />
       )}
       {openBlock && (
-        <BlockDrawer b={openBlock} courses={courses} staff={staff} pool={pool} go={go}
+        <BlockDrawer b={openBlock} courses={courses} staff={staff} pool={pool} categories={categories} go={go}
           onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
       )}
     </div>
@@ -320,13 +338,14 @@ function CreateModal({ range, courses, onClose, onCreated }) {
   )
 }
 
-function BlockDrawer({ b, courses, staff, pool, go, onChanged, onClose }) {
+function BlockDrawer({ b, courses, staff, pool, categories, go, onChanged, onClose }) {
   const cur = (courses || []).find((c) => c.name === b.course)
   const [courseId, setCourseId] = useState(cur ? String(cur.course_id) : '')
   const [from, setFrom] = useState(b.start)
   const [to, setTo] = useState(b.end)
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
+  const [openCats, setOpenCats] = useState(null)
 
   async function run(fn, okMsg) {
     setBusy(true)
@@ -344,7 +363,22 @@ function BlockDrawer({ b, courses, staff, pool, go, onChanged, onClose }) {
   const addDelegate = (pid) => run(() => addDelegatesToBlock(b.id, [pid]), 'Delegate added')
   const removeDelegate = (bid) => run(() => returnToPool(bid), 'Returned to waiting pool')
 
-  const waiting = (pool || []).filter((p) => !b.scheme || p.scheme === b.scheme)
+  // Waiting pool grouped by qualification (category), each group collapsible. A
+  // delegate holding several quals appears under each — so you can mix and match.
+  const catMap = {}
+  for (const c of categories || []) catMap[c.category_id] = c
+  const gmap = new Map()
+  for (const pe of pool || []) for (const cid of (pe.categoryIds || [])) {
+    if (!gmap.has(cid)) gmap.set(cid, [])
+    gmap.get(cid).push(pe)
+  }
+  const groups = [...gmap.entries()].map(([cid, items]) => {
+    const c = catMap[cid] || {}
+    return { cid, code: c.code || ('cat ' + cid), scheme: c.scheme || '', items }
+  }).sort((a, z) => ((a.scheme === b.scheme ? 0 : 1) - (z.scheme === b.scheme ? 0 : 1)) || a.code.localeCompare(z.code))
+  // default: open the groups that match this block's scheme
+  const openSet = openCats || new Set(groups.filter((g) => g.scheme === b.scheme).map((g) => g.cid))
+  const toggleCat = (cid) => { const n = new Set(openSet); n.has(cid) ? n.delete(cid) : n.add(cid); setOpenCats(n) }
 
   return (
     <div className="cal-rpanel-wrap">
@@ -386,26 +420,43 @@ function BlockDrawer({ b, courses, staff, pool, go, onChanged, onClose }) {
           <strong>On this block ({b.delegates.length})</strong>
           {b.delegates.length === 0 && <div className="muted small">No delegates yet.</div>}
           <ul className="cal-delg">
-            {b.delegates.map((d) => (
-              <li key={d.bookingId}>
-                <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
-                <button className="cal-mini" title="Return to waiting pool" onClick={() => removeDelegate(d.bookingId)} disabled={busy}>↩</button>
-              </li>
-            ))}
+            {b.delegates.map((d) => {
+              const full = !d.attendFrom && !d.attendTo
+              return (
+                <li key={d.bookingId}>
+                  <span className="cal-delg-info">
+                    <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
+                    <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full course' : 'Part · ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
+                  </span>
+                  <button className="cal-mini" title="Return to waiting pool" onClick={() => removeDelegate(d.bookingId)} disabled={busy}>↩</button>
+                </li>
+              )
+            })}
           </ul>
         </div>
 
         <div className="cal-sec">
-          <strong>Waiting pool{b.scheme ? ` · ${b.scheme}` : ''} ({waiting.length})</strong>
-          {waiting.length === 0 && <div className="muted small">No one waiting for this scheme.</div>}
-          <ul className="cal-delg">
-            {waiting.map((wp) => (
-              <li key={wp.id}>
-                <span>{wp.name}{wp.count ? <span className="muted"> · {wp.count} qual(s)</span> : null}</span>
-                <button className="cal-mini add" title="Add to this block" onClick={() => addDelegate(wp.id)} disabled={busy}>＋</button>
-              </li>
-            ))}
-          </ul>
+          <strong>Waiting pool — by qualification</strong>
+          {groups.length === 0 && <div className="muted small">No one waiting.</div>}
+          {groups.map((g) => (
+            <div key={g.cid} className={'pool-grp' + (openSet.has(g.cid) ? ' open' : '')}>
+              <button className="pool-grp-head" onClick={() => toggleCat(g.cid)}>
+                <span className="chev">{openSet.has(g.cid) ? '▾' : '▸'}</span>
+                <strong>{g.code}</strong>{g.scheme ? <span className="muted small"> · {g.scheme}</span> : null}
+                <span className="pool-grp-n">{g.items.length}</span>
+              </button>
+              {openSet.has(g.cid) && (
+                <ul className="cal-delg">
+                  {g.items.map((pe) => (
+                    <li key={pe.id + '-' + g.cid}>
+                      <span>{pe.name}{pe.count ? <span className="muted"> · {pe.count} qual(s)</span> : null}</span>
+                      <button className="cal-mini add" title="Add to this block" onClick={() => addDelegate(pe.id)} disabled={busy}>＋</button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          ))}
         </div>
 
         <div className="cal-rpanel-foot">
@@ -519,7 +570,7 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
           <button key={b.id} className="yc-bar" title={`${b.course} · ${b.start}–${b.end} · ${b.delegates.length} delegate(s)`}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onOpen(b) }}
-            style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: colourFor(b) }}>
+            style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
             <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
           </button>
         ))}

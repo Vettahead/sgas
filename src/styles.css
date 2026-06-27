@@ -556,3 +556,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .cal-rpanel-foot{margin-top:auto;padding-top:14px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line)}
 .btn.danger{background:var(--red);border-color:var(--red);color:#fff}
 .btn.danger:hover{filter:brightness(1.05)}
+
+/* arrange panel: attendance tag + collapsible pool-by-qualification */
+.cal-delg-info{display:flex;flex-direction:column;gap:2px;min-width:0}
+.att-tag{font-size:10px;font-weight:600;padding:1px 7px;border-radius:20px;align-self:flex-start}
+.att-tag.full{background:var(--green-soft);color:var(--green)}
+.att-tag.part{background:var(--amber-soft);color:var(--amber)}
+.pool-grp{border:1px solid var(--line);border-radius:8px;margin-top:6px;overflow:hidden}
+.pool-grp-head{width:100%;display:flex;align-items:center;gap:7px;padding:7px 10px;background:#f7f9fc;border:none;cursor:pointer;font:inherit;text-align:left}
+.pool-grp-head:hover{background:var(--brand-soft)}
+.pool-grp-head .chev{color:var(--muted);font-size:10px}
+.pool-grp-head strong{font-size:12.5px}
+.pool-grp-n{margin-left:auto;font-size:11px;color:var(--muted);background:#eef2f7;padding:1px 8px;border-radius:20px}
+.pool-grp .cal-delg{padding:6px 8px}
