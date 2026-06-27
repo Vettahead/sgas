@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { listCourses, listCategories, createCourse, updateCourse, deleteCourse, createCategory, updateCategory, deleteCategory } from '../lib/api.js'
+import { listCourses, listCategories, createCourse, updateCourse, deleteCourse, createCategory, updateCategory, deleteCategory, isLive } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { toast } from '../lib/toast.js'
 
@@ -24,6 +24,11 @@ export default function Courses() {
     <div className="card">
       <h3>📚 Courses &amp; qualifications <span className="tag">{courses.length} courses</span></h3>
       <div className="body">
+        {!isLive && (
+          <div className="banner" style={{ background: '#fdecea', border: ' 1px solid #e3b3ad', color: '#922', marginBottom: 12 }}>
+            ⚠️ <b>DEMO MODE — changes are NOT being saved.</b> The app isn’t connected to the database, so edits here vanish on reload. Connect Supabase (env vars) and reload to save for real.
+          </div>
+        )}
         <SchemeDatalist schemes={allSchemes} />
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, gap: 8 }}>
           <span className="small muted">Pricing is <b>per qualification (module)</b> — a delegate pays for the modules they take, so a booking costs the sum of its modules. Click a course to rename, move or delete it; price/move/delete each qualification below.</span>
