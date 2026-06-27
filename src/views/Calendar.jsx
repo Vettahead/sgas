@@ -363,22 +363,18 @@ function BlockDrawer({ b, courses, staff, pool, categories, go, onChanged, onClo
   const addDelegate = (pid) => run(() => addDelegatesToBlock(b.id, [pid]), 'Delegate added')
   const removeDelegate = (bid) => run(() => returnToPool(bid), 'Returned to waiting pool')
 
-  // Waiting pool grouped by qualification (category), each group collapsible. A
-  // delegate holding several quals appears under each — so you can mix and match.
-  const catMap = {}
-  for (const c of categories || []) catMap[c.category_id] = c
+  // Waiting pool grouped by SCHEME (same as the Schedule page) — each delegate
+  // appears once, groups collapsible, the block's scheme open by default.
   const gmap = new Map()
-  for (const pe of pool || []) for (const cid of (pe.categoryIds || [])) {
-    if (!gmap.has(cid)) gmap.set(cid, [])
-    gmap.get(cid).push(pe)
+  for (const pe of pool || []) {
+    const k = pe.scheme || 'Other'
+    if (!gmap.has(k)) gmap.set(k, [])
+    gmap.get(k).push(pe)
   }
-  const groups = [...gmap.entries()].map(([cid, items]) => {
-    const c = catMap[cid] || {}
-    return { cid, code: c.code || ('cat ' + cid), scheme: c.scheme || '', items }
-  }).sort((a, z) => ((a.scheme === b.scheme ? 0 : 1) - (z.scheme === b.scheme ? 0 : 1)) || a.code.localeCompare(z.code))
-  // default: open the groups that match this block's scheme
-  const openSet = openCats || new Set(groups.filter((g) => g.scheme === b.scheme).map((g) => g.cid))
-  const toggleCat = (cid) => { const n = new Set(openSet); n.has(cid) ? n.delete(cid) : n.add(cid); setOpenCats(n) }
+  const groups = [...gmap.entries()].map(([scheme, items]) => ({ scheme, items }))
+    .sort((a, z) => ((a.scheme === b.scheme ? 0 : 1) - (z.scheme === b.scheme ? 0 : 1)) || a.scheme.localeCompare(z.scheme))
+  const openSet = openCats || new Set(groups.filter((g) => g.scheme === b.scheme).map((g) => g.scheme))
+  const toggleCat = (k) => { const n = new Set(openSet); n.has(k) ? n.delete(k) : n.add(k); setOpenCats(n) }
 
   return (
     <div className="cal-rpanel-wrap">
@@ -436,19 +432,19 @@ function BlockDrawer({ b, courses, staff, pool, categories, go, onChanged, onClo
         </div>
 
         <div className="cal-sec">
-          <strong>Waiting pool — by qualification</strong>
+          <strong>Waiting pool</strong>
           {groups.length === 0 && <div className="muted small">No one waiting.</div>}
           {groups.map((g) => (
-            <div key={g.cid} className={'pool-grp' + (openSet.has(g.cid) ? ' open' : '')}>
-              <button className="pool-grp-head" onClick={() => toggleCat(g.cid)}>
-                <span className="chev">{openSet.has(g.cid) ? '▾' : '▸'}</span>
-                <strong>{g.code}</strong>{g.scheme ? <span className="muted small"> · {g.scheme}</span> : null}
+            <div key={g.scheme} className={'pool-grp' + (openSet.has(g.scheme) ? ' open' : '')}>
+              <button className="pool-grp-head" onClick={() => toggleCat(g.scheme)}>
+                <span className="chev">{openSet.has(g.scheme) ? '▾' : '▸'}</span>
+                <strong>{g.scheme}</strong>
                 <span className="pool-grp-n">{g.items.length}</span>
               </button>
-              {openSet.has(g.cid) && (
+              {openSet.has(g.scheme) && (
                 <ul className="cal-delg">
                   {g.items.map((pe) => (
-                    <li key={pe.id + '-' + g.cid}>
+                    <li key={pe.id}>
                       <span>{pe.name}{pe.count ? <span className="muted"> · {pe.count} qual(s)</span> : null}</span>
                       <button className="cal-mini add" title="Add to this block" onClick={() => addDelegate(pe.id)} disabled={busy}>＋</button>
                     </li>
