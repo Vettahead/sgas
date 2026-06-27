@@ -576,6 +576,9 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
   const startM = Number(anchor.toString('MM')) - 1
   const [dragStart, setDragStart] = useState(null)
   const [dragEnd, setDragEnd] = useState(null)
+  const [hover, setHover] = useState(null)
+  const onHover = (bk, e) => setHover({ b: bk, x: e.clientX, y: e.clientY })
+  const onHoverEnd = () => setHover(null)
 
   const months = []
   let y = startY, m = startM
@@ -603,15 +606,51 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
       </div>
       {months.map(({ y, m }) => (
         <YMonthRow key={`${y}-${m}`} y={y} m={m} blocks={blocks} colourFor={colourFor} showStripes={showStripes} onOpen={onOpen}
+          onHover={onHover} onHoverEnd={onHoverEnd}
           lo={lo} hi={hi}
           onCellDown={(d) => { setDragStart(d); setDragEnd(d) }}
           onCellEnter={(d) => { if (dragStart) setDragEnd(d) }} />
       ))}
+      {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
   )
 }
 
-function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, lo, hi, onCellDown, onCellEnter }) {
+function HoverCard({ b, x, y }) {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+  const left = Math.min(x + 14, vw - 296)
+  const top = Math.min(y + 14, vh - 240)
+  return (
+    <div className="yc-hover" style={{ left, top }}>
+      <div className="yc-hover-head" style={{ borderLeft: `4px solid ${b.color || '#48566a'}` }}>
+        <strong>{b.course}</strong>
+        <span className="muted small">{b.scheme || '—'} · {b.start} – {b.end}</span>
+      </div>
+      <div className="yc-hover-roles small">
+        <span>Trainer: {b.trainer || '—'}</span>
+        <span>Assessor: {b.assessor || '—'}</span>
+        <span>Verifier: {b.verifier || '—'}</span>
+        <span className={b.ready ? 'ok' : 'warn'}>{b.ready ? '● Ready' : '● Incomplete'}</span>
+      </div>
+      <div className="yc-hover-delg small">
+        <strong>Delegates ({b.delegates.length})</strong>
+        {b.delegates.length === 0 && <div className="muted">None yet.</div>}
+        {b.delegates.map((d) => {
+          const full = !d.attendFrom && !d.attendTo
+          return (
+            <div key={d.bookingId} className="yc-hover-d">
+              <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
+              <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full' : 'Part ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, lo, hi, onCellDown, onCellEnter }) {
   const dim = new Date(y, m + 1, 0).getDate()
   const offset = (new Date(y, m, 1).getDay() + 6) % 7
   const first = ymd(y, m, 1)
@@ -678,8 +717,11 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, lo, hi, onCel
             return { left: ((sC - startCol) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
           }).filter(Boolean)
           return (
-            <button key={b.id} className="yc-bar" title={`${b.course} · ${b.start}–${b.end} · ${b.delegates.length} delegate(s)`}
+            <button key={b.id} className="yc-bar"
               onMouseDown={(e) => e.stopPropagation()}
+              onMouseEnter={(e) => onHover(b, e)}
+              onMouseMove={(e) => onHover(b, e)}
+              onMouseLeave={onHoverEnd}
               onClick={(e) => { e.stopPropagation(); onOpen(b) }}
               style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
               {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
