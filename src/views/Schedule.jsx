@@ -38,12 +38,14 @@ function DelegateChip({ d, scheme, block, categories, onAdded }) {
   const col = kindColor(d.kind)
   const [open, setOpen] = useState(false)
   const canAdd = Boolean(categories && onAdded)
+  const offScheme = (d.categoryIds || []).map((id) => (categories || []).find((c) => c.category_id === id)).filter((c) => c && c.scheme && c.scheme !== scheme)
   return (
     <div className="delg-wrap">
       <div className="delg" style={{ borderLeft: `4px solid ${col}` }} title={kindLabel(d.kind)}>
         <span className="av" style={{ background: col, color: '#fff' }}>{initials(...d.name.split(' '))}</span>
         <a className="dn-link" onClick={(e) => { e.stopPropagation(); delForm(d.bookingId) }} title="Print this delegate's ACS form">{d.name}</a>
         {d.codes?.length > 0 && <span className="dcodes muted small">· {d.codes.join(', ')}</span>}
+        {offScheme.length > 0 && <span className="b mixed" title={'Different scheme to this block: ' + offScheme.map((c) => c.code + ' (' + c.scheme + ')').join(', ')}>⚠ mixed scheme</span>}
         {kindTag(d.kind) && <span className="b" style={{ marginLeft: 4, background: col, color: '#fff' }}>{kindTag(d.kind)}</span>}
         {canAdd && <button className="addq-btn" title="Add a qualification to this delegate" onClick={(e) => { e.stopPropagation(); setOpen((o) => !o) }}>{open ? '×' : '+'}</button>}
       </div>
@@ -397,11 +399,19 @@ function BlockHeader({ b, open, onToggle }) {
   )
 }
 function BlockDelegates({ b, categories, onAdded }) {
+  const groups = {}
+  for (const d of b.delegates) { const k = d.employer || '— no employer —'; (groups[k] = groups[k] || []).push(d) }
+  const employers = Object.keys(groups).sort()
   return (
     <div style={{ marginTop: 10 }}>
       <div className="fl">Delegates on this block ({b.delegates.length})</div>
       {b.delegates.length === 0 && <div className="muted small" style={{ padding: '4px 0' }}>None yet.</div>}
-      {b.delegates.map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
+      {employers.map((emp) => (
+        <div className="emp-group" key={emp}>
+          {employers.length > 1 && <div className="emp-head muted small">🏢 {emp} ({groups[emp].length})</div>}
+          {groups[emp].map((d) => <DelegateChip d={d} scheme={b.scheme} block={b} categories={categories} onAdded={onAdded} key={d.bookingId} />)}
+        </div>
+      ))}
     </div>
   )
 }
@@ -410,8 +420,9 @@ function BlockDelegates({ b, categories, onAdded }) {
 function AddQualRow({ d, scheme, categories, onAdded }) {
   const [catId, setCatId] = useState('')
   const [kind, setKind] = useState('REASSESS')
+  const [allSchemes, setAllSchemes] = useState(false)
   const held = new Set(d.categoryIds || [])
-  const schemeCats = scheme ? categories.filter((c) => c.scheme === scheme) : categories
+  const schemeCats = (allSchemes || !scheme) ? categories : categories.filter((c) => c.scheme === scheme)
   const available = schemeCats.filter((c) => !held.has(c.category_id))
   async function add() {
     if (!catId) return toast('Pick a qualification')
@@ -424,8 +435,9 @@ function AddQualRow({ d, scheme, categories, onAdded }) {
       <div className="addqual-row">
         <select value={catId} onChange={(e) => setCatId(e.target.value)}>
           <option value="">- qualification -</option>
-          {available.map((c) => <option key={c.category_id} value={c.category_id}>{c.code} · {c.description}</option>)}
+          {available.map((c) => <option key={c.category_id} value={c.category_id}>{c.code} · {c.description}{allSchemes && c.scheme !== scheme ? ' [' + c.scheme + ']' : ''}</option>)}
         </select>
+        <label className="chk" style={{ fontSize: 11 }}><input type="checkbox" checked={allSchemes} onChange={(e) => setAllSchemes(e.target.checked)} /> all schemes</label>
         <span className="seg">
           <button className={'kind-re ' + (kind === 'REASSESS' ? 'on' : '')} onClick={() => setKind('REASSESS')}>Re</button>
           <button className={'kind-new ' + (kind === 'NEW' ? 'on' : '')} onClick={() => setKind('NEW')}>New</button>

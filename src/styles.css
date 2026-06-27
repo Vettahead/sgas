@@ -324,3 +324,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .attend-edit input[type="date"] { font-size: 12px; padding: 3px 6px; border: 1px solid #d4dae3; border-radius: 6px; }
 .attend-dates { display: inline-flex; align-items: center; gap: 4px; }
 .create-block .subform { max-width: 460px; }
+
+/* Roster polish: mixed-scheme flag + employer grouping */
+.b.mixed { background: #fff3cd; color: #8a6d00; border: 1px solid #e3b341; margin-left: 4px; }
+.emp-group { margin-bottom: 6px; }
+.emp-head { font-weight: 600; padding: 4px 0 2px; border-top: 1px dashed #e2e6ee; margin-top: 4px; }

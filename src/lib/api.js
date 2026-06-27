@@ -1006,7 +1006,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),booking_category(category_id,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1019,6 +1019,7 @@ export async function listBlocks() {
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
         categoryIds: (b.booking_category || []).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
+        employer: b.company?.name || null,
       })),
     }))
   }
@@ -1036,6 +1037,7 @@ export async function listBlocks() {
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
         categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
+        employer: co(b.company_id)?.name || null,
       })),
     })
   })
