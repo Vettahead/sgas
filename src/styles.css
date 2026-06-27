@@ -476,3 +476,15 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 /* Course colour swatch + dots */
 .ch .cdot{width:12px;height:12px;border-radius:50%;display:inline-block;flex:none;margin-right:2px}
 .wg-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
+
+/* Calendar 2 — react-big-calendar brand tweaks */
+.cal2-wrap{display:flex;flex-direction:column}
+.cal2-host{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
+.cal2-host .rbc-toolbar button{color:var(--ink);border-color:#cfd8e3}
+.cal2-host .rbc-toolbar button.rbc-active{background:var(--brand);border-color:var(--brand);color:#fff}
+.cal2-host .rbc-toolbar button:hover{background:var(--brand-soft)}
+.cal2-host .rbc-toolbar-label{font-weight:650;font-size:15px}
+.cal2-host .rbc-today{background:var(--brand-soft)}
+.cal2-host .rbc-event{font-size:11.5px;font-weight:600;padding:1px 5px}
+.cal2-host .rbc-event.rbc-selected{filter:brightness(1.05)}
+.cal2-host .rbc-off-range-bg{background:#fafbfd}
