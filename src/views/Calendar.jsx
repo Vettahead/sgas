@@ -451,7 +451,9 @@ function YMonthRow({ y, m, blocks, colourFor, onOpen, lo, hi, onCellDown, onCell
     }
     if (!placed) { bar.lane = laneEnds.length; laneEnds.push(bar.endCol) }
   }
-  const lanes = laneEnds.length || 1
+  // always keep ONE extra empty lane at the bottom so you can drag-create a new
+  // block even on a day that is already full of courses.
+  const lanes = laneEnds.length + 1
   const todayCol = today.slice(0, 7) === first.slice(0, 7) ? offset + Number(today.slice(8, 10)) - 1 : -1
 
   return (
