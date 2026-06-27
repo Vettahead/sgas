@@ -421,3 +421,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .wg-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .wg-count{background:var(--brand-soft);color:var(--brand-dark);border-radius:9px;padding:0 6px;font-size:10px;font-weight:700;flex:none}
 .wgroup .pal-chips{margin:1px 0 6px 8px}
+
+/* Put the open block card right next to the palette (short drag to drop) */
+.drag-shell .palette{order:1}
+.drag-shell .block-drawer{order:2}
+.drag-shell .work{order:3}
