@@ -797,18 +797,24 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
     const barEl = e.currentTarget.classList.contains('yc-bar') ? e.currentTarget : e.currentTarget.closest('.yc-bar')
     const track = barEl.closest('.yc-track')
     const colW = track ? track.clientWidth / YCOLS : 24
+    const ow = barEl.offsetWidth
     const startX = e.clientX
     if (movedRef) movedRef.current = false
+    barEl.classList.add('dragging')
     let delta = 0
     const onMove = (ev) => {
-      delta = Math.round((ev.clientX - startX) / colW)
-      if (Math.abs(ev.clientX - startX) > 3 && movedRef) movedRef.current = true
-      if (mode === 'mv') barEl.style.transform = `translateX(${delta * colW}px)`
+      const dx = ev.clientX - startX           // raw pixels — smooth follow
+      delta = Math.round(dx / colW)            // committed in whole days
+      if (Math.abs(dx) > 3 && movedRef) movedRef.current = true
+      if (mode === 'mv') barEl.style.transform = `translateX(${dx}px)`
+      else if (mode === 're') barEl.style.width = Math.max(colW * 0.5, ow + dx) + 'px'
+      else { barEl.style.marginLeft = dx + 'px'; barEl.style.width = Math.max(colW * 0.5, ow - dx) + 'px' }
     }
     const onUp = () => {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
-      barEl.style.transform = ''
+      barEl.style.transform = ''; barEl.style.width = ''; barEl.style.marginLeft = ''
+      barEl.classList.remove('dragging')
       if (delta !== 0 && onDragCommit) onDragCommit(b, mode, delta)
       setTimeout(() => { if (movedRef) movedRef.current = false }, 0)
     }

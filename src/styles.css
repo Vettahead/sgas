@@ -683,3 +683,4 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-grip{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}
 .yc-grip-l{left:0}
 .yc-grip-r{right:0}
+.yc-bar.dragging{z-index:6;opacity:.92;box-shadow:0 4px 12px rgba(16,30,54,.28);cursor:grabbing}
