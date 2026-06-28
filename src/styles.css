@@ -717,3 +717,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .wt-ev-time{display:block;font-size:10px;opacity:.92}
 .wt-ev-grip{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
 .wt-ev-ghost{background:var(--brand);opacity:.55;pointer-events:none;border:1px dashed #fff}
+
+/* Engagement member chips */
+.eng-mem{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}

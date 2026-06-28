@@ -83,6 +83,14 @@ export default function Admin({ currentUser }) {
     try { await updateUser(u.user_id, { role }, adminAuth); load(adminAuth) }
     catch (e) { toast(e.message) }
   }
+  async function makeStaff(u) {
+    try {
+      const st = await createStaff({ name: u.name || u.username, email: u.email, room: '' })
+      await updateUser(u.user_id, { staffId: st.staff_id }, adminAuth)
+      toast(`${u.name || u.username} is now a staff member`)
+      load(adminAuth)
+    } catch (e) { toast(e.message) }
+  }
   async function toggleActive(u) {
     try { await updateUser(u.user_id, { is_active: !u.is_active }, adminAuth); load(adminAuth) }
     catch (e) { toast(e.message) }
@@ -257,6 +265,7 @@ export default function Admin({ currentUser }) {
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
                           <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
+                          <button className="btn ghost sm" title="Give this account a staff record so they can be assigned to courses, holidays and calendar entries" onClick={() => makeStaff(u)}>Make staff</button>
                         </span>
                       )}
                     </td>

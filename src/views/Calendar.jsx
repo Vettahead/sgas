@@ -95,7 +95,7 @@ export default function Calendar({ go, isAdmin, user }) {
   const monthRef = useRef(null)
 
   async function refresh() {
-    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays(), listEngagements(user?.user_id)])
+    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId)])
     try { await loadPool() } catch { /* pool optional */ }
     const holBlocks = hol.map((h) => ({
       id: 'h' + h.holidayId, holidayId: h.holidayId, isHoliday: true, staffId: h.staffId, staffName: h.staffName, note: h.note,
@@ -103,7 +103,7 @@ export default function Calendar({ go, isAdmin, user }) {
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const engBlocks = eng.map((e) => ({
-      id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true, title: e.title, startTime: e.startTime, endTime: e.endTime,
+      id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true, title: e.title, startTime: e.startTime, endTime: e.endTime, ownerUserId: e.ownerUserId, members: e.members || [],
       course: e.title, scheme: 'Engagement', color: '#475569', start: e.date, end: e.date,
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
@@ -301,7 +301,7 @@ export default function Calendar({ go, isAdmin, user }) {
       {openBlock && (openBlock.isHoliday
         ? <HolidayDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
         : openBlock.isEngagement
-          ? <EngagementDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
+          ? <EngagementDrawer b={openBlock} staff={staff} user={user} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
           : <BlockDrawer b={openBlock} mode={panelMode} isAdmin={isAdmin} onSwitchMode={setPanelMode}
               courses={courses} staff={staff} pool={pool} categories={categories} holidays={holidays} go={go}
               onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />)}
@@ -388,6 +388,7 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
   const [title, setTitle] = useState('')
   const [startTime, setStartTime] = useState(range.startTime || '09:00')
   const [endTime, setEndTime] = useState(range.endTime || '12:00')
+  const [memberIds, setMemberIds] = useState(new Set())
   const [busy, setBusy] = useState(false)
   const isHoliday = courseId === 'HOLIDAY'
   const isEngagement = courseId === 'ENGAGEMENT'
@@ -399,7 +400,7 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
         if (from > to) { setBusy(false); return toast('Start must be on or before end') }
         await createHoliday({ staffId, from, to, note }); toast('Holiday added')
       } else if (isEngagement) {
-        await createEngagement({ ownerUserId: user?.user_id, title, date: from, startTime, endTime }); toast('Added to your calendar')
+        await createEngagement({ ownerUserId: user?.user_id, title, date: from, startTime, endTime, memberStaffIds: [...memberIds] }); toast('Added to your calendar')
       } else {
         if (from > to) { setBusy(false); return toast('Start must be on or before end') }
         const f = snapWeekday(from, true), t = snapWeekday(to, false)
@@ -431,6 +432,15 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
               <label className="fld">From<input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
               <label className="fld">To<input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></label>
             </div>
+            <label className="fld">Also involves <span className="muted">(optional — you're included automatically)</span>
+              <div className="eng-mem">
+                {(staff || []).filter((st) => String(st.staff_id) !== String(user?.staffId)).map((st) => {
+                  const on = memberIds.has(String(st.staff_id))
+                  return <button type="button" key={st.staff_id} className={'cal-fchip' + (on ? ' on' : '')} style={on ? { background: st.color, borderColor: st.color, color: '#fff' } : {}} onClick={() => { const n = new Set(memberIds); on ? n.delete(String(st.staff_id)) : n.add(String(st.staff_id)); setMemberIds(n) }}>{st.name}</button>
+                })}
+                {(staff || []).filter((st) => String(st.staff_id) !== String(user?.staffId)).length === 0 && <span className="muted small">No other staff.</span>}
+              </div>
+            </label>
           </>
         )}
         {isHoliday && (
@@ -457,13 +467,18 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
   )
 }
 
-function EngagementDrawer({ b, onChanged, onClose }) {
+function EngagementDrawer({ b, staff, user, onChanged, onClose }) {
   const t = (x) => (x ? String(x).slice(0, 5) : '')
   const [busy, setBusy] = useState(false)
   const [title, setTitle] = useState(b.title || '')
   const [date, setDate] = useState(b.start)
   const [st, setSt] = useState(t(b.startTime) || '09:00')
   const [en, setEn] = useState(t(b.endTime) || '10:00')
+  const [memberIds, setMemberIds] = useState(new Set((b.members || []).map((m) => String(m.staffId))))
+  const ownEng = b.ownerUserId == null || String(b.ownerUserId) === String(user?.user_id)
+  function toggleMember(sid) {
+    const n = new Set(memberIds); n.has(sid) ? n.delete(sid) : n.add(sid); setMemberIds(n); save({ memberStaffIds: [...n] })
+  }
   async function save(patch) {
     setBusy(true)
     try { await updateEngagement(b.engagementId, patch); toast('Saved'); if (onChanged) await onChanged() }
@@ -489,6 +504,19 @@ function EngagementDrawer({ b, onChanged, onClose }) {
             <label className="fld">From<input type="time" value={st} onChange={(e) => { const v = e.target.value; setSt(v); save({ startTime: v, endTime: en }) }} /></label>
             <label className="fld">To<input type="time" value={en} onChange={(e) => { const v = e.target.value; setEn(v); save({ startTime: st, endTime: v }) }} /></label>
           </div>
+          {ownEng && (
+            <label className="fld">Also involves <span className="muted">(you're included automatically)</span>
+              <div className="eng-mem">
+                {(staff || []).filter((s) => String(s.staff_id) !== String(user?.staffId)).map((s) => {
+                  const on = memberIds.has(String(s.staff_id))
+                  return <button type="button" key={s.staff_id} className={'cal-fchip' + (on ? ' on' : '')} style={on ? { background: s.color, borderColor: s.color, color: '#fff' } : {}} onClick={() => toggleMember(String(s.staff_id))} disabled={busy}>{s.name}</button>
+                })}
+              </div>
+            </label>
+          )}
+          {!ownEng && (b.members || []).length > 0 && (
+            <div className="fld"><span className="muted small">With: {(b.members || []).map((m) => m.name).join(', ')}</span></div>
+          )}
         </div>
         <div className="cal-rpanel-foot">
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete</button>
@@ -785,6 +813,34 @@ function HoverCard({ b, x, y }) {
   const vh = typeof window !== 'undefined' ? window.innerHeight : 800
   const left = Math.min(x + 14, vw - 376)
   const top = Math.min(y + 14, vh - 240)
+  const t5 = (z) => (z ? String(z).slice(0, 5) : '')
+  if (b.isHoliday) {
+    return (
+      <div className="yc-hover" style={{ left, top }}>
+        <div className="yc-hover-head" style={{ borderLeft: '4px solid #8a94a6' }}>
+          <strong>🏖 Holiday</strong>
+          <span className="muted small">{b.start} – {b.end}</span>
+        </div>
+        <div className="yc-hover-roles small"><span>Staff: {b.staffName || '—'}</span></div>
+        {b.note ? <div className="yc-hover-delg small">{b.note}</div> : null}
+      </div>
+    )
+  }
+  if (b.isEngagement) {
+    const time = b.startTime ? t5(b.startTime) + (b.endTime ? '–' + t5(b.endTime) : '') : 'All day'
+    return (
+      <div className="yc-hover" style={{ left, top }}>
+        <div className="yc-hover-head" style={{ borderLeft: '4px solid #475569' }}>
+          <strong>🗒 {b.title}</strong>
+          <span className="muted small">{b.start} · {time}</span>
+        </div>
+        <div className="yc-hover-delg small">
+          <strong>People</strong>
+          <div className="muted">You{b.members && b.members.length ? ', ' + b.members.map((m) => m.name).join(', ') : ''}</div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="yc-hover" style={{ left, top }}>
       <div className="yc-hover-head" style={{ borderLeft: `4px solid ${b.color || '#48566a'}` }}>

@@ -1151,32 +1151,61 @@ export function weekdayDays(from, to) {
 }
 
 // ---- Engagements (personal timed calendar entries) --------------------------
-export async function listEngagements(ownerUserId) {
+const ENG_COLS = 'engagement_id,owner_user_id,title,start_date,start_time,end_time'
+// An engagement shows on your calendar if you own it OR you're a member (your staff_id).
+export async function listEngagements(ownerUserId, ownerStaffId) {
   if (LIVE) {
-    let q = supabase.from('engagement').select('engagement_id,owner_user_id,title,start_date,start_time,end_time').order('start_date')
-    if (ownerUserId != null) q = q.eq('owner_user_id', ownerUserId)
-    const { data } = await q
-    return (data || []).map((e) => ({ engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time }))
+    let rows = []
+    if (ownerUserId == null && ownerStaffId == null) {
+      rows = (await supabase.from('engagement').select(ENG_COLS).order('start_date')).data || []
+    } else {
+      if (ownerUserId != null) rows = (await supabase.from('engagement').select(ENG_COLS).eq('owner_user_id', ownerUserId)).data || []
+      if (ownerStaffId != null) {
+        const { data: mrows } = await supabase.from('engagement_member').select('engagement_id').eq('staff_id', Number(ownerStaffId))
+        const ids = [...new Set((mrows || []).map((r) => r.engagement_id))].filter((id) => !rows.some((o) => o.engagement_id === id))
+        if (ids.length) rows = rows.concat((await supabase.from('engagement').select(ENG_COLS).in('engagement_id', ids)).data || [])
+      }
+    }
+    const ids = rows.map((r) => r.engagement_id)
+    const memMap = {}
+    if (ids.length) {
+      const { data: mem } = await supabase.from('engagement_member').select('engagement_id,staff_id,assessor:staff_id(name)').in('engagement_id', ids)
+      for (const m of mem || []) (memMap[m.engagement_id] ||= []).push({ staffId: m.staff_id, name: m.assessor?.name || '—' })
+    }
+    return rows.map((e) => ({ engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time, members: memMap[e.engagement_id] || [] }))
   }
-  D.engagements = D.engagements || []
-  return D.engagements.filter((e) => ownerUserId == null || e.owner_user_id === ownerUserId)
-    .map((e) => ({ engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time }))
+  D.engagements = D.engagements || []; D.engagementMembers = D.engagementMembers || []
+  const owned = D.engagements.filter((e) => (ownerUserId == null && ownerStaffId == null) || e.owner_user_id === ownerUserId)
+  const memIds = D.engagementMembers.filter((m) => ownerStaffId != null && m.staff_id === Number(ownerStaffId)).map((m) => m.engagement_id)
+  const extra = D.engagements.filter((e) => memIds.includes(e.engagement_id) && !owned.includes(e))
+  return [...owned, ...extra].map((e) => ({
+    engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time,
+    members: D.engagementMembers.filter((m) => m.engagement_id === e.engagement_id).map((m) => ({ staffId: m.staff_id, name: (D.assessors.find((a) => a.assessor_id === m.staff_id) || {}).name || '—' })),
+  }))
 }
-export async function createEngagement({ ownerUserId, title, date, startTime, endTime }) {
+export async function createEngagement({ ownerUserId, title, date, startTime, endTime, memberStaffIds }) {
   if (!title || !title.trim()) throw new Error('Enter a title')
   if (!date) throw new Error('Pick a date')
+  const members = (memberStaffIds || []).map(Number).filter(Boolean)
   if (LIVE) {
-    const { error } = await supabase.from('engagement').insert({ owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null })
+    const { data, error } = await supabase.from('engagement').insert({ owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null }).select('engagement_id').single()
     if (error) throw new Error(error.message)
+    if (members.length) {
+      const { error: e2 } = await supabase.from('engagement_member').insert(members.map((sid) => ({ engagement_id: data.engagement_id, staff_id: sid })))
+      if (e2) throw new Error(e2.message)
+    }
     return
   }
-  D.engagements = D.engagements || []; D.seq.engagement = D.seq.engagement || 0
-  D.engagements.push({ engagement_id: ++D.seq.engagement, owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null })
+  D.engagements = D.engagements || []; D.seq.engagement = D.seq.engagement || 0; D.engagementMembers = D.engagementMembers || []
+  const id = ++D.seq.engagement
+  D.engagements.push({ engagement_id: id, owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null })
+  for (const sid of members) D.engagementMembers.push({ engagement_id: id, staff_id: sid })
 }
 export async function deleteEngagement(engagementId) {
   const id = Number(engagementId)
   if (LIVE) { const { error } = await supabase.from('engagement').delete().eq('engagement_id', id); if (error) throw new Error(error.message); return }
   D.engagements = (D.engagements || []).filter((e) => e.engagement_id !== id)
+  D.engagementMembers = (D.engagementMembers || []).filter((m) => m.engagement_id !== id)
 }
 export async function updateHoliday(holidayId, { from, to }) {
   const patch = {}
@@ -1186,14 +1215,26 @@ export async function updateHoliday(holidayId, { from, to }) {
   if (LIVE) { const { error } = await supabase.from('holiday').update(patch).eq('holiday_id', Number(holidayId)); if (error) throw new Error(error.message); return }
   const h = (D.holidays || []).find((x) => x.holiday_id === Number(holidayId)); if (h) Object.assign(h, patch)
 }
-export async function updateEngagement(engagementId, { date, startTime, endTime }) {
+export async function updateEngagement(engagementId, { date, startTime, endTime, memberStaffIds }) {
+  const id = Number(engagementId)
   const patch = {}
   if (date) patch.start_date = date
   if (startTime !== undefined) patch.start_time = startTime || null
   if (endTime !== undefined) patch.end_time = endTime || null
-  if (!Object.keys(patch).length) return
-  if (LIVE) { const { error } = await supabase.from('engagement').update(patch).eq('engagement_id', Number(engagementId)); if (error) throw new Error(error.message); return }
-  const e = (D.engagements || []).find((x) => x.engagement_id === Number(engagementId)); if (e) Object.assign(e, patch)
+  if (LIVE) {
+    if (Object.keys(patch).length) { const { error } = await supabase.from('engagement').update(patch).eq('engagement_id', id); if (error) throw new Error(error.message) }
+    if (memberStaffIds !== undefined) {
+      const members = (memberStaffIds || []).map(Number).filter(Boolean)
+      await supabase.from('engagement_member').delete().eq('engagement_id', id)
+      if (members.length) { const { error } = await supabase.from('engagement_member').insert(members.map((sid) => ({ engagement_id: id, staff_id: sid }))); if (error) throw new Error(error.message) }
+    }
+    return
+  }
+  const e = (D.engagements || []).find((x) => x.engagement_id === id); if (e) Object.assign(e, patch)
+  if (memberStaffIds !== undefined) {
+    D.engagementMembers = (D.engagementMembers || []).filter((m) => m.engagement_id !== id)
+    for (const sid of (memberStaffIds || []).map(Number).filter(Boolean)) D.engagementMembers.push({ engagement_id: id, staff_id: sid })
+  }
 }
 
 // Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
