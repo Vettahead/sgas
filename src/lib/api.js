@@ -1088,6 +1088,61 @@ export async function createStaff(d) {
   return { staff_id, name: d.name }
 }
 
+export async function updateStaff(staffId, d) {
+  const patch = {}
+  if ('name' in d) patch.name = d.name
+  if ('email' in d) patch.email = d.email
+  if ('room' in d) patch.assigned_room = d.room
+  if (!Object.keys(patch).length) return
+  if (LIVE) {
+    const { error } = await supabase.from('assessor').update(patch).eq('assessor_id', staffId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const a = D.assessors.find((x) => x.assessor_id === staffId)
+  if (a) Object.assign(a, patch)
+}
+
+// ---- Holidays (staff time off) ----------------------------------------------
+export async function listHolidays() {
+  if (LIVE) {
+    const { data } = await supabase.from('holiday').select('holiday_id,staff_id,start_date,end_date,note,staff:staff_id(name)').order('start_date')
+    return (data || []).map((h) => ({ holidayId: h.holiday_id, staffId: h.staff_id, staffName: h.staff?.name || '—', start: h.start_date, end: h.end_date, note: h.note || '' }))
+  }
+  D.holidays = D.holidays || []
+  return D.holidays.map((h) => ({ holidayId: h.holiday_id, staffId: h.staff_id, staffName: asr(h.staff_id)?.name || '—', start: h.start_date, end: h.end_date, note: h.note || '' }))
+}
+export async function createHoliday({ staffId, from, to, note }) {
+  if (!staffId) throw new Error('Pick a staff member')
+  if (!from || !to) throw new Error('Set start and end dates')
+  if (from > to) throw new Error('Start must be on or before end')
+  if (LIVE) {
+    const { error } = await supabase.from('holiday').insert({ staff_id: Number(staffId), start_date: from, end_date: to, note: note || null })
+    if (error) throw new Error(error.message)
+    return
+  }
+  D.holidays = D.holidays || []; D.seq.holiday = D.seq.holiday || 0
+  D.holidays.push({ holiday_id: ++D.seq.holiday, staff_id: Number(staffId), start_date: from, end_date: to, note: note || null })
+}
+export async function deleteHoliday(holidayId) {
+  const id = Number(holidayId)
+  if (LIVE) {
+    const { error } = await supabase.from('holiday').delete().eq('holiday_id', id)
+    if (error) throw new Error(error.message)
+    return
+  }
+  D.holidays = (D.holidays || []).filter((h) => h.holiday_id !== id)
+}
+// Pure helper: does this staff member have any holiday overlapping [from,to]?
+export function staffOnHoliday(holidays, staffId, from, to) {
+  return (holidays || []).some((h) => String(h.staffId) === String(staffId) && h.start <= to && h.end >= from)
+}
+// Inclusive day count of a date range.
+export function rangeDays(from, to) {
+  if (!from || !to) return 0
+  return Math.round((new Date(to) - new Date(from)) / 86400000) + 1
+}
+
 // Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
 // otherwise reassessment vs new. Mirrors the waiting-pool colour kinds.
 const delegateKind = (disposition, isReassess) =>

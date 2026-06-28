@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff } from '../lib/api.js'
+import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, rangeDays } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { toast } from '../lib/toast.js'
 
@@ -15,6 +15,7 @@ export default function Admin({ currentUser }) {
 
   const [users, setUsers] = useState([])
   const [staff, setStaff] = useState([])
+  const [holidays, setHolidays] = useState([])
   const [loading, setLoading] = useState(!LIVE)
   const [showAdd, setShowAdd] = useState(false)
   const [nu, setNu] = useState({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
@@ -23,10 +24,12 @@ export default function Admin({ currentUser }) {
   const [created, setCreated] = useState(null)
   const [loginFor, setLoginFor] = useState(null)
   const [loginForm, setLoginForm] = useState({ username: '', role: 'STANDARD', password: '' })
+  const [editId, setEditId] = useState(null)
+  const [editForm, setEditForm] = useState({ name: '', email: '', room: '' })
 
   async function load(auth) {
     setLoading(true)
-    try { const [u, s] = await Promise.all([listUsers(auth), listStaff()]); setUsers(u); setStaff(s) }
+    try { const [u, s, hol] = await Promise.all([listUsers(auth), listStaff(), listHolidays()]); setUsers(u); setStaff(s); setHolidays(hol) }
     catch (e) { toast(e.message) }
     finally { setLoading(false) }
   }
@@ -42,6 +45,7 @@ export default function Admin({ currentUser }) {
   }
 
   const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
+  const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + rangeDays(h.start, h.end), 0)
 
   async function addStaff() {
     if (!nu.name.trim()) return toast('Name is required')
@@ -64,6 +68,14 @@ export default function Admin({ currentUser }) {
       toast('Login created')
       setCreated({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password })
       setLoginFor(null); setLoginForm({ username: '', role: 'STANDARD', password: '' }); load(adminAuth)
+    } catch (e) { toast(e.message) }
+  }
+  async function saveEdit(st) {
+    try {
+      await updateStaff(st.staff_id, { name: editForm.name, email: editForm.email, room: editForm.room })
+      const u = userForStaff(st.staff_id)
+      if (u) await updateUser(u.user_id, { name: editForm.name, email: editForm.email }, adminAuth)
+      toast('Staff updated'); setEditId(null); load(adminAuth)
     } catch (e) { toast(e.message) }
   }
   async function changeRole(u, role) {
@@ -139,17 +151,29 @@ export default function Admin({ currentUser }) {
 
         {loading ? <div className="loading">Loading staff…</div> : (
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {staff.length === 0 && <tr><td colSpan={7} className="empty">No staff yet — add the first one above.</td></tr>}
+              {staff.length === 0 && <tr><td colSpan={8} className="empty">No staff yet — add the first one above.</td></tr>}
               {staff.map((st) => {
                 const u = userForStaff(st.staff_id)
                 const isSelf = u && currentUser && u.user_id === currentUser.user_id
+                const editing = editId === st.staff_id
                 return (
                   <tr key={st.staff_id}>
-                    <td><b>{st.name}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
-                    <td className="muted">{st.email || '—'}</td>
-                    <td className="muted small">{st.room || '—'}</td>
+                    {editing ? (
+                      <>
+                        <td><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
+                        <td><input type="text" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></td>
+                        <td><input type="text" value={editForm.room} onChange={(e) => setEditForm({ ...editForm, room: e.target.value })} /></td>
+                      </>
+                    ) : (
+                      <>
+                        <td><b>{st.name}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
+                        <td className="muted">{st.email || '—'}</td>
+                        <td className="muted small">{st.room || '—'}</td>
+                      </>
+                    )}
+                    <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
                     <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
                     <td>{u
                       ? <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
@@ -158,6 +182,13 @@ export default function Admin({ currentUser }) {
                       : '—'}</td>
                     <td>{u ? (u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>) : <span className="muted small">—</span>}</td>
                     <td>
+                      {editing ? (
+                        <span className="inrow">
+                          <button className="btn sm" onClick={() => saveEdit(st)}>Save</button>
+                          <button className="btn ghost sm" onClick={() => setEditId(null)}>Cancel</button>
+                        </span>
+                      ) : (<span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button className="btn ghost sm" onClick={() => { setEditId(st.staff_id); setEditForm({ name: st.name || '', email: st.email || '', room: st.room || '' }) }}>Edit</button>
                       {u ? (
                         resetId === u.user_id ? (
                           <span className="inrow" style={{ maxWidth: 320 }}>
@@ -186,6 +217,7 @@ export default function Admin({ currentUser }) {
                           <button className="btn ghost sm" onClick={() => { setLoginFor(st.staff_id); setLoginForm({ username: (st.email || st.name || '').trim(), role: 'STANDARD', password: '' }) }}>Create login</button>
                         )
                       )}
+                      </span>)}
                     </td>
                   </tr>
                 )

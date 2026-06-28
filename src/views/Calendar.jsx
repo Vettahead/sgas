@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -78,15 +78,22 @@ export default function Calendar({ go, isAdmin }) {
   const [creating, setCreating] = useState(null) // { from, to } while the create modal is open
   const [pool, setPool] = useState([])
   const [categories, setCategories] = useState([])
+  const [holidays, setHolidays] = useState([])
 
   const calRef = useRef(null)
   const monthRef = useRef(null)
 
   async function refresh() {
-    const [b, c, s, cats] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories()])
+    const [b, c, s, cats, hol] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays()])
     try { await loadPool() } catch { /* pool optional */ }
-    setBlocks(b); setCourses(c); setStaff(s); setCategories(cats); setPool(getPool())
-    return b
+    const holBlocks = hol.map((h) => ({
+      id: 'h' + h.holidayId, holidayId: h.holidayId, isHoliday: true, staffId: h.staffId, staffName: h.staffName, note: h.note,
+      course: '🏖 ' + h.staffName, scheme: 'Holiday', color: '#8a94a6', start: h.start, end: h.end,
+      trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
+    }))
+    const all = [...b, ...holBlocks]
+    setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool())
+    return all
   }
   // Refresh data but keep the right panel open on the (now-updated) same block.
   async function refreshKeepOpen() {
@@ -97,6 +104,7 @@ export default function Calendar({ go, isAdmin }) {
 
   // Admins get a Staff-view / Edit-view chooser; everyone else opens read-only.
   function openBlk(b) {
+    if (b.isHoliday) { setPanelMode('view'); setOpenBlock(b); return }
     if (isAdmin) { setPendingBlock(b) }
     else { setPanelMode('view'); setOpenBlock(b) }
   }
@@ -107,8 +115,8 @@ export default function Calendar({ go, isAdmin }) {
   // Apply the filters once; both the calendar AND the resource lanes use this.
   const filtered = useMemo(() => {
     let list = blocks || []
-    if (selSchemes.size) list = list.filter((b) => selSchemes.has(b.scheme))
-    if (selStaff.size) list = list.filter((b) => selStaff.has(String(b.trainerId)))
+    if (selSchemes.size) list = list.filter((b) => b.isHoliday || selSchemes.has(b.scheme))
+    if (selStaff.size) list = list.filter((b) => b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId)))
     if (!showFinished) list = list.filter((b) => !b.end || b.end >= todayISO())
     return list
   }, [blocks, selSchemes, selStaff, showFinished])
@@ -126,14 +134,14 @@ export default function Calendar({ go, isAdmin }) {
   // read as a band in the time-grid (Week/Day) and as a bar in Month.
   const events = useMemo(() => (filtered).map((b) => ({
     id: b.id,
-    text: `${b.course} · ${b.delegates.length}👤${b.ready ? '' : ' · ⚠'}`,
+    text: b.isHoliday ? b.course : `${b.course} · ${b.delegates.length}👤${b.ready ? '' : ' · ⚠'}`,
     start: `${b.start}T09:00:00`,
     end: `${b.end}T17:00:00`,
     backColor: colourFor(b),
     borderColor: 'darker',
     fontColor: '#fff',
-    moveDisabled: !!(b.end && b.end < todayISO()),
-    resizeDisabled: !!(b.end && b.end < todayISO()),
+    moveDisabled: b.isHoliday || !!(b.end && b.end < todayISO()),
+    resizeDisabled: b.isHoliday || !!(b.end && b.end < todayISO()),
     resource: b.trainerId || 'none',
     block: b,
   })), [filtered, colourBy])
@@ -244,7 +252,7 @@ export default function Calendar({ go, isAdmin }) {
 
       {creating && (
         <CreateModal
-          range={creating} courses={courses}
+          range={creating} courses={courses} staff={staff}
           onClose={() => setCreating(null)}
           onCreated={async () => { setCreating(null); await refresh() }}
         />
@@ -254,11 +262,11 @@ export default function Calendar({ go, isAdmin }) {
           onPick={(m) => { setPanelMode(m); setOpenBlock(pendingBlock); setPendingBlock(null) }}
           onClose={() => setPendingBlock(null)} />
       )}
-      {openBlock && (
-        <BlockDrawer b={openBlock} mode={panelMode} isAdmin={isAdmin} onSwitchMode={setPanelMode}
-          courses={courses} staff={staff} pool={pool} categories={categories} go={go}
-          onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
-      )}
+      {openBlock && (openBlock.isHoliday
+        ? <HolidayDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
+        : <BlockDrawer b={openBlock} mode={panelMode} isAdmin={isAdmin} onSwitchMode={setPanelMode}
+            courses={courses} staff={staff} pool={pool} categories={categories} holidays={holidays} go={go}
+            onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />)}
     </div>
   )
 }
@@ -333,40 +341,82 @@ function Legend({ blocks, colourBy }) {
   )
 }
 
-function CreateModal({ range, courses, onClose, onCreated }) {
+function CreateModal({ range, courses, staff, onClose, onCreated }) {
   const [courseId, setCourseId] = useState('')
+  const [staffId, setStaffId] = useState('')
   const [from, setFrom] = useState(range.from)
   const [to, setTo] = useState(range.to)
+  const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
+  const isHoliday = courseId === 'HOLIDAY'
   async function save() {
-    if (!courseId) return toast('Pick a course')
+    if (!courseId) return toast('Pick a type')
     if (from > to) return toast('Start must be on or before end')
     setBusy(true)
     try {
-      await createBlock({ courseId: Number(courseId), from, to })
-      toast('Block created'); onCreated()
+      if (isHoliday) { await createHoliday({ staffId, from, to, note }); toast('Holiday added') }
+      else { await createBlock({ courseId: Number(courseId), from, to }); toast('Block created') }
+      onCreated()
     } catch (e) { toast(e.message); setBusy(false) }
   }
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>New block</h3>
-        <p className="muted small">Drag created {from} → {to}. Pick the course and confirm.</p>
-        <label className="fld">Course
+        <h3>{isHoliday ? 'New holiday' : 'New block'}</h3>
+        <p className="muted small">Drag created {from} → {to}. {isHoliday ? 'Pick the staff member.' : 'Pick the course and confirm.'}</p>
+        <label className="fld">Type
           <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
             <option value="">— select —</option>
+            <option value="HOLIDAY">🏖 Holiday (staff time off)</option>
             {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}{c.scheme ? ` (${c.scheme})` : ''}</option>)}
           </select>
         </label>
+        {isHoliday && (
+          <label className="fld">Staff member
+            <select value={staffId} onChange={(e) => setStaffId(e.target.value)}>
+              <option value="">— select —</option>
+              {(staff || []).map((st) => <option key={st.staff_id ?? st.id} value={st.staff_id ?? st.id}>{st.name}</option>)}
+            </select>
+          </label>
+        )}
         <div className="cal-dates">
           <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
           <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
         </div>
+        {isHoliday && <label className="fld">Note (optional)<input type="text" value={note} onChange={(e) => setNote(e.target.value)} /></label>}
         <div className="modal-foot">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create block'}</button>
+          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? 'Add holiday' : 'Create block')}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function HolidayDrawer({ b, onChanged, onClose }) {
+  const [busy, setBusy] = useState(false)
+  async function del() {
+    setBusy(true)
+    try { await deleteHoliday(b.holidayId); toast('Holiday removed'); if (onChanged) await onChanged(); onClose() }
+    catch (e) { toast(e.message); setBusy(false) }
+  }
+  return (
+    <div className="cal-rpanel-wrap">
+      <div className="cal-rpanel-backdrop" onClick={onClose} />
+      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #8a94a6' }}>
+          <div className="cal-rpanel-title"><h3>🏖 Holiday</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+          <span className="muted small">{b.staffName} · {b.start} – {b.end}</span>
+        </div>
+        <div className="cal-sec">
+          {b.note ? <div>{b.note}</div> : <div className="muted small">No note.</div>}
+          <div className="muted small">{b.staffName} can't be assigned as a trainer on courses overlapping these dates.</div>
+        </div>
+        <div className="cal-rpanel-foot">
+          <button className="btn sm danger" onClick={del} disabled={busy}>Delete holiday</button>
+          <button className="btn sm" onClick={onClose}>Done</button>
+        </div>
+      </aside>
     </div>
   )
 }
@@ -428,7 +478,7 @@ function AttendanceEdit({ d, block, busy, onSave }) {
   )
 }
 
-function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwitchMode, go, onChanged, onClose }) {
+function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAdmin, onSwitchMode, go, onChanged, onClose }) {
   const editing = isAdmin && mode === 'edit'
   const cur = (courses || []).find((c) => c.name === b.course)
   const [courseId, setCourseId] = useState(cur ? String(cur.course_id) : '')
@@ -450,7 +500,10 @@ function BlockDrawer({ b, courses, staff, pool, categories, mode, isAdmin, onSwi
     onClose()
   }
   async function del() { await run(() => deleteBlock(b.id), 'Block deleted'); onClose() }
-  const setTrainer = (id) => run(() => assignBlockRole(b.id, 'trainer', id ? Number(id) : null), 'Trainer updated')
+  const setTrainer = (id) => {
+    if (id && staffOnHoliday(holidays, id, b.start, b.end)) return toast('That staff member is on holiday during this block — they can\'t be assigned.')
+    return run(() => assignBlockRole(b.id, 'trainer', id ? Number(id) : null), 'Trainer updated')
+  }
   const addDelegate = (pid) => run(() => addDelegatesToBlock(b.id, [pid]), 'Delegate added')
   const removeDelegate = (bid) => run(() => returnToPool(bid), 'Returned to waiting pool')
 
