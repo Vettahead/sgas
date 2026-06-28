@@ -911,7 +911,7 @@ function tally(rows, key) {
 // DEMO: in-memory only, hashed client-side.
 // =============================================================================
 
-const sanitizeUser = (u) => ({ user_id: u.user_id, username: u.username, name: u.name, email: u.email, role: u.role, is_active: u.is_active })
+const sanitizeUser = (u) => ({ user_id: u.user_id, username: u.username, name: u.name, email: u.email, role: u.role, is_active: u.is_active, staffId: u.staff_id ?? u.staffId ?? null })
 
 export async function appLogin(username, password) {
   const uname = (username || '').trim()
@@ -934,12 +934,12 @@ export async function listUsers(adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_list_users', { p_admin: adminAuth.username, p_admin_pw: adminAuth.password })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
-    return data || []
+    return (data || []).map(sanitizeUser)
   }
   return store.users.map(sanitizeUser).sort((a, b) => a.username.localeCompare(b.username))
 }
 
-export async function createUser({ username, name, email, role, password }, adminAuth) {
+export async function createUser({ username, name, email, role, password, staffId }, adminAuth) {
   const uname = (username || '').trim()
   if (!uname) throw new Error('Username is required')
   if (!password) throw new Error('Password is required')
@@ -947,6 +947,7 @@ export async function createUser({ username, name, email, role, password }, admi
     const { data, error } = await supabase.rpc('app_create_user', {
       p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
       p_username: uname, p_name: name, p_email: email, p_role: role || 'STANDARD', p_password: password,
+      p_staff_id: staffId != null && staffId !== '' ? Number(staffId) : null,
     })
     if (error) throw new Error(/duplicate|unique/i.test(error.message) ? 'That username is already taken' : error.message)
     return (data || [])[0]
@@ -954,7 +955,7 @@ export async function createUser({ username, name, email, role, password }, admi
   const salt = randomSaltHex()
   const hash = await hashPassword(password, salt)
   if (store.users.some((u) => u.username.toLowerCase() === uname.toLowerCase())) throw new Error('That username is already taken')
-  const row = { user_id: ++store.seq.user, username: uname, name, email, role: role || 'STANDARD', is_active: true, password_hash: hash, password_salt: salt }
+  const row = { user_id: ++store.seq.user, username: uname, name, email, role: role || 'STANDARD', is_active: true, password_hash: hash, password_salt: salt, staff_id: staffId != null && staffId !== '' ? Number(staffId) : null }
   store.users.push(row)
   return sanitizeUser(row)
 }
@@ -965,12 +966,15 @@ export async function updateUser(userId, patch, adminAuth) {
       p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_target: userId,
       p_name: patch.name ?? null, p_email: patch.email ?? null, p_role: patch.role ?? null,
       p_is_active: 'is_active' in patch ? patch.is_active : null,
+      p_set_staff: 'staffId' in patch,
+      p_staff_id: 'staffId' in patch && patch.staffId != null && patch.staffId !== '' ? Number(patch.staffId) : null,
     })
     if (error) throw new Error(error.message)
     return
   }
   const fields = {}
   for (const k of ['name', 'email', 'role', 'is_active']) if (k in patch) fields[k] = patch[k]
+  if ('staffId' in patch) fields.staff_id = patch.staffId != null && patch.staffId !== '' ? Number(patch.staffId) : null
   const u = store.users.find((x) => x.user_id === userId)
   if (u) Object.assign(u, fields)
 }

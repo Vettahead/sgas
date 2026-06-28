@@ -14,7 +14,7 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 
 // `roles` = which roles may use the module (and the default set they get).
 const MODULES = [
   { id: 'stats', title: 'Overview tiles', roles: ['ADMIN', 'STANDARD', 'SCHEDULER', 'ASSESSOR', 'ACCOUNTS'] },
-  { id: 'calendar', title: '📅 Month at a glance', roles: ['ADMIN', 'STANDARD', 'SCHEDULER'] },
+  { id: 'calendar', title: '📅 Your month at a glance', roles: ['ADMIN', 'STANDARD', 'SCHEDULER', 'ASSESSOR'] },
   { id: 'renewals', title: '🔔 Renewal engine', roles: ['ADMIN', 'STANDARD'] },
   { id: 'cold', title: '📞 Cold list', roles: ['ADMIN', 'STANDARD'] },
   { id: 'scheduling', title: '🗓 Blocks awaiting assignment', roles: ['ADMIN', 'SCHEDULER'] },
@@ -148,7 +148,7 @@ export default function Dashboard({ go, user }) {
   const resetLayout = () => { persist(defaultLayout(role)); setWidths({}); saveWidths(role, {}) }
 
   const ctx = {
-    go, isOpen, toggleCard, renewals, coldList, chase, mlps, counts, STAT, statKeys,
+    go, user, isOpen, toggleCard, renewals, coldList, chase, mlps, counts, STAT, statKeys,
     windowDays, setWindowDays, windowLabel, logKey, openLog, Actions, ContactBadge,
     blockMonth, setBlockMonth, blockMonths, monthName, shownAwaiting, awaitingBlocks, assessBlocks,
   }
@@ -210,8 +210,8 @@ function renderModule(id, c) {
   }
   if (id === 'calendar') {
     return (
-      <DashCard id="calendar" title="📅 Month at a glance" open={c.isOpen('calendar')} onToggle={c.toggleCard}>
-        <MonthGlance go={c.go} />
+      <DashCard id="calendar" title="📅 Your month at a glance" open={c.isOpen('calendar')} onToggle={c.toggleCard}>
+        <MonthGlance go={c.go} user={c.user} />
       </DashCard>
     )
   }
@@ -358,14 +358,20 @@ function renderModule(id, c) {
 // Month at a glance — the SAME DayPilot month view as the calendar page, with
 // the calendar's rich hover card (events tagged with their block id so we can
 // detect the hovered block and show full course detail).
-function MonthGlance({ go }) {
+function MonthGlance({ go, user }) {
   const { data: blocks } = useData(listBlocks)
   const [anchor, setAnchor] = useState(new DayPilot.Date(new Date().toISOString().slice(0, 10)))
   const [hover, setHover] = useState(null)
   if (!blocks) return <div className="body"><div className="muted small">Loading…</div></div>
+  // Admin sees every block; a staff member sees only the courses they're on.
+  const myName = user?.name
+  const myStaffId = user?.staffId
+  const shown = user?.role === 'ADMIN'
+    ? blocks
+    : blocks.filter((b) => (myStaffId != null ? [b.trainerId, b.assessorId, b.verifierId].includes(myStaffId) : [b.trainer, b.assessor, b.verifier].includes(myName)))
   const blockMap = {}
-  blocks.forEach((b) => { blockMap[b.id] = b })
-  const events = blocks.filter((b) => b.start && b.end).map((b) => ({
+  shown.forEach((b) => { blockMap[b.id] = b })
+  const events = shown.filter((b) => b.start && b.end).map((b) => ({
     id: b.id, text: `${b.course} · ${b.delegates.length}\u{1F464}`,
     start: `${b.start}T09:00:00`, end: `${b.end}T17:00:00`,
     backColor: b.color || '#48566a', block: b,

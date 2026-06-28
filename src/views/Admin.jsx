@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { listUsers, createUser, updateUser, setUserPassword } from '../lib/api.js'
+import { listUsers, createUser, updateUser, setUserPassword, listStaff } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { toast } from '../lib/toast.js'
 
@@ -14,16 +14,17 @@ export default function Admin({ currentUser }) {
   const [unlockErr, setUnlockErr] = useState('')
 
   const [users, setUsers] = useState([])
+  const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(!LIVE)
   const [showAdd, setShowAdd] = useState(false)
-  const [nu, setNu] = useState({ username: '', name: '', email: '', role: 'STANDARD', password: '' })
+  const [nu, setNu] = useState({ username: '', name: '', email: '', role: 'STANDARD', password: '', staffId: '' })
   const [created, setCreated] = useState(null) // show copyable details after creating a user
   const [resetId, setResetId] = useState(null)
   const [resetPw, setResetPw] = useState('')
 
   async function load(auth) {
     setLoading(true)
-    try { setUsers(await listUsers(auth)) }
+    try { setUsers(await listUsers(auth)); listStaff().then(setStaff).catch(() => {}) }
     catch (e) { toast(e.message) }
     finally { setLoading(false) }
   }
@@ -47,7 +48,7 @@ export default function Admin({ currentUser }) {
       await createUser(nu, adminAuth)
       toast(`User created: ${nu.username}`)
       setCreated({ username: nu.username, name: nu.name, email: nu.email, role: nu.role, password: nu.password })
-      setNu({ username: '', name: '', email: '', role: 'STANDARD', password: '' })
+      setNu({ username: '', name: '', email: '', role: 'STANDARD', password: '', staffId: '' })
       setShowAdd(false)
       load(adminAuth)
     } catch (e) { toast(e.message) }
@@ -55,6 +56,10 @@ export default function Admin({ currentUser }) {
   async function changeRole(u, role) {
     if (role === u.role) return
     try { await updateUser(u.user_id, { role }, adminAuth); load(adminAuth) }
+    catch (e) { toast(e.message) }
+  }
+  async function linkStaff(u, staffId) {
+    try { await updateUser(u.user_id, { staffId }, adminAuth); toast('Staff link updated'); load(adminAuth) }
     catch (e) { toast(e.message) }
   }
   async function toggleActive(u) {
@@ -111,6 +116,13 @@ export default function Admin({ currentUser }) {
                   </select>
                 </div>
               </div>
+              <div className="field">
+                <label className="fl">Linked staff member <span className="muted small">— so their dashboard shows their own calendar</span></label>
+                <select value={nu.staffId} onChange={(e) => setNu({ ...nu, staffId: e.target.value })}>
+                  <option value="">— not linked —</option>
+                  {staff.map((st) => <option key={st.staff_id} value={st.staff_id}>{st.name}</option>)}
+                </select>
+              </div>
               <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
               <div className="inrow">
                 <button className="btn sm" onClick={add}>Create user</button>
@@ -122,7 +134,7 @@ export default function Admin({ currentUser }) {
 
         {loading ? <div className="loading">Loading users…</div> : (
           <table>
-            <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Role</th><th>Staff</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
               {users.map((u) => {
                 const isSelf = currentUser && u.user_id === currentUser.user_id
@@ -132,6 +144,12 @@ export default function Admin({ currentUser }) {
                     <td>{u.name || '—'}</td>
                     <td className="muted">{u.email || '—'}</td>
                     <td><span className={'b ' + (u.role === 'ADMIN' ? 'due' : 'scheme')}>{ROLE_LABELS[u.role] || u.role}</span></td>
+                    <td>
+                      <select className="rolesel" value={u.staffId || ''} onChange={(e) => linkStaff(u, e.target.value)} title="Link this login to a staff record">
+                        <option value="">— none —</option>
+                        {staff.map((st) => <option key={st.staff_id} value={st.staff_id}>{st.name}</option>)}
+                      </select>
+                    </td>
                     <td>{u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>}</td>
                     <td>
                       {resetId === u.user_id ? (
