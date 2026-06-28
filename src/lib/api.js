@@ -95,7 +95,8 @@ export async function getDashboard({ windowDays = RENEWAL_WINDOW_DEFAULT } = {})
 
 // Role-relevant block worklists for the per-user dashboards (§4.10).
 function blockSummaries(blocks) {
-  const awaitingBlocks = (blocks || []).filter((b) => !b.ready).map((b) => ({
+  // Only blocks that have NOT finished yet still need assigning — drop past ones.
+  const awaitingBlocks = (blocks || []).filter((b) => !b.ready && (!b.end || b.end >= todayISO())).map((b) => ({
     id: b.id, course: b.course, start: b.start, end: b.end, scheme: b.scheme,
     missing: [!b.trainerId && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
   }))
