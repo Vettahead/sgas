@@ -116,7 +116,18 @@ export default function Roadmap() {
   const [moves, setMoves] = useState(() => {
     try { return JSON.parse(localStorage.getItem(MOVE_KEY)) || {} } catch { return {} }
   })
-  const [showDone, setShowDone] = useState(false)
+  const OPEN_KEY = 'sgas_roadmap_open'
+  const DEFAULT_OPEN = { build: true, review: true, chris: true, simon: true, future: false, later: false, done: false }
+  const [open, setOpen] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(OPEN_KEY)) || DEFAULT_OPEN } catch { return DEFAULT_OPEN }
+  })
+  function toggle(k) {
+    setOpen((o) => {
+      const n = { ...o, [k]: !o[k] }
+      try { localStorage.setItem(OPEN_KEY, JSON.stringify(n)) } catch {}
+      return n
+    })
+  }
 
   // A chris/simon item can be re-assigned (chris<->simon) or marked complete by
   // Simon -> "review" so it lands with Chris to check off. Override wins for those.
@@ -160,15 +171,16 @@ export default function Roadmap() {
         </div>
       </div>
 
-      {ORDER.filter((k) => k !== 'done').map((k) => {
+      {ORDER.map((k) => {
         const rows = view.filter((i) => i.s === k)
         if (!rows.length) return null
+        const isOpen = !!open[k]
         const tops = rows.filter((i) => !i.parent)
         const kids = (id) => (id ? rows.filter((i) => i.parent === id) : [])
         const Item = (it, key, sub) => (
-          <div className={'rm-item' + (sub ? ' rm-sub' : '')} key={key}>
+          <div className={'rm-item' + (sub ? ' rm-sub' : '') + (k === 'done' ? ' rm-item-done' : '')} key={key}>
             <div className="rm-item-h">
-              <span className="rm-item-t">{it.t}</span>
+              <span className="rm-item-t">{k === 'done' ? '✓ ' : ''}{it.t}</span>
               <span className="rm-item-r">
                 {k === 'chris' && (
                   <button className="rm-move" onClick={() => setStatus(it.t, 'simon')}>→ Simon</button>
@@ -182,48 +194,37 @@ export default function Roadmap() {
                 {k === 'review' && (
                   <button className="rm-move" onClick={() => setStatus(it.t, 'simon')}>↩ Simon</button>
                 )}
-                <Badge s={it.s} />
+                {k !== 'done' && <Badge s={it.s} />}
               </span>
             </div>
             <div className="rm-item-d">{it.d}</div>
           </div>
         )
         return (
-          <div className="card rm-sec" key={k}>
-            <h3><span className="rm-dot" style={{ background: STATUS[k].color }} />{STATUS[k].label}<span className="tag">{rows.length}</span></h3>
-            <div className="body rm-list">
-              {tops.map((it, i) => (
-                <div key={i}>
-                  {Item(it, 't' + i, false)}
-                  {kids(it.id).length > 0 && (
-                    <div className="rm-subwrap">
-                      {kids(it.id).map((c, ci) => Item(c, 't' + i + 's' + ci, true))}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          <div className={'card rm-sec collapsible' + (isOpen ? ' open' : '')} key={k}>
+            <h3 className="card-toggle" onClick={() => toggle(k)}>
+              <span className="chev">{isOpen ? '▾' : '▸'}</span>
+              <span className="rm-dot" style={{ background: STATUS[k].color }} />{STATUS[k].label}
+              <span className="card-count">{rows.length}</span>
+            </h3>
+            {isOpen && (
+              <div className="body rm-list">
+                {tops.map((it, i) => (
+                  <div key={i}>
+                    {Item(it, 't' + i, false)}
+                    {kids(it.id).length > 0 && (
+                      <div className="rm-subwrap">
+                        {kids(it.id).map((c, ci) => Item(c, 't' + i + 's' + ci, true))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )
       })}
 
-      <div className="card rm-sec">
-        <h3 className="card-toggle" onClick={() => setShowDone((v) => !v)} style={{ cursor: 'pointer' }}>
-          <span className="chev">{showDone ? '▾' : '▸'}</span>
-          <span className="rm-dot" style={{ background: STATUS.done.color }} />Done
-          <span className="tag">{counts.done}</span>
-        </h3>
-        {showDone && (
-          <div className="body rm-list">
-            {view.filter((i) => i.s === 'done').map((it, i) => (
-              <div className="rm-item rm-item-done" key={i}>
-                <div className="rm-item-h"><span className="rm-item-t">✓ {it.t}</span></div>
-                <div className="rm-item-d">{it.d}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   )
 }
