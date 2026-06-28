@@ -230,22 +230,8 @@ export default function Calendar({ go, isAdmin }) {
         <YearView blocks={filtered} colourFor={colourFor} numMonths={numMonths} anchor={anchor}
           showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
       ) : (
-        <DayPilotCalendar
-          ref={calRef}
-          viewType={view}
-          startDate={anchor}
-          events={events}
-          businessBeginsHour={7}
-          businessEndsHour={19}
-          eventMoveHandling="Update"
-          eventResizeHandling="Update"
-          timeRangeSelectedHandling="Enabled"
-          onTimeRangeSelected={(args) => { calRef.current?.control.clearSelection(); setCreating({ from: isoOf(args.start), to: endIso(args.end) }) }}
-          onEventMoved={doMoveResize}
-          onEventResized={doMoveResize}
-          onBeforeEventRender={renderEvent}
-          onEventClick={(args) => openBlk(args.e.data.block)}
-        />
+        <WeekDayView view={view} anchor={anchor} blocks={filtered} colourFor={colourFor}
+          onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
       )}
 
       <Legend blocks={filtered} colourBy={colourBy} />
@@ -785,6 +771,58 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/* ===================== Week / Day (all-day columns) ===================== */
+function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
+  const start = new Date(anchor.toString('yyyy-MM-dd'))
+  let days = []
+  if (view === 'Day') days = [start]
+  else {
+    const dow = (start.getDay() + 6) % 7
+    const mon = new Date(start); mon.setDate(start.getDate() - dow)
+    for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d) }
+  }
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const today = todayISO()
+  const [dragStart, setDragStart] = useState(null)
+  const [dragEnd, setDragEnd] = useState(null)
+  const [hover, setHover] = useState(null)
+  const lo = dragStart && dragEnd ? (dragStart < dragEnd ? dragStart : dragEnd) : null
+  const hi = dragStart && dragEnd ? (dragStart < dragEnd ? dragEnd : dragStart) : null
+  function finish() {
+    if (dragStart && dragEnd) { const a = dragStart < dragEnd ? dragStart : dragEnd, b = dragStart < dragEnd ? dragEnd : dragStart; onCreate(a, b) }
+    setDragStart(null); setDragEnd(null)
+  }
+  return (
+    <div className={'wd ' + (view === 'Day' ? 'wd-day' : 'wd-week')} onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null); setHover(null) }}>
+      {days.map((d) => {
+        const ds = iso(d)
+        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
+        const sel = lo && hi && ds >= lo && ds <= hi
+        const onHov = (b) => (e) => setHover({ b, x: e.clientX, y: e.clientY })
+        return (
+          <div key={ds} className={'wd-col' + (ds === today ? ' today' : '')}>
+            <div className="wd-head">{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div>
+            <div className={'wd-body' + (sel ? ' sel' : '')}
+              onMouseDown={() => { setDragStart(ds); setDragEnd(ds) }}
+              onMouseEnter={() => { if (dragStart) setDragEnd(ds) }}>
+              {bs.length === 0 && <span className="wd-empty">·</span>}
+              {bs.map((b) => (
+                <button key={b.id} className="wd-bar" style={{ background: colourFor(b) }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                  onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
+                  <span className="wd-bar-t">{b.course}{b.delegates.length ? ` · ${b.delegates.length}` : ''}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+      {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
   )
 }

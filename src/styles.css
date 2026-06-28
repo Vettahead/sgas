@@ -657,3 +657,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .dash-mod:hover .dash-grip::before{opacity:.9}
 .dash-grip:hover::before{background:var(--brand)}
 @media(max-width:820px){.dash-mod{flex:1 1 100% !important}}
+
+/* Week/Day all-day column view */
+.wd{display:flex;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;overflow-x:auto;min-height:60vh}
+.wd-col{flex:1;min-width:96px;display:flex;flex-direction:column}
+.wd-day .wd-col{min-width:0}
+.wd-head{text-align:center;font-size:12px;font-weight:650;color:var(--slate);padding:2px 0 6px}
+.wd-head .wd-dn{display:block;font-size:18px;font-weight:720;color:var(--ink)}
+.wd-col.today .wd-head,.wd-col.today .wd-dn{color:var(--brand)}
+.wd-body{flex:1;border-top:2px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:4px;cursor:cell}
+.wd-col.today .wd-body{border-top-color:var(--brand)}
+.wd-body.sel{background:var(--brand-soft);border-radius:0 0 8px 8px}
+.wd-bar{border:none;border-radius:5px;color:#fff;font-size:11px;font-weight:600;padding:4px 8px;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18)}
+.wd-bar:hover{filter:brightness(1.07)}
+.wd-bar-t{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd-empty{color:#cfd8e3;font-size:14px;text-align:center}
