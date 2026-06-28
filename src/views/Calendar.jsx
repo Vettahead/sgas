@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -36,6 +36,10 @@ function endIso(dp) {
 }
 const todayISO = () => new Date().toISOString().slice(0, 10)
 const isWeekendISO = (iso) => { const w = new Date(iso + 'T00:00:00').getDay(); return w === 0 || w === 6 }
+function addDaysISO(iso, n) {
+  const d = new Date(iso + 'T00:00:00'); d.setDate(d.getDate() + n)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 function snapWeekday(iso, fwd) {
   const d = new Date(iso + 'T00:00:00')
   while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + (fwd ? 1 : -1))
@@ -152,8 +156,8 @@ export default function Calendar({ go, isAdmin, user }) {
     backColor: colourFor(b),
     borderColor: 'darker',
     fontColor: '#fff',
-    moveDisabled: b.isHoliday || !!(b.end && b.end < todayISO()),
-    resizeDisabled: b.isHoliday || !!(b.end && b.end < todayISO()),
+    moveDisabled: b.isHoliday || b.isEngagement || !!(b.end && b.end < todayISO()),
+    resizeDisabled: b.isHoliday || b.isEngagement || !!(b.end && b.end < todayISO()),
     resource: b.trainerId || 'none',
     block: b,
   })), [filtered, colourBy])
@@ -192,6 +196,30 @@ export default function Calendar({ go, isAdmin, user }) {
     try {
       await updateBlock(e.data.id, { from, to })
       toast(`Block moved to ${from} – ${to}`)
+      await refresh()
+    } catch (err) { toast(err.message); await refresh() }
+  }
+
+  // Custom-view drag (Year): mode mv/re/rs, delta = days shifted.
+  async function onDragCommit(b, mode, delta) {
+    try {
+      if (b.isEngagement) {
+        await updateEngagement(b.engagementId, { date: addDaysISO(b.start, delta) })
+      } else if (b.isHoliday) {
+        let f = b.start, t = b.end
+        if (mode === 'mv') { f = addDaysISO(f, delta); t = addDaysISO(t, delta) }
+        else if (mode === 're') { t = addDaysISO(t, delta); if (t < f) t = f }
+        else { f = addDaysISO(f, delta); if (f > t) f = t }
+        await updateHoliday(b.holidayId, { from: f, to: t })
+      } else {
+        let f = b.start, t = b.end
+        if (mode === 'mv') { f = addDaysISO(f, delta); t = addDaysISO(t, delta) }
+        else if (mode === 're') { t = addDaysISO(t, delta); if (t < f) t = f }
+        else { f = addDaysISO(f, delta); if (f > t) f = t }
+        f = snapWeekday(f, true); t = snapWeekday(t, false)
+        if (f > t) return toast("A course can't run only over a weekend")
+        await updateBlock(b.id, { from: f, to: t })
+      }
       await refresh()
     } catch (err) { toast(err.message); await refresh() }
   }
@@ -242,7 +270,7 @@ export default function Calendar({ go, isAdmin, user }) {
         />
       ) : view === 'Year' ? (
         <YearView blocks={filtered} colourFor={colourFor} numMonths={numMonths} anchor={anchor}
-          showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
+          showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} onDragCommit={onDragCommit} />
       ) : (
         <WeekDayView view={view} anchor={anchor} blocks={filtered} colourFor={colourFor}
           onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
@@ -548,12 +576,13 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
     catch (e) { toast(e.message) }
     finally { setBusy(false) }
   }
-  async function save() {
-    if (from > to) return toast('Start must be on or before end')
-    const f = snapWeekday(from, true), t = snapWeekday(to, false)
+  async function commit(nf, nt, ncid) {
+    if (nf > nt) return toast('Start must be on or before end')
+    const f = snapWeekday(nf, true), t = snapWeekday(nt, false)
     if (f > t) return toast('A course can\'t run only over a weekend')
-    await run(() => updateBlock(b.id, { from: f, to: t, courseId: courseId ? Number(courseId) : undefined }), f !== from || t !== to ? 'Updated (moved off the weekend)' : 'Block updated')
-    onClose()
+    if (f !== nf) setFrom(f)
+    if (t !== nt) setTo(t)
+    await run(() => updateBlock(b.id, { from: f, to: t, courseId: ncid ? Number(ncid) : undefined }), f !== nf || t !== nt ? 'Saved (moved off the weekend)' : 'Saved')
   }
   async function del() { await run(() => deleteBlock(b.id), 'Block deleted'); onClose() }
   const setTrainer = (id) => {
@@ -593,16 +622,15 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
         {editing && (
           <div className="cal-edit">
             <label className="fld">Course
-              <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
+              <select value={courseId} onChange={(e) => { const v = e.target.value; setCourseId(v); commit(from, to, v) }}>
                 {(courses || []).map((c) => <option key={c.course_id} value={c.course_id}>{c.name}{c.scheme ? ` (${c.scheme})` : ''}</option>)}
               </select>
             </label>
             <div className="cal-dates">
-              <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-              <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+              <label className="fld">Start<input type="date" value={from} onChange={(e) => { const v = e.target.value; setFrom(v); commit(v, to, courseId) }} /></label>
+              <label className="fld">End<input type="date" value={to} onChange={(e) => { const v = e.target.value; setTo(v); commit(from, v, courseId) }} /></label>
             </div>
             <div className="cal-editbtns">
-              <button className="btn sm" onClick={save} disabled={busy}>Save dates</button>
               {confirmDel
                 ? <button className="btn sm danger" onClick={del} disabled={busy}>Confirm delete</button>
                 : <button className="btn sm ghost" onClick={() => setConfirmDel(true)} disabled={busy}>Delete block</button>}
@@ -682,7 +710,8 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
 /* ============================ Year view ============================ */
 /* Teamup-style: each month is a row, days are weekday-aligned columns, course
  * blocks are colour bars that stack into lanes. Drag across day cells to create. */
-function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, onCreate }) {
+function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, onCreate, onDragCommit }) {
+  const movedRef = useRef(false)
   const startY = Number(anchor.toString('yyyy'))
   const startM = Number(anchor.toString('MM')) - 1
   const [dragStart, setDragStart] = useState(null)
@@ -717,7 +746,7 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
       </div>
       {months.map(({ y, m }) => (
         <YMonthRow key={`${y}-${m}`} y={y} m={m} blocks={blocks} colourFor={colourFor} showStripes={showStripes} onOpen={onOpen}
-          onHover={onHover} onHoverEnd={onHoverEnd}
+          onHover={onHover} onHoverEnd={onHoverEnd} onDragCommit={onDragCommit} movedRef={movedRef}
           lo={lo} hi={hi}
           onCellDown={(d) => { setDragStart(d); setDragEnd(d) }}
           onCellEnter={(d) => { if (dragStart) setDragEnd(d) }} />
@@ -761,7 +790,31 @@ function HoverCard({ b, x, y }) {
   )
 }
 
-function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, lo, hi, onCellDown, onCellEnter }) {
+function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, onDragCommit, movedRef, lo, hi, onCellDown, onCellEnter }) {
+  function startBarDrag(b, e, mode) {
+    if (e.button !== 0) return
+    e.stopPropagation(); e.preventDefault()
+    const barEl = e.currentTarget.classList.contains('yc-bar') ? e.currentTarget : e.currentTarget.closest('.yc-bar')
+    const track = barEl.closest('.yc-track')
+    const colW = track ? track.clientWidth / YCOLS : 24
+    const startX = e.clientX
+    if (movedRef) movedRef.current = false
+    let delta = 0
+    const onMove = (ev) => {
+      delta = Math.round((ev.clientX - startX) / colW)
+      if (Math.abs(ev.clientX - startX) > 3 && movedRef) movedRef.current = true
+      if (mode === 'mv') barEl.style.transform = `translateX(${delta * colW}px)`
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      barEl.style.transform = ''
+      if (delta !== 0 && onDragCommit) onDragCommit(b, mode, delta)
+      setTimeout(() => { if (movedRef) movedRef.current = false }, 0)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
   const dim = new Date(y, m + 1, 0).getDate()
   const offset = (new Date(y, m, 1).getDay() + 6) % 7
   const first = ymd(y, m, 1)
@@ -827,18 +880,20 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
           }).filter(Boolean)
           // weekend runs inside the bar -> dashed, faded cut-outs (course doesn't run, same block)
           const wknd = []
-          if (!b.isHoliday) { let w = null; for (let c = startCol; c <= endCol; c++) { const we = (c % 7) >= 5; if (we) { if (w === null) w = c } else if (w !== null) { wknd.push([w, c - 1]); w = null } } if (w !== null) wknd.push([w, endCol]) }
+          if (!b.isEngagement) { let w = null; for (let c = startCol; c <= endCol; c++) { const we = (c % 7) >= 5; if (we) { if (w === null) w = c } else if (w !== null) { wknd.push([w, c - 1]); w = null } } if (w !== null) wknd.push([w, endCol]) }
           return (
             <button key={b.id} className="yc-bar"
-              onMouseDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => startBarDrag(b, e, 'mv')}
               onMouseEnter={(e) => onHover(b, e)}
               onMouseMove={(e) => onHover(b, e)}
               onMouseLeave={onHoverEnd}
-              onClick={(e) => { e.stopPropagation(); onOpen(b) }}
+              onClick={(e) => { e.stopPropagation(); if (movedRef && movedRef.current) return; onOpen(b) }}
               style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
               {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
               {wknd.map(([w0, w1], i) => <span key={'w' + i} className="yc-wknd-cut" style={{ left: ((w0 - startCol) / span) * 100 + '%', width: ((w1 - w0 + 1) / span) * 100 + '%' }} />)}
               <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
+              {!b.isEngagement && <span className="yc-grip yc-grip-l" onMouseDown={(e) => startBarDrag(b, e, 'rs')} />}
+              {!b.isEngagement && <span className="yc-grip yc-grip-r" onMouseDown={(e) => startBarDrag(b, e, 're')} />}
             </button>
           )
         })}
@@ -884,7 +939,7 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
               onMouseEnter={() => { if (dragStart) setDragEnd(ds) }}>
               {bs.length === 0 && <span className="wd-empty">·</span>}
               {bs.map((b) => {
-                const wk = wkndDay && !b.isHoliday
+                const wk = wkndDay && !b.isEngagement
                 return (
                   <button key={b.id} className={'wd-bar' + (wk ? ' wknd' : '')} style={wk ? { borderColor: colourFor(b), color: colourFor(b) } : { background: colourFor(b) }}
                     onMouseDown={(e) => e.stopPropagation()}

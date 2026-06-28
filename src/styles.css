@@ -676,3 +676,10 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 /* weekend "not running" cut-out: dashed + faded over the weekend part of a course bar */
 .yc-wknd-cut{position:absolute;top:1px;bottom:1px;pointer-events:none;background:rgba(255,255,255,.82);border:1px dashed rgba(0,0,0,.42);border-radius:3px;box-sizing:border-box;z-index:1}
 .wd-bar.wknd{background:transparent !important;border:1.5px dashed;box-shadow:none}
+
+/* Year-view drag-to-move + edge resize */
+.yc-bar{cursor:grab}
+.yc-bar:active{cursor:grabbing}
+.yc-grip{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}
+.yc-grip-l{left:0}
+.yc-grip-r{right:0}

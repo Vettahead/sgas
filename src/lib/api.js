@@ -1178,6 +1178,23 @@ export async function deleteEngagement(engagementId) {
   if (LIVE) { const { error } = await supabase.from('engagement').delete().eq('engagement_id', id); if (error) throw new Error(error.message); return }
   D.engagements = (D.engagements || []).filter((e) => e.engagement_id !== id)
 }
+export async function updateHoliday(holidayId, { from, to }) {
+  const patch = {}
+  if (from) patch.start_date = from
+  if (to) patch.end_date = to
+  if (!Object.keys(patch).length) return
+  if (LIVE) { const { error } = await supabase.from('holiday').update(patch).eq('holiday_id', Number(holidayId)); if (error) throw new Error(error.message); return }
+  const h = (D.holidays || []).find((x) => x.holiday_id === Number(holidayId)); if (h) Object.assign(h, patch)
+}
+export async function updateEngagement(engagementId, { date, startTime, endTime }) {
+  const patch = {}
+  if (date) patch.start_date = date
+  if (startTime !== undefined) patch.start_time = startTime || null
+  if (endTime !== undefined) patch.end_time = endTime || null
+  if (!Object.keys(patch).length) return
+  if (LIVE) { const { error } = await supabase.from('engagement').update(patch).eq('engagement_id', Number(engagementId)); if (error) throw new Error(error.message); return }
+  const e = (D.engagements || []).find((x) => x.engagement_id === Number(engagementId)); if (e) Object.assign(e, patch)
+}
 
 // Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
 // otherwise reassessment vs new. Mirrors the waiting-pool colour kinds.
