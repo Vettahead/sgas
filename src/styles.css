@@ -638,3 +638,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .mc-day.today .mc-n{color:var(--brand)}
 .mc-dots{display:flex;flex-wrap:wrap;gap:2px}
 .mc-dots i{width:7px;height:7px;border-radius:50%;display:inline-block}
+
+/* dashboard module widths (resizable) + mini-calendar bars */
+.dash-mods{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
+.dash-mod{flex:1 1 100%;min-width:0;margin-bottom:0}
+.dash-mod.half{flex:1 1 calc(50% - 9px)}
+@media(max-width:820px){.dash-mod.half{flex:1 1 100%}}
+.mc-day{min-height:50px}
+.mc-bars{display:flex;flex-direction:column;gap:2px;margin-top:auto;width:100%}
+.mc-bar{height:5px;border-radius:3px}
+.mc-more{font-size:8px;color:var(--muted);line-height:1}
+.mc-swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}

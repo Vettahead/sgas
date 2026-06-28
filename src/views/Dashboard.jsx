@@ -30,6 +30,9 @@ function loadLayout(role) {
   try { const v = JSON.parse(localStorage.getItem(layoutKey(role))); return Array.isArray(v) ? v : defaultLayout(role) } catch { return defaultLayout(role) }
 }
 const saveLayout = (role, ids) => { try { localStorage.setItem(layoutKey(role), JSON.stringify(ids)) } catch { /* ignore */ } }
+const widthsKey = (role) => 'sgas_dash_w_' + role
+const loadWidths = (role) => { try { return JSON.parse(localStorage.getItem(widthsKey(role))) || {} } catch { return {} } }
+const saveWidths = (role, w) => { try { localStorage.setItem(widthsKey(role), JSON.stringify(w)) } catch { /* ignore */ } }
 
 export default function Dashboard({ go, user }) {
   const [windowDays, setWindowDays] = useState(180)
@@ -40,6 +43,7 @@ export default function Dashboard({ go, user }) {
   const [openCards, setOpenCards] = useState(() => loadSet(OPEN_KEY))
   const role = user?.role || 'ADMIN'
   const [layout, setLayout] = useState(() => loadLayout(role))
+  const [widths, setWidths] = useState(() => loadWidths(role))
   const [customise, setCustomise] = useState(false)
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
 
@@ -122,7 +126,8 @@ export default function Dashboard({ go, user }) {
   const move = (id, dir) => { const i = visible.indexOf(id), j = i + dir; if (j < 0 || j >= visible.length) return; const a = [...visible]; [a[i], a[j]] = [a[j], a[i]]; persist(a) }
   const removeMod = (id) => persist(visible.filter((x) => x !== id))
   const addMod = (id) => persist([...visible, id])
-  const resetLayout = () => persist(defaultLayout(role))
+  const toggleWidth = (id) => { const w = { ...widths, [id]: widths[id] === 'half' ? 'full' : 'half' }; setWidths(w); saveWidths(role, w) }
+  const resetLayout = () => { persist(defaultLayout(role)); setWidths({}); saveWidths(role, {}) }
 
   const ctx = {
     go, isOpen, toggleCard, renewals, coldList, chase, mlps, counts, STAT, statKeys,
@@ -147,23 +152,27 @@ export default function Dashboard({ go, user }) {
         </div>
       )}
 
-      {visible.map((id) => {
-        const mod = MODULES.find((m) => m.id === id)
-        if (!mod) return null
-        return (
-          <div className="dash-mod" key={id}>
-            {customise && (
-              <div className="dash-mod-bar">
-                <span className="dash-mod-name">{mod.title}</span>
-                <button className="btn ghost sm" onClick={() => move(id, -1)} title="Move up">↑</button>
-                <button className="btn ghost sm" onClick={() => move(id, 1)} title="Move down">↓</button>
-                <button className="btn ghost sm" onClick={() => removeMod(id)} title="Remove">✕</button>
-              </div>
-            )}
-            {renderModule(id, ctx)}
-          </div>
-        )
-      })}
+      <div className="dash-mods">
+        {visible.map((id) => {
+          const mod = MODULES.find((m) => m.id === id)
+          if (!mod) return null
+          const w = widths[id] === 'half' ? 'half' : 'full'
+          return (
+            <div className={'dash-mod ' + w} key={id}>
+              {customise && (
+                <div className="dash-mod-bar">
+                  <span className="dash-mod-name">{mod.title}</span>
+                  <button className="btn ghost sm" onClick={() => toggleWidth(id)} title="Toggle width">{w === 'half' ? '◧ Half' : '▭ Full'}</button>
+                  <button className="btn ghost sm" onClick={() => move(id, -1)} title="Move up">↑</button>
+                  <button className="btn ghost sm" onClick={() => move(id, 1)} title="Move down">↓</button>
+                  <button className="btn ghost sm" onClick={() => removeMod(id)} title="Remove">✕</button>
+                </div>
+              )}
+              {renderModule(id, ctx)}
+            </div>
+          )
+        })}
+      </div>
 
       {callTarget && <CallModal target={callTarget} onSave={saveCall} onClose={() => setCallTarget(null)} />}
     </>
@@ -328,11 +337,12 @@ function renderModule(id, c) {
   return null
 }
 
-// Mini month calendar widget — coloured dots per day that has a block.
+// Mini month calendar widget — course-coloured bars per day + a hover card.
 function MiniCalendar({ go }) {
   const { data: blocks } = useData(listBlocks)
   const now = new Date()
   const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() })
+  const [hover, setHover] = useState(null)
   if (!blocks) return <div className="body"><div className="muted small">Loading…</div></div>
   const startDow = (new Date(ym.y, ym.m, 1).getDay() + 6) % 7
   const dim = new Date(ym.y, ym.m + 1, 0).getDate()
@@ -345,10 +355,15 @@ function MiniCalendar({ go }) {
   for (let d = 1; d <= dim; d++) {
     const ds = iso(d)
     const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
+    const onHov = bs.length ? (e) => setHover({ ds, bs, x: e.clientX, y: e.clientY }) : undefined
     cells.push(
-      <div key={d} className={'mc-day' + (ds === todayIso ? ' today' : '') + (bs.length ? ' has' : '')} title={bs.map((b) => b.course).join(', ')} onClick={() => go('calendar')}>
+      <div key={d} className={'mc-day' + (ds === todayIso ? ' today' : '') + (bs.length ? ' has' : '')}
+        onClick={() => go('calendar')} onMouseEnter={onHov} onMouseMove={onHov} onMouseLeave={() => setHover(null)}>
         <span className="mc-n">{d}</span>
-        {bs.length > 0 && <span className="mc-dots">{bs.slice(0, 4).map((b, i) => <i key={i} style={{ background: b.color || '#48566a' }} />)}</span>}
+        <span className="mc-bars">
+          {bs.slice(0, 3).map((b, i) => <span key={i} className="mc-bar" style={{ background: b.color || '#48566a' }} />)}
+          {bs.length > 3 && <span className="mc-more">+{bs.length - 3}</span>}
+        </span>
       </div>
     )
   }
@@ -361,6 +376,27 @@ function MiniCalendar({ go }) {
         <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendar')}>Open calendar →</button>
       </div>
       <div className="mc-grid">{cells}</div>
+      {hover && <MiniHover ds={hover.ds} bs={hover.bs} x={hover.x} y={hover.y} />}
+    </div>
+  )
+}
+
+function MiniHover({ ds, bs, x, y }) {
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
+  const left = Math.min(x + 14, vw - 296)
+  const top = Math.min(y + 14, vh - 220)
+  return (
+    <div className="yc-hover" style={{ left, top, width: 270 }}>
+      <div className="yc-hover-head"><strong>{fmt(ds)}</strong><span className="muted small">{bs.length} course block(s)</span></div>
+      <div className="yc-hover-delg small">
+        {bs.map((b) => (
+          <div key={b.id} className="yc-hover-d">
+            <span><i className="mc-swatch" style={{ background: b.color || '#48566a' }} />{b.course}</span>
+            <span className="muted">{b.delegates.length}👤{b.trainer ? ' · ' + b.trainer : ''}</span>
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
