@@ -1142,6 +1142,13 @@ export function rangeDays(from, to) {
   if (!from || !to) return 0
   return Math.round((new Date(to) - new Date(from)) / 86400000) + 1
 }
+// Inclusive WEEKDAY count (Sat/Sun excluded) — used for holiday days taken.
+export function weekdayDays(from, to) {
+  if (!from || !to) return 0
+  let n = 0; const d = new Date(from + 'T00:00:00'); const end = new Date(to + 'T00:00:00')
+  while (d <= end) { const w = d.getDay(); if (w !== 0 && w !== 6) n++; d.setDate(d.getDate() + 1) }
+  return n
+}
 
 // Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
 // otherwise reassessment vs new. Mirrors the waiting-pool colour kinds.

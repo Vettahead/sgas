@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, rangeDays } from '../lib/api.js'
+import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, weekdayDays } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { toast } from '../lib/toast.js'
 
@@ -45,7 +45,7 @@ export default function Admin({ currentUser }) {
   }
 
   const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
-  const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + rangeDays(h.start, h.end), 0)
+  const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + weekdayDays(h.start, h.end), 0)
 
   async function addStaff() {
     if (!nu.name.trim()) return toast('Name is required')

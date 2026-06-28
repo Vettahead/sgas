@@ -35,6 +35,12 @@ function endIso(dp) {
   return s.slice(0, 10)
 }
 const todayISO = () => new Date().toISOString().slice(0, 10)
+const isWeekendISO = (iso) => { const w = new Date(iso + 'T00:00:00').getDay(); return w === 0 || w === 6 }
+function snapWeekday(iso, fwd) {
+  const d = new Date(iso + 'T00:00:00')
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + (fwd ? 1 : -1))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 const YMONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const YDOW = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const YCOLS = 37 // max columns to fit any month: weekday offset (0-6) + up to 31 days
@@ -344,7 +350,12 @@ function CreateModal({ range, courses, staff, onClose, onCreated }) {
     setBusy(true)
     try {
       if (isHoliday) { await createHoliday({ staffId, from, to, note }); toast('Holiday added') }
-      else { await createBlock({ courseId: Number(courseId), from, to }); toast('Block created') }
+      else {
+        const f = snapWeekday(from, true), t = snapWeekday(to, false)
+        if (f > t) { setBusy(false); return toast('A course can\'t run only over a weekend') }
+        await createBlock({ courseId: Number(courseId), from: f, to: t })
+        toast(f !== from || t !== to ? 'Block created (moved off the weekend)' : 'Block created')
+      }
       onCreated()
     } catch (e) { toast(e.message); setBusy(false) }
   }
@@ -485,7 +496,9 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
   }
   async function save() {
     if (from > to) return toast('Start must be on or before end')
-    await run(() => updateBlock(b.id, { from, to, courseId: courseId ? Number(courseId) : undefined }), 'Block updated')
+    const f = snapWeekday(from, true), t = snapWeekday(to, false)
+    if (f > t) return toast('A course can\'t run only over a weekend')
+    await run(() => updateBlock(b.id, { from: f, to: t, courseId: courseId ? Number(courseId) : undefined }), f !== from || t !== to ? 'Updated (moved off the weekend)' : 'Block updated')
     onClose()
   }
   async function del() { await run(() => deleteBlock(b.id), 'Block deleted'); onClose() }
@@ -749,29 +762,40 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
           )
         })}
         {todayCol >= 0 && <div className="yc-todaybar" style={{ gridColumn: todayCol + 1, gridRow: `1 / span ${lanes + 1}` }} />}
-        {bars.map(({ b, startCol, endCol, lane, cs, ce }) => {
-          const span = endCol - startCol + 1
-          // each PARTIAL attendee striped over the days they actually attend
-          const stripes = (showStripes ? (b.delegates || []) : []).filter((d) => d.attendFrom || d.attendTo).map((d) => {
-            const ws = d.attendFrom || b.start, we = d.attendTo || b.end
-            const wf = ws < cs ? cs : ws, wt = we > ce ? ce : we
-            if (wt < wf) return null
-            const sC = offset + Number(wf.slice(8, 10)) - 1
-            const eC = offset + Number(wt.slice(8, 10)) - 1
-            return { left: ((sC - startCol) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
-          }).filter(Boolean)
-          return (
-            <button key={b.id} className="yc-bar"
-              onMouseDown={(e) => e.stopPropagation()}
-              onMouseEnter={(e) => onHover(b, e)}
-              onMouseMove={(e) => onHover(b, e)}
-              onMouseLeave={onHoverEnd}
-              onClick={(e) => { e.stopPropagation(); onOpen(b) }}
-              style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
-              {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
-              <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
-            </button>
-          )
+        {bars.flatMap(({ b, startCol, endCol, lane, cs, ce }) => {
+          // Courses skip weekends (left blank); holidays draw straight through.
+          const segs = []
+          let segStart = null
+          for (let c = startCol; c <= endCol; c++) {
+            const weekend = (c % 7) >= 5
+            if (b.isHoliday || !weekend) { if (segStart === null) segStart = c }
+            else if (segStart !== null) { segs.push([segStart, c - 1]); segStart = null }
+          }
+          if (segStart !== null) segs.push([segStart, endCol])
+          return segs.map(([s0, s1], si) => {
+            const span = s1 - s0 + 1
+            const stripes = (showStripes ? (b.delegates || []) : []).filter((d) => d.attendFrom || d.attendTo).map((d) => {
+              const ws = d.attendFrom || b.start, we = d.attendTo || b.end
+              const wf = ws < cs ? cs : ws, wt = we > ce ? ce : we
+              if (wt < wf) return null
+              let sC = offset + Number(wf.slice(8, 10)) - 1, eC = offset + Number(wt.slice(8, 10)) - 1
+              sC = Math.max(sC, s0); eC = Math.min(eC, s1)
+              if (eC < sC) return null
+              return { left: ((sC - s0) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
+            }).filter(Boolean)
+            return (
+              <button key={b.id + '-' + si} className="yc-bar"
+                onMouseDown={(e) => e.stopPropagation()}
+                onMouseEnter={(e) => onHover(b, e)}
+                onMouseMove={(e) => onHover(b, e)}
+                onMouseLeave={onHoverEnd}
+                onClick={(e) => { e.stopPropagation(); onOpen(b) }}
+                style={{ gridColumn: `${s0 + 1} / ${s1 + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
+                {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
+                {si === 0 && <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>}
+              </button>
+            )
+          })
         })}
       </div>
     </div>
@@ -803,7 +827,7 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
     <div className={'wd ' + (view === 'Day' ? 'wd-day' : 'wd-week')} onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null); setHover(null) }}>
       {days.map((d) => {
         const ds = iso(d)
-        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
+        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end && (b.isHoliday || !isWeekendISO(ds)))
         const sel = lo && hi && ds >= lo && ds <= hi
         const onHov = (b) => (e) => setHover({ b, x: e.clientX, y: e.clientY })
         return (
