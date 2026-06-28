@@ -200,6 +200,12 @@ export default function Calendar({ go, isAdmin, user }) {
     } catch (err) { toast(err.message); await refresh() }
   }
 
+  // Move/resize a timed engagement on the Week/Day grid.
+  async function onEngCommit(ev, patch) {
+    try { await updateEngagement(ev.engagementId, patch); await refresh() }
+    catch (err) { toast(err.message); await refresh() }
+  }
+
   // Custom-view drag (Year): mode mv/re/rs, delta = days shifted.
   async function onDragCommit(b, mode, delta) {
     try {
@@ -273,7 +279,9 @@ export default function Calendar({ go, isAdmin, user }) {
           showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} onDragCommit={onDragCommit} />
       ) : (
         <WeekDayView view={view} anchor={anchor} blocks={filtered} colourFor={colourFor}
-          onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} />
+          onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })}
+          onCreateTimed={(ds, st, en) => setCreating({ from: ds, to: ds, engagement: true, startTime: st, endTime: en })}
+          onEngCommit={onEngCommit} />
       )}
 
       <Legend blocks={filtered} colourBy={colourBy} />
@@ -372,14 +380,14 @@ function Legend({ blocks, colourBy }) {
 }
 
 function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
-  const [courseId, setCourseId] = useState('')
+  const [courseId, setCourseId] = useState(range.engagement ? 'ENGAGEMENT' : '')
   const [staffId, setStaffId] = useState('')
   const [from, setFrom] = useState(range.from)
   const [to, setTo] = useState(range.to)
   const [note, setNote] = useState('')
   const [title, setTitle] = useState('')
-  const [startTime, setStartTime] = useState('09:00')
-  const [endTime, setEndTime] = useState('12:00')
+  const [startTime, setStartTime] = useState(range.startTime || '09:00')
+  const [endTime, setEndTime] = useState(range.endTime || '12:00')
   const [busy, setBusy] = useState(false)
   const isHoliday = courseId === 'HOLIDAY'
   const isEngagement = courseId === 'ENGAGEMENT'
@@ -450,8 +458,17 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
 }
 
 function EngagementDrawer({ b, onChanged, onClose }) {
-  const [busy, setBusy] = useState(false)
   const t = (x) => (x ? String(x).slice(0, 5) : '')
+  const [busy, setBusy] = useState(false)
+  const [title, setTitle] = useState(b.title || '')
+  const [date, setDate] = useState(b.start)
+  const [st, setSt] = useState(t(b.startTime) || '09:00')
+  const [en, setEn] = useState(t(b.endTime) || '10:00')
+  async function save(patch) {
+    setBusy(true)
+    try { await updateEngagement(b.engagementId, patch); toast('Saved'); if (onChanged) await onChanged() }
+    catch (e) { toast(e.message) } finally { setBusy(false) }
+  }
   async function del() {
     setBusy(true)
     try { await deleteEngagement(b.engagementId); toast('Removed'); if (onChanged) await onChanged(); onClose() }
@@ -462,10 +479,17 @@ function EngagementDrawer({ b, onChanged, onClose }) {
       <div className="cal-rpanel-backdrop" />
       <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
         <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #475569' }}>
-          <div className="cal-rpanel-title"><h3>🗒 {b.title}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
-          <span className="muted small">{b.start}{b.startTime ? ' · ' + t(b.startTime) + (b.endTime ? '–' + t(b.endTime) : '') : ''}</span>
+          <div className="cal-rpanel-title"><h3>🗒 Calendar entry</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+          <span className="muted small">Your personal calendar entry — edits save instantly.</span>
         </div>
-        <div className="cal-sec"><div className="muted small">Your personal calendar entry.</div></div>
+        <div className="cal-edit">
+          <label className="fld">Title<input type="text" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => { if (title !== b.title) save({ title }) }} /></label>
+          <label className="fld">Date<input type="date" value={date} onChange={(e) => { const v = e.target.value; setDate(v); save({ date: v }) }} /></label>
+          <div className="cal-dates">
+            <label className="fld">From<input type="time" value={st} onChange={(e) => { const v = e.target.value; setSt(v); save({ startTime: v, endTime: en }) }} /></label>
+            <label className="fld">To<input type="time" value={en} onChange={(e) => { const v = e.target.value; setEn(v); save({ startTime: st, endTime: v }) }} /></label>
+          </div>
+        </div>
         <div className="cal-rpanel-foot">
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete</button>
           <button className="btn sm" onClick={onClose}>Done</button>
@@ -909,56 +933,128 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
 }
 
 /* ===================== Week / Day (all-day columns) ===================== */
-function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
+function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCreateTimed, onEngCommit }) {
+  const H0 = 7, H1 = 20, HPX = 44, SNAP = 30
+  const GRIDH = (H1 - H0) * HPX
+  const tmin = (t) => { if (!t) return null; const x = String(t).split(':'); return (+x[0]) * 60 + (+x[1]) }
+  const mtime = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`
+  const snap = (m) => Math.round(m / SNAP) * SNAP
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const start = new Date(anchor.toString('yyyy-MM-dd'))
   let days = []
   if (view === 'Day') days = [start]
-  else {
-    const dow = (start.getDay() + 6) % 7
-    const mon = new Date(start); mon.setDate(start.getDate() - dow)
-    for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d) }
-  }
-  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  else { const dow = (start.getDay() + 6) % 7; const mon = new Date(start); mon.setDate(start.getDate() - dow); for (let i = 0; i < 7; i++) { const d = new Date(mon); d.setDate(mon.getDate() + i); days.push(d) } }
   const today = todayISO()
-  const [dragStart, setDragStart] = useState(null)
-  const [dragEnd, setDragEnd] = useState(null)
+  const movedRef = useRef(false)
   const [hover, setHover] = useState(null)
-  const lo = dragStart && dragEnd ? (dragStart < dragEnd ? dragStart : dragEnd) : null
-  const hi = dragStart && dragEnd ? (dragStart < dragEnd ? dragEnd : dragStart) : null
-  function finish() {
-    if (dragStart && dragEnd) { const a = dragStart < dragEnd ? dragStart : dragEnd, b = dragStart < dragEnd ? dragEnd : dragStart; onCreate(a, b) }
-    setDragStart(null); setDragEnd(null)
+  const [create, setCreate] = useState(null)
+  const onHov = (b) => (e) => setHover({ b, x: e.clientX, y: e.clientY })
+
+  function gridDown(ds, e) {
+    if (e.button !== 0 || e.target.closest('.wt-ev')) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    let a = snap(H0 * 60 + ((e.clientY - rect.top) / HPX) * 60), b = a
+    setCreate({ ds, a, b })
+    const mv = (ev) => { b = snap(H0 * 60 + ((ev.clientY - rect.top) / HPX) * 60); setCreate({ ds, a, b }) }
+    const up = () => {
+      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up)
+      let lo = Math.min(a, b), hi = Math.max(a, b)
+      if (hi - lo < SNAP) hi = lo + 60
+      lo = Math.max(H0 * 60, lo); hi = Math.min(H1 * 60, hi)
+      setCreate(null); onCreateTimed(ds, mtime(lo), mtime(hi))
+    }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up)
   }
+
+  function evDrag(ev, ds, e, mode) {
+    if (e.button !== 0) return
+    e.stopPropagation(); e.preventDefault()
+    const evEl = e.currentTarget.closest('.wt-ev')
+    const colEl = evEl.closest('.wt-col'); const colW = colEl.offsetWidth
+    const s0 = tmin(ev.startTime) ?? H0 * 60
+    const dur = (tmin(ev.endTime) ?? s0 + 60) - s0
+    const startX = e.clientX, startY = e.clientY
+    movedRef.current = false
+    let ns = s0, ne = s0 + dur, dcol = 0
+    const mv = (m) => {
+      const dy = ((m.clientY - startY) / HPX) * 60
+      if (Math.abs(m.clientY - startY) > 3 || Math.abs(m.clientX - startX) > 3) movedRef.current = true
+      if (mode === 'mv') {
+        ns = snap(s0 + dy); ne = ns + dur
+        let tf = `translateY(${(ns - s0) * HPX / 60}px)`
+        if (view === 'Week') { dcol = Math.round((m.clientX - startX) / colW); tf += ` translateX(${dcol * colW}px)` }
+        evEl.style.transform = tf
+      } else { ne = snap(Math.max(s0 + SNAP, s0 + dur + dy)); evEl.style.height = ((ne - s0) * HPX / 60) + 'px' }
+    }
+    const up = () => {
+      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up)
+      evEl.style.transform = ''; evEl.style.height = ''
+      ns = Math.max(H0 * 60, Math.min(H1 * 60 - SNAP, ns)); ne = Math.min(H1 * 60, Math.max(ns + SNAP, ne))
+      const ndate = (mode === 'mv' && view === 'Week' && dcol !== 0) ? addDaysISO(ds, dcol) : ds
+      if (movedRef.current && onEngCommit) onEngCommit(ev, { date: ndate, startTime: mtime(ns), endTime: mtime(ne) })
+      setTimeout(() => { movedRef.current = false }, 0)
+    }
+    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up)
+  }
+
+  const hours = []; for (let h = H0; h < H1; h++) hours.push(h)
+  const gridBg = `repeating-linear-gradient(var(--panel) 0, var(--panel) ${HPX - 1}px, var(--line) ${HPX - 1}px, var(--line) ${HPX}px)`
+
   return (
-    <div className={'wd ' + (view === 'Day' ? 'wd-day' : 'wd-week')} onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null); setHover(null) }}>
-      {days.map((d) => {
-        const ds = iso(d)
-        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
-        const sel = lo && hi && ds >= lo && ds <= hi
-        const wkndDay = (new Date(ds + 'T00:00:00').getDay() % 6) === 0
-        const onHov = (b) => (e) => setHover({ b, x: e.clientX, y: e.clientY })
-        return (
-          <div key={ds} className={'wd-col' + (ds === today ? ' today' : '')}>
-            <div className="wd-head">{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div>
-            <div className={'wd-body' + (sel ? ' sel' : '')}
-              onMouseDown={() => { setDragStart(ds); setDragEnd(ds) }}
-              onMouseEnter={() => { if (dragStart) setDragEnd(ds) }}>
-              {bs.length === 0 && <span className="wd-empty">·</span>}
-              {bs.map((b) => {
-                const wk = wkndDay && !b.isEngagement
-                return (
-                  <button key={b.id} className={'wd-bar' + (wk ? ' wknd' : '')} style={wk ? { borderColor: colourFor(b), color: colourFor(b) } : { background: colourFor(b) }}
-                    onMouseDown={(e) => e.stopPropagation()}
-                    onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
-                    onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
-                    <span className="wd-bar-t">{b.course}{b.isEngagement && b.startTime ? ' · ' + String(b.startTime).slice(0, 5) + (b.endTime ? '–' + String(b.endTime).slice(0, 5) : '') : (b.delegates.length ? ` · ${b.delegates.length}` : '')}</span>
-                  </button>
-                )
-              })}
+    <div className={'wt ' + (view === 'Day' ? 'wt-dayview' : 'wt-weekview')}>
+      <div className="wt-gutter">
+        <div className="wt-head wt-gh" />
+        <div className="wt-allday wt-ga"><span className="muted">all-day</span></div>
+        <div className="wt-grid wt-gg" style={{ height: GRIDH }}>
+          {hours.map((h) => <div key={h} className="wt-hr" style={{ height: HPX }}>{String(h).padStart(2, '0')}:00</div>)}
+        </div>
+      </div>
+      <div className="wt-cols">
+        {days.map((d) => {
+          const ds = iso(d)
+          const allday = blocks.filter((b) => (b.isEngagement ? (b.start === ds && !b.startTime) : (b.start && ds >= b.start && ds <= b.end)))
+          const timed = blocks.filter((b) => b.isEngagement && b.start === ds && b.startTime)
+          const wkndDay = (new Date(ds + 'T00:00:00').getDay() % 6) === 0
+          return (
+            <div key={ds} className={'wt-col' + (ds === today ? ' today' : '')}>
+              <div className="wt-head">{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div>
+              <div className="wt-allday" onMouseDown={(e) => { if (e.target.classList.contains('wt-allday')) onCreate(ds, ds) }}>
+                {allday.map((b) => {
+                  const wk = wkndDay && !b.isEngagement
+                  return (
+                    <button key={b.id} className={'wd-bar' + (wk ? ' wknd' : '')} style={wk ? { borderColor: colourFor(b), color: colourFor(b) } : { background: colourFor(b) }}
+                      onMouseDown={(e) => e.stopPropagation()} onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                      onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
+                      <span className="wd-bar-t">{b.course}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              <div className="wt-grid" style={{ height: GRIDH, backgroundImage: gridBg }} onMouseDown={(e) => gridDown(ds, e)}>
+                {timed.map((b) => {
+                  const s = tmin(b.startTime); const en = b.endTime ? tmin(b.endTime) : s + 60
+                  const top = (s - H0 * 60) * HPX / 60; const h = Math.max(20, (en - s) * HPX / 60)
+                  return (
+                    <div key={b.id} className="wt-ev" style={{ top, height: h, background: colourFor(b) }}
+                      onMouseDown={(e) => evDrag(b, ds, e, 'mv')}
+                      onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                      onClick={(e) => { e.stopPropagation(); if (movedRef.current) return; onOpen(b) }}>
+                      <span className="wt-ev-t">{b.title}</span>
+                      <span className="wt-ev-time">{mtime(s)}–{mtime(en)}</span>
+                      <span className="wt-ev-grip" onMouseDown={(e) => evDrag(b, ds, e, 're')} />
+                    </div>
+                  )
+                })}
+                {create && create.ds === ds && (() => {
+                  const lo = Math.min(create.a, create.b), hi = Math.max(Math.max(create.a, create.b), lo + SNAP)
+                  const top = (lo - H0 * 60) * HPX / 60; const h = Math.max(8, (hi - lo) * HPX / 60)
+                  return <div className="wt-ev wt-ev-ghost" style={{ top, height: h }}><span className="wt-ev-time">{mtime(lo)}–{mtime(hi)}</span></div>
+                })()}
+              </div>
             </div>
-          </div>
-        )
-      })}
+          )
+        })}
+      </div>
       {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
   )
