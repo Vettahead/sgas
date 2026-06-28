@@ -25,7 +25,7 @@ export default function Admin({ currentUser }) {
   const [loginFor, setLoginFor] = useState(null)
   const [loginForm, setLoginForm] = useState({ username: '', role: 'STANDARD', password: '' })
   const [editId, setEditId] = useState(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', room: '' })
+  const [editForm, setEditForm] = useState({ name: '', email: '', room: '', role: 'STANDARD' })
 
   async function load(auth) {
     setLoading(true)
@@ -74,7 +74,8 @@ export default function Admin({ currentUser }) {
     try {
       await updateStaff(st.staff_id, { name: editForm.name, email: editForm.email, room: editForm.room })
       const u = userForStaff(st.staff_id)
-      if (u) await updateUser(u.user_id, { name: editForm.name, email: editForm.email }, adminAuth)
+      const isSelfEdit = u && currentUser && u.user_id === currentUser.user_id
+      if (u) await updateUser(u.user_id, isSelfEdit ? { name: editForm.name, email: editForm.email } : { name: editForm.name, email: editForm.email, role: editForm.role }, adminAuth)
       toast('Staff updated'); setEditId(null); load(adminAuth)
     } catch (e) { toast(e.message) }
   }
@@ -183,11 +184,15 @@ export default function Admin({ currentUser }) {
                     )}
                     <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
                     <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
-                    <td>{u
-                      ? <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
+                    <td>{editing && u
+                      ? <select className="rolesel" value={editForm.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
                           {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                         </select>
-                      : '—'}</td>
+                      : u
+                        ? <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
+                            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                          </select>
+                        : <span className="muted small">needs login</span>}</td>
                     <td>{u ? (u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>) : <span className="muted small">—</span>}</td>
                     <td>
                       {editing ? (
@@ -196,7 +201,7 @@ export default function Admin({ currentUser }) {
                           <button className="btn ghost sm" onClick={() => setEditId(null)}>Cancel</button>
                         </span>
                       ) : (<span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <button className="btn ghost sm" onClick={() => { setEditId(st.staff_id); setEditForm({ name: st.name || '', email: st.email || '', room: st.room || '' }) }}>Edit</button>
+                      <button className="btn ghost sm" onClick={() => { setEditId(st.staff_id); setEditForm({ name: st.name || '', email: st.email || '', room: st.room || '', role: u?.role || 'STANDARD' }) }}>Edit</button>
                       {u ? (
                         resetId === u.user_id ? (
                           <span className="inrow" style={{ maxWidth: 320 }}>
@@ -265,7 +270,9 @@ export default function Admin({ currentUser }) {
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
                           <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
-                          <button className="btn ghost sm" title="Give this account a staff record so they can be assigned to courses, holidays and calendar entries" onClick={() => makeStaff(u)}>Make staff</button>
+                          <label className="staffchk" title="Tick to give this account a staff record so they can be assigned to courses, holidays and calendar entries (keeps their admin role)">
+                            <input type="checkbox" checked={false} onChange={() => makeStaff(u)} /> Staff member
+                          </label>
                         </span>
                       )}
                     </td>
