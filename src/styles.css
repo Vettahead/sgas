@@ -619,3 +619,22 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .kindtag{font-size:9.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:20px;white-space:nowrap}
 .result-sum{display:inline-flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
 .b.nyc{background:var(--amber-soft);color:var(--amber)}
+
+/* modular dashboard: customise bar, module wrappers, mini calendar */
+.dash-greet{display:flex;align-items:center;gap:10px}
+.dash-customise{display:flex;flex-wrap:wrap;align-items:center;gap:8px;background:var(--brand-soft);border:1px solid #cfe0fb;border-radius:10px;padding:10px 12px;margin-bottom:14px}
+.dash-mod{margin-bottom:18px}
+.dash-mod-bar{display:flex;align-items:center;gap:6px;padding:5px 4px;margin-bottom:4px}
+.dash-mod-name{font-size:12px;font-weight:700;color:var(--slate);margin-right:auto}
+.mc-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.mc-title{font-size:14px;font-weight:650;min-width:130px;text-align:center}
+.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.mc-dow{text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:2px 0}
+.mc-day{min-height:42px;border:1px solid var(--line);border-radius:7px;padding:3px 4px;cursor:pointer;display:flex;flex-direction:column;gap:3px;background:#fff}
+.mc-day.out{background:transparent;border:none;cursor:default}
+.mc-day.has:hover{border-color:var(--brand);background:var(--brand-soft)}
+.mc-day.today{box-shadow:inset 0 0 0 2px var(--brand)}
+.mc-n{font-size:10.5px;color:var(--muted);font-weight:600}
+.mc-day.today .mc-n{color:var(--brand)}
+.mc-dots{display:flex;flex-wrap:wrap;gap:2px}
+.mc-dots i{width:7px;height:7px;border-radius:50%;display:inline-block}
