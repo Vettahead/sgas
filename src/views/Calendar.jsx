@@ -762,40 +762,31 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
           )
         })}
         {todayCol >= 0 && <div className="yc-todaybar" style={{ gridColumn: todayCol + 1, gridRow: `1 / span ${lanes + 1}` }} />}
-        {bars.flatMap(({ b, startCol, endCol, lane, cs, ce }) => {
-          // Courses skip weekends (left blank); holidays draw straight through.
-          const segs = []
-          let segStart = null
-          for (let c = startCol; c <= endCol; c++) {
-            const weekend = (c % 7) >= 5
-            if (b.isHoliday || !weekend) { if (segStart === null) segStart = c }
-            else if (segStart !== null) { segs.push([segStart, c - 1]); segStart = null }
-          }
-          if (segStart !== null) segs.push([segStart, endCol])
-          return segs.map(([s0, s1], si) => {
-            const span = s1 - s0 + 1
-            const stripes = (showStripes ? (b.delegates || []) : []).filter((d) => d.attendFrom || d.attendTo).map((d) => {
-              const ws = d.attendFrom || b.start, we = d.attendTo || b.end
-              const wf = ws < cs ? cs : ws, wt = we > ce ? ce : we
-              if (wt < wf) return null
-              let sC = offset + Number(wf.slice(8, 10)) - 1, eC = offset + Number(wt.slice(8, 10)) - 1
-              sC = Math.max(sC, s0); eC = Math.min(eC, s1)
-              if (eC < sC) return null
-              return { left: ((sC - s0) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
-            }).filter(Boolean)
-            return (
-              <button key={b.id + '-' + si} className="yc-bar"
-                onMouseDown={(e) => e.stopPropagation()}
-                onMouseEnter={(e) => onHover(b, e)}
-                onMouseMove={(e) => onHover(b, e)}
-                onMouseLeave={onHoverEnd}
-                onClick={(e) => { e.stopPropagation(); onOpen(b) }}
-                style={{ gridColumn: `${s0 + 1} / ${s1 + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
-                {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
-                {si === 0 && <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>}
-              </button>
-            )
-          })
+        {bars.map(({ b, startCol, endCol, lane, cs, ce }) => {
+          const span = endCol - startCol + 1
+          const stripes = (showStripes ? (b.delegates || []) : []).filter((d) => d.attendFrom || d.attendTo).map((d) => {
+            const ws = d.attendFrom || b.start, we = d.attendTo || b.end
+            const wf = ws < cs ? cs : ws, wt = we > ce ? ce : we
+            if (wt < wf) return null
+            const sC = offset + Number(wf.slice(8, 10)) - 1, eC = offset + Number(wt.slice(8, 10)) - 1
+            return { left: ((sC - startCol) / span) * 100, width: ((eC - sC + 1) / span) * 100 }
+          }).filter(Boolean)
+          // weekend runs inside the bar -> dashed, faded cut-outs (course doesn't run, same block)
+          const wknd = []
+          if (!b.isHoliday) { let w = null; for (let c = startCol; c <= endCol; c++) { const we = (c % 7) >= 5; if (we) { if (w === null) w = c } else if (w !== null) { wknd.push([w, c - 1]); w = null } } if (w !== null) wknd.push([w, endCol]) }
+          return (
+            <button key={b.id} className="yc-bar"
+              onMouseDown={(e) => e.stopPropagation()}
+              onMouseEnter={(e) => onHover(b, e)}
+              onMouseMove={(e) => onHover(b, e)}
+              onMouseLeave={onHoverEnd}
+              onClick={(e) => { e.stopPropagation(); onOpen(b) }}
+              style={{ gridColumn: `${startCol + 1} / ${endCol + 2}`, gridRow: lane + 2, background: blockBackground(b, colourFor(b)) }}>
+              {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
+              {wknd.map(([w0, w1], i) => <span key={'w' + i} className="yc-wknd-cut" style={{ left: ((w0 - startCol) / span) * 100 + '%', width: ((w1 - w0 + 1) / span) * 100 + '%' }} />)}
+              <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
+            </button>
+          )
         })}
       </div>
     </div>
@@ -827,8 +818,9 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
     <div className={'wd ' + (view === 'Day' ? 'wd-day' : 'wd-week')} onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null); setHover(null) }}>
       {days.map((d) => {
         const ds = iso(d)
-        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end && (b.isHoliday || !isWeekendISO(ds)))
+        const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
         const sel = lo && hi && ds >= lo && ds <= hi
+        const wkndDay = (new Date(ds + 'T00:00:00').getDay() % 6) === 0
         const onHov = (b) => (e) => setHover({ b, x: e.clientX, y: e.clientY })
         return (
           <div key={ds} className={'wd-col' + (ds === today ? ' today' : '')}>
@@ -837,14 +829,17 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
               onMouseDown={() => { setDragStart(ds); setDragEnd(ds) }}
               onMouseEnter={() => { if (dragStart) setDragEnd(ds) }}>
               {bs.length === 0 && <span className="wd-empty">·</span>}
-              {bs.map((b) => (
-                <button key={b.id} className="wd-bar" style={{ background: colourFor(b) }}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
-                  onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
-                  <span className="wd-bar-t">{b.course}{b.delegates.length ? ` · ${b.delegates.length}` : ''}</span>
-                </button>
-              ))}
+              {bs.map((b) => {
+                const wk = wkndDay && !b.isHoliday
+                return (
+                  <button key={b.id} className={'wd-bar' + (wk ? ' wknd' : '')} style={wk ? { borderColor: colourFor(b), color: colourFor(b) } : { background: colourFor(b) }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                    onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                    onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
+                    <span className="wd-bar-t">{b.course}{b.delegates.length ? ` · ${b.delegates.length}` : ''}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
         )
