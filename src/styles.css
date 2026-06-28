@@ -649,3 +649,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .mc-bar{height:5px;border-radius:3px}
 .mc-more{font-size:8px;color:var(--muted);line-height:1}
 .mc-swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
+
+/* dashboard: drag-to-resize grip */
+.dash-mod{position:relative}
+.dash-grip{position:absolute;top:0;bottom:0;right:-9px;width:14px;cursor:ew-resize;z-index:6}
+.dash-grip::before{content:'';position:absolute;top:50%;left:5px;width:3px;height:38px;transform:translateY(-50%);background:#cfd8e3;border-radius:3px;opacity:0;transition:opacity .15s}
+.dash-mod:hover .dash-grip::before{opacity:.9}
+.dash-grip:hover::before{background:var(--brand)}
+@media(max-width:820px){.dash-mod{flex:1 1 100% !important}}

@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
+import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-react'
 import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
@@ -44,6 +45,7 @@ export default function Dashboard({ go, user }) {
   const role = user?.role || 'ADMIN'
   const [layout, setLayout] = useState(() => loadLayout(role))
   const [widths, setWidths] = useState(() => loadWidths(role))
+  const modsRef = useRef(null)
   const [customise, setCustomise] = useState(false)
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
 
@@ -126,7 +128,23 @@ export default function Dashboard({ go, user }) {
   const move = (id, dir) => { const i = visible.indexOf(id), j = i + dir; if (j < 0 || j >= visible.length) return; const a = [...visible]; [a[i], a[j]] = [a[j], a[i]]; persist(a) }
   const removeMod = (id) => persist(visible.filter((x) => x !== id))
   const addMod = (id) => persist([...visible, id])
-  const toggleWidth = (id) => { const w = { ...widths, [id]: widths[id] === 'half' ? 'full' : 'half' }; setWidths(w); saveWidths(role, w) }
+  function startResize(id, e) {
+    e.preventDefault()
+    const cw = modsRef.current ? modsRef.current.clientWidth : 1000
+    const startX = e.clientX
+    const startPct = widths[id] || 100
+    const onMove = (ev) => {
+      const pct = Math.max(25, Math.min(100, Math.round(startPct + ((ev.clientX - startX) / cw) * 100)))
+      setWidths((w) => ({ ...w, [id]: pct }))
+    }
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+      setWidths((w) => { saveWidths(role, w); return w })
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
   const resetLayout = () => { persist(defaultLayout(role)); setWidths({}); saveWidths(role, {}) }
 
   const ctx = {
@@ -152,23 +170,23 @@ export default function Dashboard({ go, user }) {
         </div>
       )}
 
-      <div className="dash-mods">
+      <div className="dash-mods" ref={modsRef}>
         {visible.map((id) => {
           const mod = MODULES.find((m) => m.id === id)
           if (!mod) return null
-          const w = widths[id] === 'half' ? 'half' : 'full'
+          const pct = widths[id] || 100
           return (
-            <div className={'dash-mod ' + w} key={id}>
+            <div className="dash-mod" key={id} style={{ flex: '0 0 calc(' + pct + '% - 9px)' }}>
               {customise && (
                 <div className="dash-mod-bar">
                   <span className="dash-mod-name">{mod.title}</span>
-                  <button className="btn ghost sm" onClick={() => toggleWidth(id)} title="Toggle width">{w === 'half' ? '◧ Half' : '▭ Full'}</button>
                   <button className="btn ghost sm" onClick={() => move(id, -1)} title="Move up">↑</button>
                   <button className="btn ghost sm" onClick={() => move(id, 1)} title="Move down">↓</button>
                   <button className="btn ghost sm" onClick={() => removeMod(id)} title="Remove">✕</button>
                 </div>
               )}
               {renderModule(id, ctx)}
+              <span className="dash-grip" onMouseDown={(e) => startResize(id, e)} title="Drag to resize" />
             </div>
           )
         })}
@@ -193,7 +211,7 @@ function renderModule(id, c) {
   if (id === 'calendar') {
     return (
       <DashCard id="calendar" title="📅 Month at a glance" open={c.isOpen('calendar')} onToggle={c.toggleCard}>
-        <MiniCalendar go={c.go} />
+        <MonthGlance go={c.go} />
       </DashCard>
     )
   }
@@ -337,66 +355,34 @@ function renderModule(id, c) {
   return null
 }
 
-// Mini month calendar widget — course-coloured bars per day + a hover card.
-function MiniCalendar({ go }) {
+// Month at a glance — the SAME DayPilot month view as the calendar page.
+function MonthGlance({ go }) {
   const { data: blocks } = useData(listBlocks)
-  const now = new Date()
-  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() })
-  const [hover, setHover] = useState(null)
+  const [anchor, setAnchor] = useState(new DayPilot.Date(new Date().toISOString().slice(0, 10)))
   if (!blocks) return <div className="body"><div className="muted small">Loading…</div></div>
-  const startDow = (new Date(ym.y, ym.m, 1).getDay() + 6) % 7
-  const dim = new Date(ym.y, ym.m + 1, 0).getDate()
-  const todayIso = new Date().toISOString().slice(0, 10)
-  const iso = (d) => `${ym.y}-${String(ym.m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
-  const move = (n) => { let m = ym.m + n, y = ym.y; if (m > 11) { m = 0; y++ } if (m < 0) { m = 11; y-- } setYm({ y, m }) }
-  const cells = []
-  ;['M', 'T', 'W', 'T', 'F', 'S', 'S'].forEach((d, i) => cells.push(<div className="mc-dow" key={'h' + i}>{d}</div>))
-  for (let i = 0; i < startDow; i++) cells.push(<div className="mc-day out" key={'o' + i} />)
-  for (let d = 1; d <= dim; d++) {
-    const ds = iso(d)
-    const bs = blocks.filter((b) => b.start && ds >= b.start && ds <= b.end)
-    const onHov = bs.length ? (e) => setHover({ ds, bs, x: e.clientX, y: e.clientY }) : undefined
-    cells.push(
-      <div key={d} className={'mc-day' + (ds === todayIso ? ' today' : '') + (bs.length ? ' has' : '')}
-        onClick={() => go('calendar')} onMouseEnter={onHov} onMouseMove={onHov} onMouseLeave={() => setHover(null)}>
-        <span className="mc-n">{d}</span>
-        <span className="mc-bars">
-          {bs.slice(0, 3).map((b, i) => <span key={i} className="mc-bar" style={{ background: b.color || '#48566a' }} />)}
-          {bs.length > 3 && <span className="mc-more">+{bs.length - 3}</span>}
-        </span>
-      </div>
-    )
-  }
+  const events = blocks.filter((b) => b.start && b.end).map((b) => ({
+    id: b.id, text: `${b.course} · ${b.delegates.length}\u{1F464}`,
+    start: `${b.start}T09:00:00`, end: `${b.end}T17:00:00`,
+    backColor: b.color || '#48566a', block: b,
+  }))
+  const move = (n) => setAnchor((a) => a.addMonths(n))
   return (
     <div className="body">
       <div className="mc-head">
         <button className="cal-nav" onClick={() => move(-1)}>‹</button>
-        <span className="mc-title">{MONTHS[ym.m]} {ym.y}</span>
+        <span className="mc-title">{anchor.toString('MMMM yyyy')}</span>
         <button className="cal-nav" onClick={() => move(1)}>›</button>
         <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendar')}>Open calendar →</button>
       </div>
-      <div className="mc-grid">{cells}</div>
-      {hover && <MiniHover ds={hover.ds} bs={hover.bs} x={hover.x} y={hover.y} />}
-    </div>
-  )
-}
-
-function MiniHover({ ds, bs, x, y }) {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
-  const left = Math.min(x + 14, vw - 296)
-  const top = Math.min(y + 14, vh - 220)
-  return (
-    <div className="yc-hover" style={{ left, top, width: 270 }}>
-      <div className="yc-hover-head"><strong>{fmt(ds)}</strong><span className="muted small">{bs.length} course block(s)</span></div>
-      <div className="yc-hover-delg small">
-        {bs.map((b) => (
-          <div key={b.id} className="yc-hover-d">
-            <span><i className="mc-swatch" style={{ background: b.color || '#48566a' }} />{b.course}</span>
-            <span className="muted">{b.delegates.length}👤{b.trainer ? ' · ' + b.trainer : ''}</span>
-          </div>
-        ))}
-      </div>
+      <DayPilotMonth
+        startDate={anchor}
+        events={events}
+        eventMoveHandling="Disabled"
+        eventResizeHandling="Disabled"
+        timeRangeSelectedHandling="Disabled"
+        onBeforeEventRender={(args) => { const cl = args.data.block?.color || '#48566a'; args.data.backColor = cl; args.data.barColor = cl; args.data.fontColor = '#fff' }}
+        onEventClick={() => go('calendar')}
+      />
     </div>
   )
 }
