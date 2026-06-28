@@ -1,0 +1,130 @@
+import { useState } from 'react'
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PROGRESS / ROADMAP — single source of truth for "where we are".
+// Maintained in code. To edit: change an item's `s` (status) and bump UPDATED.
+// Admins-only (see roles.js). Statuses: done · build · chris · simon · later.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const UPDATED = '28 Jun 2026'
+
+const STATUS = {
+  done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },
+  build: { label: 'Building next',    color: '#0a5ad6', soft: '#eaf1fd' },
+  chris: { label: 'Waiting on Chris', color: '#b7791f', soft: '#fdf3e0' },
+  simon: { label: 'Waiting on Simon', color: '#7b2ff2', soft: '#f1e9fe' },
+  later: { label: 'Later',            color: '#48566a', soft: '#eef1f5' },
+}
+const ORDER = ['build', 'chris', 'simon', 'later', 'done']
+
+// t = title, s = status, d = detail
+const ITEMS = [
+  // ── Done ───────────────────────────────────────────────────────────────────
+  { t: 'Customisable dashboard', s: 'done', d: 'Add / remove / reorder / collapse modules per user, plus drag-resize for width (quarter / half / full). Renewal engine, cold-call list, blocks awaiting assignment, to-assess, outstanding, MLP and "Month at a glance".' },
+  { t: 'In-app calendar (replaces Teamup)', s: 'done', d: 'Year / Month / Week / Day views; create a block straight off the calendar; click a block to edit, pick the trainer, add delegates; colour-coded by course.' },
+  { t: 'Drag to move + resize blocks', s: 'done', d: 'Move and resize course blocks directly on the calendar.' },
+  { t: 'Removed the staff-loans / lanes view', s: 'done', d: 'Taken out per the decision in the meeting.' },
+  { t: 'Holidays / staff time off', s: 'done', d: 'Pick the staff member and add a note; a trainer can’t be assigned to a course that clashes with their holiday; Admin shows holiday days taken.' },
+  { t: 'No weekend run-over', s: 'done', d: 'Course start/end auto-snaps to Mon–Fri.' },
+  { t: 'Per-qualification NYC result', s: 'done', d: 'NYC added alongside Pass / Fail at the assessment stage.' },
+  { t: 'ACS form auto-fill', s: 'done', d: 'Prints onto the real LCL template with name, address, DOB, NI and booked codes.' },
+  { t: 'Admin = one place for staff', s: 'done', d: 'Adding a staff member creates the assignable record, their login and their role together.' },
+
+  // ── Building next ────────────────────────────────────────────────────────────
+  { t: 'Staff accreditations + expiry tracking', s: 'build', d: 'A bucket of accreditations dragged onto a staff member; on drop it asks for the start date and how long it lasts, then a renewal engine warns when one is running out. The big next piece.' },
+  { t: 'GN8 tick rule on the ACS form', s: 'build', d: 'Renewal → tick box 1; anything other than a renewal → leave blank.' },
+  { t: 'ACS form tweaks', s: 'build', d: 'Move the name into its own box and stamp the date printed; tick proof of prerequisites; leave the signature blank for a manual sign.' },
+  { t: 'Holiday requests workflow', s: 'build', d: 'Staff submit a request (not a confirmed booking); a "Holiday requests" block on the dashboard lets an admin accept or refuse.' },
+  { t: 'NYC / Fail / No-show handling block', s: 'build', d: 'These flow into a block where you rebook them onto another course or write them off with a reason (logged on their record), so the history shows when they next enquire.' },
+  { t: 'Assessor / verifier audit trail', s: 'build', d: 'Store who trained / assessed / verified each delegate + timestamp; show counts per staff member. ISO 9001 traceability.' },
+  { t: 'Bundles / packages', s: 'build', d: 'A separate bundle button: pick the 4–5 courses, give the bundle its own price, book it as one. Names must match Sage.' },
+  { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar.' },
+
+  // ── Waiting on Chris ─────────────────────────────────────────────────────────
+  { t: 'Create 3 mailboxes + SMTP details', s: 'chris', d: 'holidays@, crm@ and bookings@ — plus the actual SMTP server settings (not just logins). Unblocks the email features.' },
+  { t: 'Email-on-assignment', s: 'chris', d: 'Email a staff member when they’re added to a block. Built once the mailboxes + SMTP details are in.' },
+  { t: 'Course-name matching for Sage', s: 'chris', d: 'SGAS course names and bundles need marrying up to the Sage names by hand when Sage is wired in.' },
+
+  // ── Waiting on Simon / client ────────────────────────────────────────────────
+  { t: 'Copy of the Access database', s: 'simon', d: 'A full export so we can delete the fake data and load the real data in. Wanted first, before Sage.' },
+  { t: 'Sage access', s: 'simon', d: 'Ideally a read-only, non-destructive API key. The big later module.' },
+  { t: 'Get all staff entered', s: 'simon', d: 'Needed before accreditations and the assessor/verifier name-pull are fully useful. Admin screen is ready.' },
+
+  // ── Later (parked) ──────────────────────────────────────────────────────────
+  { t: 'Self-service website booking', s: 'later', d: 'Public books in → lands as pending (like holidays) → confirm eligibility, call within 48h, send confirmation.' },
+  { t: 'Zoom / Teams meeting links', s: 'later', d: 'Attach a meeting link to a calendar entry. Nice-to-have.' },
+  { t: 'Calendar history / undo / restore', s: 'later', d: '2-day history with the ability to restore a deleted calendar item.' },
+  { t: 'In-app FAQ + per-page wizards', s: 'later', d: 'A comprehensive FAQ and "how does this work" wizards on each page, plus a training session.' },
+]
+
+function Badge({ s }) {
+  const st = STATUS[s]
+  return <span className="rm-badge" style={{ color: st.color, background: st.soft }}>{st.label}</span>
+}
+
+export default function Roadmap() {
+  const total = ITEMS.length
+  const doneN = ITEMS.filter((i) => i.s === 'done').length
+  const pct = Math.round((doneN / total) * 100)
+  const counts = Object.fromEntries(ORDER.map((k) => [k, ITEMS.filter((i) => i.s === k).length]))
+  const [showDone, setShowDone] = useState(false)
+
+  return (
+    <div className="rm">
+      <div className="rm-head card">
+        <div className="rm-progress">
+          <div className="rm-progress-top">
+            <strong>{doneN} of {total} shipped</strong>
+            <span className="rm-updated">Updated {UPDATED}</span>
+          </div>
+          <div className="rm-bar"><div className="rm-bar-fill" style={{ width: pct + '%' }} /></div>
+          <div className="rm-pct">{pct}% complete</div>
+        </div>
+        <div className="rm-tiles">
+          {ORDER.map((k) => (
+            <div className="rm-tile" key={k} style={{ borderColor: STATUS[k].soft }}>
+              <div className="rm-tile-n" style={{ color: STATUS[k].color }}>{counts[k]}</div>
+              <div className="rm-tile-l">{STATUS[k].label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {ORDER.filter((k) => k !== 'done').map((k) => {
+        const rows = ITEMS.filter((i) => i.s === k)
+        if (!rows.length) return null
+        return (
+          <div className="card rm-sec" key={k}>
+            <h3><span className="rm-dot" style={{ background: STATUS[k].color }} />{STATUS[k].label}<span className="tag">{rows.length}</span></h3>
+            <div className="body rm-list">
+              {rows.map((it, i) => (
+                <div className="rm-item" key={i}>
+                  <div className="rm-item-h"><span className="rm-item-t">{it.t}</span><Badge s={it.s} /></div>
+                  <div className="rm-item-d">{it.d}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+
+      <div className="card rm-sec">
+        <h3 className="card-toggle" onClick={() => setShowDone((v) => !v)} style={{ cursor: 'pointer' }}>
+          <span className="chev">{showDone ? '▾' : '▸'}</span>
+          <span className="rm-dot" style={{ background: STATUS.done.color }} />Done
+          <span className="tag">{counts.done}</span>
+        </h3>
+        {showDone && (
+          <div className="body rm-list">
+            {ITEMS.filter((i) => i.s === 'done').map((it, i) => (
+              <div className="rm-item rm-item-done" key={i}>
+                <div className="rm-item-h"><span className="rm-item-t">✓ {it.t}</span></div>
+                <div className="rm-item-d">{it.d}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

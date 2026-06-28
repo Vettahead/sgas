@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
+import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-react'
 import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
- * SGAS Calendar — DayPilot Lite (Apache 2.0). Month / Week / Day / Resources
+ * SGAS Calendar — DayPilot Lite (Apache 2.0). Month / Week / Day / Year
  * views over the real course blocks (listBlocks). Drag to create a block,
  * drag-move / resize to change its dates, click to open the roster.
  * Reused as a standalone nav tab AND inside the Schedule screen's Calendar tab.
@@ -15,7 +15,6 @@ const VIEWS = [
   { v: 'Month', label: 'Month' },
   { v: 'Week', label: 'Week' },
   { v: 'Day', label: 'Day' },
-  { v: 'Resources', label: 'Staff lanes' },
   { v: 'Year', label: 'Year' },
 ]
 
@@ -91,7 +90,6 @@ export default function Calendar({ go, isAdmin, user }) {
   const [holidays, setHolidays] = useState([])
   const [nonce, setNonce] = useState(0)
 
-  const calRef = useRef(null)
   const monthRef = useRef(null)
 
   async function refresh() {
@@ -175,15 +173,8 @@ export default function Calendar({ go, isAdmin, user }) {
   }
 
   // Resource lanes = one column per trainer (+ an Unassigned lane), single day.
-  const rescolumns = useMemo(() => {
-    const used = new Set(filtered.map((b) => b.trainerId || 'none'))
-    const cols = staff.filter((s) => used.has(s.staff_id ?? s.id)).map((s) => ({ id: s.staff_id ?? s.id, name: s.name }))
-    if (used.has('none')) cols.push({ id: 'none', name: 'Unassigned' })
-    return cols.length ? cols : [{ id: 'none', name: 'Unassigned' }]
-  }, [filtered, staff])
-
   function move(dir) {
-    const map = { Month: 'months', Week: 'days', Day: 'days', Resources: 'days', Year: 'months' }
+    const map = { Month: 'months', Week: 'days', Day: 'days', Year: 'months' }
     const n = view === 'Week' ? 7 : view === 'Month' ? 1 : 1
     const unit = map[view]
     setAnchor((a) => (unit === 'months' ? a.addMonths(dir) : a.addDays(dir * n)))
@@ -255,22 +246,6 @@ export default function Calendar({ go, isAdmin, user }) {
           onTimeRangeSelected={(args) => { monthRef.current?.control.clearSelection(); setCreating({ from: isoOf(args.start), to: endIso(args.end) }) }}
           onEventMoved={doMoveResize}
           onEventResized={doMoveResize}
-          onBeforeEventRender={renderEvent}
-          onEventClick={(args) => openBlk(args.e.data.block)}
-        />
-      ) : view === 'Resources' ? (
-        <DayPilotCalendar
-          key={'res' + nonce}
-          ref={calRef}
-          viewType="Resources"
-          startDate={anchor}
-          columns={rescolumns}
-          events={events}
-          businessBeginsHour={7}
-          businessEndsHour={19}
-          eventMoveHandling="Disabled"
-          eventResizeHandling="Disabled"
-          timeRangeSelectedHandling="Disabled"
           onBeforeEventRender={renderEvent}
           onEventClick={(args) => openBlk(args.e.data.block)}
         />

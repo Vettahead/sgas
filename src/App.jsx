@@ -15,6 +15,7 @@ import Delegates from './views/Delegates.jsx'
 import Companies from './views/Companies.jsx'
 import Courses from './views/Courses.jsx'
 import Admin from './views/Admin.jsx'
+import Roadmap from './views/Roadmap.jsx'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -30,6 +31,7 @@ const TITLES = {
   companies: ['Companies', 'Employers and sole traders — the only payers'],
   courses: ['Courses', 'Qualification pools delegates book onto'],
   admin: ['Admin', 'Manage staff accounts and access'],
+  roadmap: ['Progress', 'Where we are — what’s done, what’s next, and what’s waiting on us'],
 }
 
 const NAV_GROUPS = [
@@ -49,6 +51,7 @@ const NAV_GROUPS = [
   ] },
   { grp: 'Settings', items: [
     { v: 'admin', ic: '👥', label: 'Admin' },
+    { v: 'roadmap', ic: '🗺', label: 'Progress' },
   ] },
 ]
 
@@ -152,6 +155,7 @@ export default function App() {
           {activeView === 'companies' && <Companies go={go} />}
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
+          {activeView === 'roadmap' && isAdmin && <Roadmap />}
         </div>
       </div>
       <ToastHost />
