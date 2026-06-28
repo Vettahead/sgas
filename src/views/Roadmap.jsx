@@ -13,9 +13,10 @@ const STATUS = {
   build: { label: 'Building next',    color: '#0a5ad6', soft: '#eaf1fd' },
   chris: { label: 'Waiting on Chris', color: '#b7791f', soft: '#fdf3e0' },
   simon: { label: 'Waiting on Simon', color: '#7b2ff2', soft: '#f1e9fe' },
+  future:{ label: 'On the radar',     color: '#0f766e', soft: '#d8efeb' },
   later: { label: 'Later',            color: '#48566a', soft: '#eef1f5' },
 }
-const ORDER = ['build', 'chris', 'simon', 'later', 'done']
+const ORDER = ['build', 'future', 'chris', 'simon', 'later', 'done']
 
 // t = title, s = status, d = detail
 const ITEMS = [
@@ -44,11 +45,24 @@ const ITEMS = [
   { t: 'Create 3 mailboxes + SMTP details', s: 'chris', d: 'holidays@, crm@ and bookings@ — plus the actual SMTP server settings (not just logins). Unblocks the email features.' },
   { t: 'Email-on-assignment', s: 'chris', d: 'Email a staff member when they’re added to a block. Built once the mailboxes + SMTP details are in.' },
   { t: 'Course-name matching for Sage', s: 'chris', d: 'SGAS course names and bundles need marrying up to the Sage names by hand when Sage is wired in.' },
+  { t: 'Map the pricing / discount matrix', s: 'chris', d: 'The price rules and any batch discounts need mapping before quotes, VAT and bundle pricing can be built.' },
+  { t: 'Send the extra assessment forms', s: 'chris', d: 'The off-tech oil form and the QCF form, plus which course maps to which form, so they can be added alongside the ACS form.' },
 
   // ── Waiting on Simon / client ────────────────────────────────────────────────
   { t: 'Copy of the Access database', s: 'simon', d: 'A full export so we can delete the fake data and load the real data in. Wanted first, before Sage.' },
   { t: 'Sage access', s: 'simon', d: 'Ideally a read-only, non-destructive API key. The big later module.' },
   { t: 'Get all staff entered', s: 'simon', d: 'Needed before accreditations and the assessor/verifier name-pull are fully useful. Admin screen is ready.' },
+
+  // ── On the radar (discussed, not started / not resolved) ─────────────────────
+  { t: 'Sage integration (the build)', s: 'future', d: 'Wire the system to Sage and pull data live (read-only, non-destructive). The big module — depends on Sage access and the course-name matching.' },
+  { t: 'Security hardening', s: 'future', d: 'Lock down database access rules (RLS) and work toward Cyber Essentials before real delegate data goes in.' },
+  { t: 'Quotes, discounts & VAT', s: 'future', d: 'Turn a booking into a priced quote: sum the modules, apply any discounts and VAT, email the quote out. Needs the pricing matrix first.' },
+  { t: 'PO numbers on bookings', s: 'future', d: 'Capture a purchase-order number against a booking for invoicing.' },
+  { t: 'Course document pool', s: 'future', d: 'A central store for each course’s supporting documents (e.g. Dropbox) so paperwork bundles with the booking.' },
+  { t: 'Strip demo / sample data before go-live', s: 'future', d: 'Remove the fake users and sample delegate details before the real data import.' },
+  { t: 'Reporting', s: 'future', d: 'Management reports — assessments per assessor, throughput, outstanding, etc. (shown as a later module in the menu).' },
+  { t: 'GDPR opt-in wording', s: 'future', d: 'Agree the consent wording for renewal / marketing emails before they go out.' },
+  { t: 'Lock finished blocks at database level', s: 'future', d: 'Finished blocks are currently locked in the screen only; enforce it in the database too.' },
 
   // ── Later (parked) ──────────────────────────────────────────────────────────
   { t: 'Self-service website booking', s: 'later', d: 'Public books in → lands as pending (like holidays) → confirm eligibility, call within 48h, send confirmation.' },
