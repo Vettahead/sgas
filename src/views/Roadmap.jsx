@@ -3,7 +3,8 @@ import { useState } from 'react'
 // ─────────────────────────────────────────────────────────────────────────────
 // PROGRESS / ROADMAP — single source of truth for "where we are".
 // Maintained in code. To edit: change an item's `s` (status) and bump UPDATED.
-// Admins-only (see roles.js). Statuses: done · build · chris · simon · later.
+// Admins-only (see roles.js). Statuses: done · build · future · chris · simon · later.
+// Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const UPDATED = '28 Jun 2026'
@@ -13,10 +14,11 @@ const STATUS = {
   build: { label: 'Building next',    color: '#0a5ad6', soft: '#eaf1fd' },
   chris: { label: 'Waiting on Chris', color: '#b7791f', soft: '#fdf3e0' },
   simon: { label: 'Waiting on Simon', color: '#7b2ff2', soft: '#f1e9fe' },
+  review:{ label: 'To review',         color: '#be185d', soft: '#fce7f1' },
   future:{ label: 'On the radar',     color: '#0f766e', soft: '#d8efeb' },
   later: { label: 'Later',            color: '#48566a', soft: '#eef1f5' },
 }
-const ORDER = ['build', 'future', 'chris', 'simon', 'later', 'done']
+const ORDER = ['build', 'review', 'future', 'chris', 'simon', 'later', 'done']
 
 // t = title, s = status, d = detail
 const ITEMS = [
@@ -55,7 +57,7 @@ const ITEMS = [
   { t: 'Holiday requests workflow', s: 'build', d: 'Staff submit a request (not a confirmed booking); a "Holiday requests" block on the dashboard lets an admin accept or refuse.' },
   { t: 'NYC / Fail / No-show handling block', s: 'build', d: 'These flow into a block where you rebook them onto another course or write them off with a reason (logged on their record), so the history shows when they next enquire.' },
   { t: 'Assessor / verifier audit trail', s: 'build', d: 'Store who trained / assessed / verified each delegate + timestamp; show counts per staff member. ISO 9001 traceability.' },
-  { t: 'Bundles / packages', s: 'build', d: 'A separate bundle button: pick the 4–5 courses, give the bundle its own price, book it as one. Names must match Sage.' },
+  { t: 'Bundles within a course', s: 'build', d: 'In each course an "Add bundle" button: pick the modules that make up the bundle and give it its own discounted price. It still schedules and assesses exactly like the individual modules — purely a way to group them for a discount. Ready to build now; bundle names will need to match Sage.' },
   { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar.' },
 
   // ── Waiting on Chris ─────────────────────────────────────────────────────────
@@ -71,20 +73,21 @@ const ITEMS = [
   { t: 'Get all staff entered', s: 'simon', d: 'Needed before accreditations and the assessor/verifier name-pull are fully useful. Admin screen is ready.' },
 
   // ── On the radar (discussed, not started / not resolved) ─────────────────────
-  { t: 'Sage integration (the build)', s: 'future', d: 'Wire the system to Sage and pull data live (read-only, non-destructive). The big module — depends on Sage access and the course-name matching.' },
+  { t: 'Sage integration', id: 'sage', s: 'future', d: 'Wire the system to Sage and pull data live (read-only, non-destructive). Money lives in Sage, so the items nested below hang off this — if Sage can’t do it, they fall away. Depends on Sage access + course-name matching.' },
+  { t: 'Invoicing', parent: 'sage', s: 'future', d: 'Raise and track invoices against bookings, cross-referenced to Sage by reference number.' },
+  { t: 'Payment chasing (with reference IDs)', parent: 'sage', s: 'future', d: 'Log every chase and put a searchable ID in the email; tie outstanding payments back to the Sage record.' },
+  { t: 'Quotes, discounts & VAT', parent: 'sage', s: 'future', d: 'Turn a booking into a priced quote (sum the modules, discounts, VAT) and email it. Needs the pricing matrix first.' },
+  { t: 'PO numbers on bookings', parent: 'sage', s: 'future', d: 'Capture a purchase-order number against a booking for invoicing.' },
+  { t: 'Course information pool', s: 'future', d: 'A central pool of information and documents for each course that bundles and bookings link to — so they reuse one shared set rather than re-hooking the details every time. (The “pool of information” to-do.)' },
   { t: 'Security hardening', s: 'future', d: 'Lock down database access rules (RLS) and work toward Cyber Essentials before real delegate data goes in.' },
-  { t: 'Quotes, discounts & VAT', s: 'future', d: 'Turn a booking into a priced quote: sum the modules, apply any discounts and VAT, email the quote out. Needs the pricing matrix first.' },
-  { t: 'PO numbers on bookings', s: 'future', d: 'Capture a purchase-order number against a booking for invoicing.' },
-  { t: 'Course document pool', s: 'future', d: 'A central store for each course’s supporting documents (e.g. Dropbox) so paperwork bundles with the booking.' },
   { t: 'Strip demo / sample data before go-live', s: 'future', d: 'Remove the fake users and sample delegate details before the real data import.' },
-  { t: 'Reporting', s: 'future', d: 'Management reports — assessments per assessor, throughput, outstanding, etc. (shown as a later module in the menu).' },
+  { t: 'Reporting', s: 'future', d: 'Management reports — assessments per assessor, throughput, outstanding, etc.' },
   { t: 'GDPR opt-in wording', s: 'future', d: 'Agree the consent wording for renewal / marketing emails before they go out.' },
   { t: 'Lock finished blocks at database level', s: 'future', d: 'Finished blocks are currently locked in the screen only; enforce it in the database too.' },
-  { t: 'Email backend (sending + reply tracking)', s: 'future', d: 'A proper transactional email layer to power renewal emails, payment chases and booking confirmations, with send/reply tracking — underpins all the email features.' },
-  { t: 'Document pack assembly', s: 'future', d: 'On assess-complete, bundle each qualification’s supporting documents together with the front page into one download for the printer.' },
-  { t: 'Employer copy printing', s: 'future', d: 'Print an employer copy of the certificate / application when the delegate’s company has the send-to-employer flag set.' },
-  { t: 'Chase logging with reference IDs', s: 'future', d: 'Every payment chase records the last-chased time and keeps a log; each course+person carries an ID that goes in the email so it’s searchable.' },
-  { t: 'Staged renewal follow-up', s: 'future', d: 'Track sends/replies; after a set number of unanswered renewal emails a delegate drops onto a cold-call list for the phone.' },
+  { t: 'Email backend (sending + reply tracking)', s: 'future', d: 'A proper transactional email layer to power renewal emails, chases and booking confirmations, with send/reply tracking.' },
+  { t: 'Document pack assembly', s: 'future', d: 'On assess-complete, bundle each qualification’s supporting documents with the front page into one download for the printer.' },
+  { t: 'Employer copy printing', s: 'future', d: 'Print an employer copy of the certificate / application when the company has the send-to-employer flag set.' },
+  { t: 'Staged renewal follow-up', s: 'future', d: 'Track sends/replies; after a set number of unanswered renewal emails a delegate drops onto the cold-call list.' },
   { t: 'DOB fuzzy matching', s: 'future', d: 'Match delegates on date of birth when an NI number looks mis-keyed, and surface close matches to avoid duplicates.' },
   { t: 'Qualification grid per delegate', s: 'future', d: 'A full grid of every qualification a delegate holds, cross-referenced with renewal dates.' },
   { t: 'IGAS 5-year evidence timer', s: 'future', d: 'Keep IGAS evidence on the server with a 5-year timer; after 5 years the copy is removed and IGAS resets.' },
@@ -115,15 +118,17 @@ export default function Roadmap() {
   })
   const [showDone, setShowDone] = useState(false)
 
-  // Effective status for an item (a chris/simon override wins for those two only).
+  // A chris/simon item can be re-assigned (chris<->simon) or marked complete by
+  // Simon -> "review" so it lands with Chris to check off. Override wins for those.
   const eff = (it) => ((it.s === 'chris' || it.s === 'simon') && moves[it.t]) ? moves[it.t] : it.s
   const view = ITEMS.map((it) => ({ ...it, s: eff(it) }))
 
-  function move(it, to) {
+  const baseOf = (title) => { const b = ITEMS.find((x) => x.t === title); return b ? b.s : null }
+  function setStatus(title, to) {
     setMoves((m) => {
       const next = { ...m }
-      if (it.s === to) delete next[it.t]   // back to its code default = clear override
-      else next[it.t] = to
+      if (to === baseOf(title)) delete next[title]   // back to code default = clear override
+      else next[title] = to
       try { localStorage.setItem(MOVE_KEY, JSON.stringify(next)) } catch {}
       return next
     })
@@ -158,25 +163,43 @@ export default function Roadmap() {
       {ORDER.filter((k) => k !== 'done').map((k) => {
         const rows = view.filter((i) => i.s === k)
         if (!rows.length) return null
-        const movable = k === 'chris' || k === 'simon'
+        const tops = rows.filter((i) => !i.parent)
+        const kids = (id) => (id ? rows.filter((i) => i.parent === id) : [])
+        const Item = (it, key, sub) => (
+          <div className={'rm-item' + (sub ? ' rm-sub' : '')} key={key}>
+            <div className="rm-item-h">
+              <span className="rm-item-t">{it.t}</span>
+              <span className="rm-item-r">
+                {k === 'chris' && (
+                  <button className="rm-move" onClick={() => setStatus(it.t, 'simon')}>→ Simon</button>
+                )}
+                {k === 'simon' && (
+                  <>
+                    <button className="rm-move" onClick={() => setStatus(it.t, 'chris')}>→ Chris</button>
+                    <button className="rm-move rm-complete" onClick={() => setStatus(it.t, 'review')}>✓ Complete</button>
+                  </>
+                )}
+                {k === 'review' && (
+                  <button className="rm-move" onClick={() => setStatus(it.t, 'simon')}>↩ Simon</button>
+                )}
+                <Badge s={it.s} />
+              </span>
+            </div>
+            <div className="rm-item-d">{it.d}</div>
+          </div>
+        )
         return (
           <div className="card rm-sec" key={k}>
             <h3><span className="rm-dot" style={{ background: STATUS[k].color }} />{STATUS[k].label}<span className="tag">{rows.length}</span></h3>
             <div className="body rm-list">
-              {rows.map((it, i) => (
-                <div className="rm-item" key={i}>
-                  <div className="rm-item-h">
-                    <span className="rm-item-t">{it.t}</span>
-                    <span className="rm-item-r">
-                      {movable && (
-                        <button className="rm-move" onClick={() => move(it, k === 'chris' ? 'simon' : 'chris')}>
-                          → {k === 'chris' ? 'Simon' : 'Chris'}
-                        </button>
-                      )}
-                      <Badge s={it.s} />
-                    </span>
-                  </div>
-                  <div className="rm-item-d">{it.d}</div>
+              {tops.map((it, i) => (
+                <div key={i}>
+                  {Item(it, 't' + i, false)}
+                  {kids(it.id).length > 0 && (
+                    <div className="rm-subwrap">
+                      {kids(it.id).map((c, ci) => Item(c, 't' + i + 's' + ci, true))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
