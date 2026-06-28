@@ -79,6 +79,7 @@ export default function Calendar({ go, isAdmin }) {
   const [pool, setPool] = useState([])
   const [categories, setCategories] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [nonce, setNonce] = useState(0)
 
   const calRef = useRef(null)
   const monthRef = useRef(null)
@@ -92,7 +93,7 @@ export default function Calendar({ go, isAdmin }) {
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const all = [...b, ...holBlocks]
-    setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool())
+    setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool()); setNonce((n) => n + 1)
     return all
   }
   // Refresh data but keep the right panel open on the (now-updated) same block.
@@ -199,6 +200,7 @@ export default function Calendar({ go, isAdmin }) {
         <div className="loading">Loading calendar…</div>
       ) : view === 'Month' ? (
         <DayPilotMonth
+          key={'mon' + nonce}
           ref={monthRef}
           startDate={anchor}
           events={events}
@@ -213,6 +215,7 @@ export default function Calendar({ go, isAdmin }) {
         />
       ) : view === 'Resources' ? (
         <DayPilotCalendar
+          key={'res' + nonce}
           ref={calRef}
           viewType="Resources"
           startDate={anchor}
@@ -346,7 +349,7 @@ function CreateModal({ range, courses, staff, onClose, onCreated }) {
     } catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>{isHoliday ? 'New holiday' : 'New block'}</h3>
         <p className="muted small">Drag created {from} → {to}. {isHoliday ? 'Pick the staff member.' : 'Pick the course and confirm.'}</p>
@@ -388,7 +391,7 @@ function HolidayDrawer({ b, onChanged, onClose }) {
   }
   return (
     <div className="cal-rpanel-wrap">
-      <div className="cal-rpanel-backdrop" onClick={onClose} />
+      <div className="cal-rpanel-backdrop" />
       <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
         <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #8a94a6' }}>
           <div className="cal-rpanel-title"><h3>🏖 Holiday</h3><button className="cal-x" onClick={onClose}>✕</button></div>
@@ -409,7 +412,7 @@ function HolidayDrawer({ b, onChanged, onClose }) {
 
 function ViewChooser({ block, onPick, onClose }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Open “{block.course}”</h3>
         <p className="muted small">How do you want to open this block?</p>
@@ -507,7 +510,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
 
   return (
     <div className="cal-rpanel-wrap">
-      <div className="cal-rpanel-backdrop" onClick={onClose} />
+      <div className="cal-rpanel-backdrop" />
       <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
         <div className="cal-rpanel-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
           <div className="cal-rpanel-title"><h3>{b.course}</h3><button className="cal-x" onClick={onClose}>✕</button></div>

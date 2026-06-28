@@ -288,7 +288,7 @@ Please sign in and change your password after your first login.`
     catch { toast('Could not copy — select the text and copy manually') }
   }
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Login created — share these details</h3>
         <p className="muted small">No email is sent yet. Copy this and pass it to {u.name || u.username} securely.</p>

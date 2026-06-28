@@ -499,7 +499,7 @@ function ContactLog({ clientId, code, cols }) {
 function CallModal({ target, onSave, onClose }) {
   const [note, setNote] = useState('')
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>📞 Log call — {target.name}</h3>
         <div className="muted small">{target.code} · expires {fmt(target.expiry)}{target.mobile ? ' · ' + target.mobile : ''}</div>
