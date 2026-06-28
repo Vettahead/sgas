@@ -21,15 +21,32 @@ const ORDER = ['build', 'future', 'chris', 'simon', 'later', 'done']
 // t = title, s = status, d = detail
 const ITEMS = [
   // ── Done ───────────────────────────────────────────────────────────────────
-  { t: 'Customisable dashboard', s: 'done', d: 'Add / remove / reorder / collapse modules per user, plus drag-resize for width (quarter / half / full). Renewal engine, cold-call list, blocks awaiting assignment, to-assess, outstanding, MLP and "Month at a glance".' },
-  { t: 'In-app calendar (replaces Teamup)', s: 'done', d: 'Year / Month / Week / Day views; create a block straight off the calendar; click a block to edit, pick the trainer, add delegates; colour-coded by course.' },
+  { t: 'Live, deployed system', s: 'done', d: 'The system is live online with a secure login, backed by a cloud database. Updates publish automatically.' },
+  { t: 'Role-based access', s: 'done', d: 'Admin, Reception, Scheduler, Assessor and Accounts roles — each person lands on a dashboard tailored to their job.' },
+  { t: 'Customisable dashboard', s: 'done', d: 'Add / remove / reorder / collapse modules per user, plus drag-resize for width (quarter / half / full).' },
+  { t: 'Renewal engine + cold-call list', s: 'done', d: 'Automatic list of who is due to renew, plus a cold-call list to chase work.' },
+  { t: 'Book a delegate', s: 'done', d: 'Create a booking from reception — pick the delegate, company and qualifications, with a running cost.' },
+  { t: 'Schedule (drag & drop)', s: 'done', d: 'Assign a trainer and drop delegates onto course blocks; a waiting pool holds delegates until they are placed.' },
+  { t: 'Smart booking handling', s: 'done', d: 'One booking per delegate per block (auto-merges across schemes), mixed new + reassessment in one booking, and add a qualification to an existing booking.' },
+  { t: 'Part-course attendance', s: 'done', d: 'Set the exact days a delegate attends when they are not on the full block.' },
+  { t: 'In-app calendar (replaces Teamup)', s: 'done', d: 'Year / Month / Week / Day views; create a block straight off the calendar; click a block to edit, pick the trainer, add delegates.' },
   { t: 'Drag to move + resize blocks', s: 'done', d: 'Move and resize course blocks directly on the calendar.' },
-  { t: 'Removed the staff-loans / lanes view', s: 'done', d: 'Taken out per the decision in the meeting.' },
+  { t: 'Course colour-coding', s: 'done', d: 'Colour-code courses; the colours flow through the board and the calendar.' },
   { t: 'Holidays / staff time off', s: 'done', d: 'Pick the staff member and add a note; a trainer can’t be assigned to a course that clashes with their holiday; Admin shows holiday days taken.' },
   { t: 'No weekend run-over', s: 'done', d: 'Course start/end auto-snaps to Mon–Fri.' },
-  { t: 'Per-qualification NYC result', s: 'done', d: 'NYC added alongside Pass / Fail at the assessment stage.' },
-  { t: 'ACS form auto-fill', s: 'done', d: 'Prints onto the real LCL template with name, address, DOB, NI and booked codes.' },
+  { t: 'Assess screen', s: 'done', d: 'Flip each qualification to Pass / NYC / Fail with dates auto-generated; the header shows a live pass / fail / NYC breakdown.' },
+  { t: 'NYC / no-show rebooking loop', s: 'done', d: 'Delegates who don’t complete loop back to be rebooked.' },
+  { t: 'ACS form auto-fill', s: 'done', d: 'Prints onto the real LCL template with name, address, DOB, NI and booked codes — one delegate, a whole block combined, or a zip per delegate.' },
+  { t: 'Payments & chase', s: 'done', d: 'Mark outstanding payments and chase the paying company.' },
+  { t: 'Delegate records', s: 'done', d: 'Search by name or NI number and open a delegate’s full history.' },
+  { t: 'Companies', s: 'done', d: 'Employers and sole traders with addresses; copy a delegate straight into a new company.' },
+  { t: 'Courses catalogue', s: 'done', d: 'Full management of courses and qualifications — codes, schemes, prices — with tidy tools.' },
+  { t: 'Per-module pricing', s: 'done', d: 'Price set per qualification; a booking’s cost adds up the modules taken.' },
+  { t: 'Postcode lookup', s: 'done', d: 'Type a postcode to fill in the town and county.' },
+  { t: 'Inquiries', s: 'done', d: 'Capture leads fast and convert them straight into a booking.' },
+  { t: 'Managed Learning Programmes', s: 'done', d: 'Support for managed learning programmes / IGAS.' },
   { t: 'Admin = one place for staff', s: 'done', d: 'Adding a staff member creates the assignable record, their login and their role together.' },
+  { t: 'SGAS branding', s: 'done', d: 'SGAS logo and branding throughout the app.' },
 
   // ── Building next ────────────────────────────────────────────────────────────
   { t: 'Staff accreditations + expiry tracking', s: 'build', d: 'A bucket of accreditations dragged onto a staff member; on drop it asks for the start date and how long it lasts, then a renewal engine warns when one is running out. The big next piece.' },
@@ -63,12 +80,25 @@ const ITEMS = [
   { t: 'Reporting', s: 'future', d: 'Management reports — assessments per assessor, throughput, outstanding, etc. (shown as a later module in the menu).' },
   { t: 'GDPR opt-in wording', s: 'future', d: 'Agree the consent wording for renewal / marketing emails before they go out.' },
   { t: 'Lock finished blocks at database level', s: 'future', d: 'Finished blocks are currently locked in the screen only; enforce it in the database too.' },
+  { t: 'Email backend (sending + reply tracking)', s: 'future', d: 'A proper transactional email layer to power renewal emails, payment chases and booking confirmations, with send/reply tracking — underpins all the email features.' },
+  { t: 'Document pack assembly', s: 'future', d: 'On assess-complete, bundle each qualification’s supporting documents together with the front page into one download for the printer.' },
+  { t: 'Employer copy printing', s: 'future', d: 'Print an employer copy of the certificate / application when the delegate’s company has the send-to-employer flag set.' },
+  { t: 'Chase logging with reference IDs', s: 'future', d: 'Every payment chase records the last-chased time and keeps a log; each course+person carries an ID that goes in the email so it’s searchable.' },
+  { t: 'Staged renewal follow-up', s: 'future', d: 'Track sends/replies; after a set number of unanswered renewal emails a delegate drops onto a cold-call list for the phone.' },
+  { t: 'DOB fuzzy matching', s: 'future', d: 'Match delegates on date of birth when an NI number looks mis-keyed, and surface close matches to avoid duplicates.' },
+  { t: 'Qualification grid per delegate', s: 'future', d: 'A full grid of every qualification a delegate holds, cross-referenced with renewal dates.' },
+  { t: 'IGAS 5-year evidence timer', s: 'future', d: 'Keep IGAS evidence on the server with a 5-year timer; after 5 years the copy is removed and IGAS resets.' },
+  { t: 'Gas-safety date reconcile', s: 'future', d: 'Normalise the 4/5/6 gas-safety date variances and fill in the known ones on each record.' },
 
   // ── Later (parked) ──────────────────────────────────────────────────────────
   { t: 'Self-service website booking', s: 'later', d: 'Public books in → lands as pending (like holidays) → confirm eligibility, call within 48h, send confirmation.' },
   { t: 'Zoom / Teams meeting links', s: 'later', d: 'Attach a meeting link to a calendar entry. Nice-to-have.' },
   { t: 'Calendar history / undo / restore', s: 'later', d: '2-day history with the ability to restore a deleted calendar item.' },
   { t: 'In-app FAQ + per-page wizards', s: 'later', d: 'A comprehensive FAQ and "how does this work" wizards on each page, plus a training session.' },
+  { t: 'Front-desk sign-in / attendance', s: 'later', d: 'A tablet at reception lists who should attend; the delegate taps their name, signs and confirms — marking attendance automatically.' },
+  { t: 'Passport-photo capture', s: 'later', d: 'Tablet / webcam with a countdown takes the delegate’s photo straight into the system and onto the printed form.' },
+  { t: 'Claim workflow (no-portfolio courses)', s: 'later', d: 'For courses with no portfolio (e.g. heat pumps), after a pass the assessor marks it “claimed” on the external system — surfaced as a reminder on their dashboard.' },
+  { t: 'Bulk email / Mailchimp', s: 'later', d: 'Optional hook to a bulk-email tool for any mass sends (individual sends stay the default to avoid flooding the phones).' },
 ]
 
 function Badge({ s }) {
@@ -77,11 +107,32 @@ function Badge({ s }) {
 }
 
 export default function Roadmap() {
-  const total = ITEMS.length
-  const doneN = ITEMS.filter((i) => i.s === 'done').length
-  const pct = Math.round((doneN / total) * 100)
-  const counts = Object.fromEntries(ORDER.map((k) => [k, ITEMS.filter((i) => i.s === k).length]))
+  // Code is the seed; a person can re-assign "Waiting on" items between Chris and
+  // Simon live — those choices are remembered in this browser (key by title).
+  const MOVE_KEY = 'sgas_roadmap_moves'
+  const [moves, setMoves] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(MOVE_KEY)) || {} } catch { return {} }
+  })
   const [showDone, setShowDone] = useState(false)
+
+  // Effective status for an item (a chris/simon override wins for those two only).
+  const eff = (it) => ((it.s === 'chris' || it.s === 'simon') && moves[it.t]) ? moves[it.t] : it.s
+  const view = ITEMS.map((it) => ({ ...it, s: eff(it) }))
+
+  function move(it, to) {
+    setMoves((m) => {
+      const next = { ...m }
+      if (it.s === to) delete next[it.t]   // back to its code default = clear override
+      else next[it.t] = to
+      try { localStorage.setItem(MOVE_KEY, JSON.stringify(next)) } catch {}
+      return next
+    })
+  }
+
+  const total = view.length
+  const doneN = view.filter((i) => i.s === 'done').length
+  const pct = Math.round((doneN / total) * 100)
+  const counts = Object.fromEntries(ORDER.map((k) => [k, view.filter((i) => i.s === k).length]))
 
   return (
     <div className="rm">
@@ -105,15 +156,26 @@ export default function Roadmap() {
       </div>
 
       {ORDER.filter((k) => k !== 'done').map((k) => {
-        const rows = ITEMS.filter((i) => i.s === k)
+        const rows = view.filter((i) => i.s === k)
         if (!rows.length) return null
+        const movable = k === 'chris' || k === 'simon'
         return (
           <div className="card rm-sec" key={k}>
             <h3><span className="rm-dot" style={{ background: STATUS[k].color }} />{STATUS[k].label}<span className="tag">{rows.length}</span></h3>
             <div className="body rm-list">
               {rows.map((it, i) => (
                 <div className="rm-item" key={i}>
-                  <div className="rm-item-h"><span className="rm-item-t">{it.t}</span><Badge s={it.s} /></div>
+                  <div className="rm-item-h">
+                    <span className="rm-item-t">{it.t}</span>
+                    <span className="rm-item-r">
+                      {movable && (
+                        <button className="rm-move" onClick={() => move(it, k === 'chris' ? 'simon' : 'chris')}>
+                          → {k === 'chris' ? 'Simon' : 'Chris'}
+                        </button>
+                      )}
+                      <Badge s={it.s} />
+                    </span>
+                  </div>
                   <div className="rm-item-d">{it.d}</div>
                 </div>
               ))}
@@ -130,7 +192,7 @@ export default function Roadmap() {
         </h3>
         {showDone && (
           <div className="body rm-list">
-            {ITEMS.filter((i) => i.s === 'done').map((it, i) => (
+            {view.filter((i) => i.s === 'done').map((it, i) => (
               <div className="rm-item rm-item-done" key={i}>
                 <div className="rm-item-h"><span className="rm-item-t">✓ {it.t}</span></div>
                 <div className="rm-item-d">{it.d}</div>

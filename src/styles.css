@@ -751,3 +751,6 @@ select,select option{color:#1d2733;background:#fff}
 .rm-item-d{color:var(--muted);font-size:12.5px;margin-top:3px;line-height:1.4}
 .rm-item-done .rm-item-t{color:var(--green);font-weight:600}
 .rm-badge{font-size:10.5px;font-weight:700;padding:2px 9px;border-radius:99px;white-space:nowrap}
+.rm-item-r{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.rm-move{font-size:10.5px;font-weight:600;color:var(--brand-dark);background:var(--brand-soft);border:1px solid #cfe0fb;border-radius:99px;padding:2px 9px;cursor:pointer;white-space:nowrap}
+.rm-move:hover{background:#dbe9fd}
