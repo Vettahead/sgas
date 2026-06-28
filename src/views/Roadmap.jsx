@@ -3,7 +3,8 @@ import { useState } from 'react'
 // ─────────────────────────────────────────────────────────────────────────────
 // PROGRESS / ROADMAP — single source of truth for "where we are".
 // Maintained in code. To edit: change an item's `s` (status) and bump UPDATED.
-// Admins-only (see roles.js). Statuses: done · build · future · chris · simon · later.
+// Admins-only. Statuses: progress · review(=To show client) · build · future · chris · simon · later · done.
+// Workflow: when work starts set s:'progress'; when built set s:'review'; after Chris demos it set s:'done'.
 // Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -12,13 +13,14 @@ const UPDATED = '28 Jun 2026'
 const STATUS = {
   done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },
   build: { label: 'Building next',    color: '#0a5ad6', soft: '#eaf1fd' },
+  progress:{label: 'In progress',     color: '#4f46e5', soft: '#e8e7fd' },
   chris: { label: 'Waiting on Chris', color: '#b7791f', soft: '#fdf3e0' },
   simon: { label: 'Waiting on Simon', color: '#7b2ff2', soft: '#f1e9fe' },
-  review:{ label: 'To review',         color: '#be185d', soft: '#fce7f1' },
+  review:{ label: 'To show client',   color: '#be185d', soft: '#fce7f1' },
   future:{ label: 'On the radar',     color: '#0f766e', soft: '#d8efeb' },
   later: { label: 'Later',            color: '#48566a', soft: '#eef1f5' },
 }
-const ORDER = ['build', 'review', 'future', 'chris', 'simon', 'later', 'done']
+const ORDER = ['progress', 'review', 'build', 'future', 'chris', 'simon', 'later', 'done']
 
 // t = title, s = status, d = detail
 const ITEMS = [
@@ -117,7 +119,7 @@ export default function Roadmap() {
     try { return JSON.parse(localStorage.getItem(MOVE_KEY)) || {} } catch { return {} }
   })
   const OPEN_KEY = 'sgas_roadmap_open'
-  const DEFAULT_OPEN = { build: true, review: true, chris: true, simon: true, future: false, later: false, done: false }
+  const DEFAULT_OPEN = { progress: true, review: true, build: true, chris: true, simon: true, future: false, later: false, done: false }
   const [open, setOpen] = useState(() => {
     try { return JSON.parse(localStorage.getItem(OPEN_KEY)) || DEFAULT_OPEN } catch { return DEFAULT_OPEN }
   })
@@ -131,7 +133,7 @@ export default function Roadmap() {
 
   // A chris/simon item can be re-assigned (chris<->simon) or marked complete by
   // Simon -> "review" so it lands with Chris to check off. Override wins for those.
-  const eff = (it) => ((it.s === 'chris' || it.s === 'simon') && moves[it.t]) ? moves[it.t] : it.s
+  const eff = (it) => (moves[it.t] ? moves[it.t] : it.s)
   const view = ITEMS.map((it) => ({ ...it, s: eff(it) }))
 
   const baseOf = (title) => { const b = ITEMS.find((x) => x.t === title); return b ? b.s : null }
@@ -191,8 +193,11 @@ export default function Roadmap() {
                     <button className="rm-move rm-complete" onClick={() => setStatus(it.t, 'review')}>✓ Complete</button>
                   </>
                 )}
+                {k === 'progress' && (
+                  <button className="rm-move rm-complete" onClick={() => setStatus(it.t, 'review')}>✓ Ready to show</button>
+                )}
                 {k === 'review' && (
-                  <button className="rm-move" onClick={() => setStatus(it.t, 'simon')}>↩ Simon</button>
+                  <button className="rm-move rm-complete" onClick={() => setStatus(it.t, 'done')}>✓ Shown to client</button>
                 )}
                 {k !== 'done' && <Badge s={it.s} />}
               </span>
