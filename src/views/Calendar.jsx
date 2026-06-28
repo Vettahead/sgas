@@ -999,61 +999,82 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCrea
 
   const hours = []; for (let h = H0; h < H1; h++) hours.push(h)
   const gridBg = `repeating-linear-gradient(var(--panel) 0, var(--panel) ${HPX - 1}px, var(--line) ${HPX - 1}px, var(--line) ${HPX}px)`
+  const dsList = days.map(iso)
+  const ndays = days.length
+  const firstDs = dsList[0], lastDs = dsList[ndays - 1]
+
+  // All-day items (courses, holidays, untimed engagements) -> continuous spanning bars, lane-packed.
+  const adItems = blocks
+    .filter((b) => (b.isEngagement ? (b.start === b.end && !b.startTime) : true))
+    .filter((b) => b.start && b.end && b.start <= lastDs && b.end >= firstDs)
+    .map((b) => {
+      let sc = dsList.findIndex((ds) => ds >= b.start); if (sc < 0) sc = 0
+      let ec = ndays - 1; for (let k = ndays - 1; k >= 0; k--) { if (dsList[k] <= b.end) { ec = k; break } }
+      return { b, sc, ec }
+    })
+    .sort((a, z) => a.sc - z.sc || a.ec - z.ec)
+  const lanes = []
+  for (const it of adItems) { let ln = 0; while (ln < lanes.length && lanes[ln] >= it.sc) ln++; lanes[ln] = it.ec; it.lane = ln }
+  const ROW = 22, bandH = Math.max(1, lanes.length) * ROW + 4
 
   return (
     <div className={'wt ' + (view === 'Day' ? 'wt-dayview' : 'wt-weekview')}>
       <div className="wt-gutter">
         <div className="wt-head wt-gh" />
-        <div className="wt-allday wt-ga"><span className="muted">all-day</span></div>
+        <div className="wt-ga" style={{ height: bandH }}><span className="muted">all-day</span></div>
         <div className="wt-grid wt-gg" style={{ height: GRIDH }}>
           {hours.map((h) => <div key={h} className="wt-hr" style={{ height: HPX }}>{String(h).padStart(2, '0')}:00</div>)}
         </div>
       </div>
-      <div className="wt-cols">
-        {days.map((d) => {
-          const ds = iso(d)
-          const allday = blocks.filter((b) => (b.isEngagement ? (b.start === ds && !b.startTime) : (b.start && ds >= b.start && ds <= b.end)))
-          const timed = blocks.filter((b) => b.isEngagement && b.start === ds && b.startTime)
-          const wkndDay = (new Date(ds + 'T00:00:00').getDay() % 6) === 0
-          return (
-            <div key={ds} className={'wt-col' + (ds === today ? ' today' : '')}>
-              <div className="wt-head">{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div>
-              <div className="wt-allday" onMouseDown={(e) => { if (e.target.classList.contains('wt-allday')) onCreate(ds, ds) }}>
-                {allday.map((b) => {
-                  const wk = wkndDay && !b.isEngagement
-                  return (
-                    <button key={b.id} className={'wd-bar' + (wk ? ' wknd' : '')} style={wk ? { borderColor: colourFor(b), color: colourFor(b) } : { background: colourFor(b) }}
-                      onMouseDown={(e) => e.stopPropagation()} onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
-                      onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
-                      <span className="wd-bar-t">{b.course}</span>
-                    </button>
-                  )
-                })}
+      <div className="wt-main">
+        <div className="wt-headrow">
+          {days.map((d) => { const ds = iso(d); return <div key={ds} className={'wt-head' + (ds === today ? ' today' : '')}>{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div> })}
+        </div>
+        <div className="wt-band" style={{ height: bandH }}>
+          <div className="wt-band-cells">{days.map((d) => { const ds = iso(d); return <div key={ds} className="wt-band-cell" onMouseDown={() => onCreate(ds, ds)} /> })}</div>
+          {adItems.map((it) => {
+            const b = it.b, span = it.ec - it.sc + 1
+            return (
+              <button key={b.id} className="wt-abar" style={{ left: (it.sc / ndays * 100) + '%', width: (span / ndays * 100) + '%', top: it.lane * ROW + 2, background: colourFor(b) }}
+                onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
+                {!b.isEngagement && Array.from({ length: span }).map((_, k) => { const wd = (new Date(dsList[it.sc + k] + 'T00:00:00').getDay() % 6) === 0; return wd ? <span key={k} className="yc-wknd-cut" style={{ left: (k / span * 100) + '%', width: (1 / span * 100) + '%' }} /> : null })}
+                <span className="wd-bar-t">{b.course}</span>
+              </button>
+            )
+          })}
+        </div>
+        <div className="wt-gridrow">
+          {days.map((d) => {
+            const ds = iso(d)
+            const timed = blocks.filter((b) => b.isEngagement && b.start === ds && b.startTime)
+            return (
+              <div key={ds} className={'wt-col' + (ds === today ? ' today' : '')}>
+                <div className="wt-grid" style={{ height: GRIDH, backgroundImage: gridBg }} onMouseDown={(e) => gridDown(ds, e)}>
+                  {timed.map((b) => {
+                    const s = tmin(b.startTime); const en = b.endTime ? tmin(b.endTime) : s + 60
+                    const top = (s - H0 * 60) * HPX / 60; const h = Math.max(20, (en - s) * HPX / 60)
+                    return (
+                      <div key={b.id} className="wt-ev" style={{ top, height: h, background: colourFor(b) }}
+                        onMouseDown={(e) => evDrag(b, ds, e, 'mv')}
+                        onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
+                        onClick={(e) => { e.stopPropagation(); if (movedRef.current) return; onOpen(b) }}>
+                        <span className="wt-ev-t">{b.title}</span>
+                        <span className="wt-ev-time">{mtime(s)}–{mtime(en)}</span>
+                        <span className="wt-ev-grip" onMouseDown={(e) => evDrag(b, ds, e, 're')} />
+                      </div>
+                    )
+                  })}
+                  {create && create.ds === ds && (() => {
+                    const lo = Math.min(create.a, create.b), hi = Math.max(Math.max(create.a, create.b), lo + SNAP)
+                    const top = (lo - H0 * 60) * HPX / 60; const h = Math.max(8, (hi - lo) * HPX / 60)
+                    return <div className="wt-ev wt-ev-ghost" style={{ top, height: h }}><span className="wt-ev-time">{mtime(lo)}–{mtime(hi)}</span></div>
+                  })()}
+                </div>
               </div>
-              <div className="wt-grid" style={{ height: GRIDH, backgroundImage: gridBg }} onMouseDown={(e) => gridDown(ds, e)}>
-                {timed.map((b) => {
-                  const s = tmin(b.startTime); const en = b.endTime ? tmin(b.endTime) : s + 60
-                  const top = (s - H0 * 60) * HPX / 60; const h = Math.max(20, (en - s) * HPX / 60)
-                  return (
-                    <div key={b.id} className="wt-ev" style={{ top, height: h, background: colourFor(b) }}
-                      onMouseDown={(e) => evDrag(b, ds, e, 'mv')}
-                      onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
-                      onClick={(e) => { e.stopPropagation(); if (movedRef.current) return; onOpen(b) }}>
-                      <span className="wt-ev-t">{b.title}</span>
-                      <span className="wt-ev-time">{mtime(s)}–{mtime(en)}</span>
-                      <span className="wt-ev-grip" onMouseDown={(e) => evDrag(b, ds, e, 're')} />
-                    </div>
-                  )
-                })}
-                {create && create.ds === ds && (() => {
-                  const lo = Math.min(create.a, create.b), hi = Math.max(Math.max(create.a, create.b), lo + SNAP)
-                  const top = (lo - H0 * 60) * HPX / 60; const h = Math.max(8, (hi - lo) * HPX / 60)
-                  return <div className="wt-ev wt-ev-ghost" style={{ top, height: h }}><span className="wt-ev-time">{mtime(lo)}–{mtime(hi)}</span></div>
-                })()}
-              </div>
-            </div>
-          )
-        })}
+            )
+          })}
+        </div>
       </div>
       {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
