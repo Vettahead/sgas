@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth, DayPilotCalendar } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -65,7 +65,7 @@ function blockBackground(b, base) {
   return base
 }
 
-export default function Calendar({ go, isAdmin }) {
+export default function Calendar({ go, isAdmin, user }) {
   const saved = loadPrefs()
   const [view, setView] = useState(saved.view || 'Month')
   const [selSchemes, setSelSchemes] = useState(() => new Set(saved.schemes || []))
@@ -91,14 +91,19 @@ export default function Calendar({ go, isAdmin }) {
   const monthRef = useRef(null)
 
   async function refresh() {
-    const [b, c, s, cats, hol] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays()])
+    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays(), listEngagements(user?.user_id)])
     try { await loadPool() } catch { /* pool optional */ }
     const holBlocks = hol.map((h) => ({
       id: 'h' + h.holidayId, holidayId: h.holidayId, isHoliday: true, staffId: h.staffId, staffName: h.staffName, note: h.note,
       course: '🏖 ' + h.staffName, scheme: 'Holiday', color: '#8a94a6', start: h.start, end: h.end,
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
-    const all = [...b, ...holBlocks]
+    const engBlocks = eng.map((e) => ({
+      id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true, title: e.title, startTime: e.startTime, endTime: e.endTime,
+      course: e.title, scheme: 'Engagement', color: '#475569', start: e.date, end: e.date,
+      trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
+    }))
+    const all = [...b, ...holBlocks, ...engBlocks]
     setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool()); setNonce((n) => n + 1)
     return all
   }
@@ -111,7 +116,7 @@ export default function Calendar({ go, isAdmin }) {
 
   // Admins get a Staff-view / Edit-view chooser; everyone else opens read-only.
   function openBlk(b) {
-    if (b.isHoliday) { setPanelMode('view'); setOpenBlock(b); return }
+    if (b.isHoliday || b.isEngagement) { setPanelMode('view'); setOpenBlock(b); return }
     if (isAdmin) { setPendingBlock(b) }
     else { setPanelMode('view'); setOpenBlock(b) }
   }
@@ -122,8 +127,8 @@ export default function Calendar({ go, isAdmin }) {
   // Apply the filters once; both the calendar AND the resource lanes use this.
   const filtered = useMemo(() => {
     let list = blocks || []
-    if (selSchemes.size) list = list.filter((b) => b.isHoliday || selSchemes.has(b.scheme))
-    if (selStaff.size) list = list.filter((b) => b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId)))
+    if (selSchemes.size) list = list.filter((b) => b.isHoliday || b.isEngagement || selSchemes.has(b.scheme))
+    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true : (b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId))))
     if (!showFinished) list = list.filter((b) => !b.end || b.end >= todayISO())
     return list
   }, [blocks, selSchemes, selStaff, showFinished])
@@ -247,7 +252,7 @@ export default function Calendar({ go, isAdmin }) {
 
       {creating && (
         <CreateModal
-          range={creating} courses={courses} staff={staff}
+          range={creating} courses={courses} staff={staff} user={user}
           onClose={() => setCreating(null)}
           onCreated={async () => { setCreating(null); await refresh() }}
         />
@@ -259,9 +264,11 @@ export default function Calendar({ go, isAdmin }) {
       )}
       {openBlock && (openBlock.isHoliday
         ? <HolidayDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
-        : <BlockDrawer b={openBlock} mode={panelMode} isAdmin={isAdmin} onSwitchMode={setPanelMode}
-            courses={courses} staff={staff} pool={pool} categories={categories} holidays={holidays} go={go}
-            onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />)}
+        : openBlock.isEngagement
+          ? <EngagementDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
+          : <BlockDrawer b={openBlock} mode={panelMode} isAdmin={isAdmin} onSwitchMode={setPanelMode}
+              courses={courses} staff={staff} pool={pool} categories={categories} holidays={holidays} go={go}
+              onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />)}
     </div>
   )
 }
@@ -336,23 +343,31 @@ function Legend({ blocks, colourBy }) {
   )
 }
 
-function CreateModal({ range, courses, staff, onClose, onCreated }) {
+function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
   const [courseId, setCourseId] = useState('')
   const [staffId, setStaffId] = useState('')
   const [from, setFrom] = useState(range.from)
   const [to, setTo] = useState(range.to)
   const [note, setNote] = useState('')
+  const [title, setTitle] = useState('')
+  const [startTime, setStartTime] = useState('09:00')
+  const [endTime, setEndTime] = useState('12:00')
   const [busy, setBusy] = useState(false)
   const isHoliday = courseId === 'HOLIDAY'
+  const isEngagement = courseId === 'ENGAGEMENT'
   async function save() {
     if (!courseId) return toast('Pick a type')
-    if (from > to) return toast('Start must be on or before end')
     setBusy(true)
     try {
-      if (isHoliday) { await createHoliday({ staffId, from, to, note }); toast('Holiday added') }
-      else {
+      if (isHoliday) {
+        if (from > to) { setBusy(false); return toast('Start must be on or before end') }
+        await createHoliday({ staffId, from, to, note }); toast('Holiday added')
+      } else if (isEngagement) {
+        await createEngagement({ ownerUserId: user?.user_id, title, date: from, startTime, endTime }); toast('Added to your calendar')
+      } else {
+        if (from > to) { setBusy(false); return toast('Start must be on or before end') }
         const f = snapWeekday(from, true), t = snapWeekday(to, false)
-        if (f > t) { setBusy(false); return toast('A course can\'t run only over a weekend') }
+        if (f > t) { setBusy(false); return toast("A course can't run only over a weekend") }
         await createBlock({ courseId: Number(courseId), from: f, to: t })
         toast(f !== from || t !== to ? 'Block created (moved off the weekend)' : 'Block created')
       }
@@ -362,15 +377,26 @@ function CreateModal({ range, courses, staff, onClose, onCreated }) {
   return (
     <div className="modal-overlay">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{isHoliday ? 'New holiday' : 'New block'}</h3>
-        <p className="muted small">Drag created {from} → {to}. {isHoliday ? 'Pick the staff member.' : 'Pick the course and confirm.'}</p>
+        <h3>{isHoliday ? 'New holiday' : isEngagement ? 'New calendar entry' : 'New block'}</h3>
+        <p className="muted small">{isEngagement ? 'A personal entry on your calendar.' : `Drag created ${from} → ${to}.`}</p>
         <label className="fld">Type
           <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
             <option value="">— select —</option>
+            <option value="ENGAGEMENT">🗒 Calendar entry (meeting / call)</option>
             <option value="HOLIDAY">🏖 Holiday (staff time off)</option>
             {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}{c.scheme ? ` (${c.scheme})` : ''}</option>)}
           </select>
         </label>
+        {isEngagement && (
+          <>
+            <label className="fld">Title<input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Call with John" /></label>
+            <label className="fld">Date<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <div className="cal-dates">
+              <label className="fld">From<input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} /></label>
+              <label className="fld">To<input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} /></label>
+            </div>
+          </>
+        )}
         {isHoliday && (
           <label className="fld">Staff member
             <select value={staffId} onChange={(e) => setStaffId(e.target.value)}>
@@ -379,16 +405,44 @@ function CreateModal({ range, courses, staff, onClose, onCreated }) {
             </select>
           </label>
         )}
-        <div className="cal-dates">
-          <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
-          <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
-        </div>
+        {!isEngagement && (
+          <div className="cal-dates">
+            <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
+            <label className="fld">End<input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></label>
+          </div>
+        )}
         {isHoliday && <label className="fld">Note (optional)<input type="text" value={note} onChange={(e) => setNote(e.target.value)} /></label>}
         <div className="modal-foot">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? 'Add holiday' : 'Create block')}</button>
+          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? 'Add holiday' : isEngagement ? 'Add to calendar' : 'Create block')}</button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function EngagementDrawer({ b, onChanged, onClose }) {
+  const [busy, setBusy] = useState(false)
+  const t = (x) => (x ? String(x).slice(0, 5) : '')
+  async function del() {
+    setBusy(true)
+    try { await deleteEngagement(b.engagementId); toast('Removed'); if (onChanged) await onChanged(); onClose() }
+    catch (e) { toast(e.message); setBusy(false) }
+  }
+  return (
+    <div className="cal-rpanel-wrap">
+      <div className="cal-rpanel-backdrop" />
+      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #475569' }}>
+          <div className="cal-rpanel-title"><h3>🗒 {b.title}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+          <span className="muted small">{b.start}{b.startTime ? ' · ' + t(b.startTime) + (b.endTime ? '–' + t(b.endTime) : '') : ''}</span>
+        </div>
+        <div className="cal-sec"><div className="muted small">Your personal calendar entry.</div></div>
+        <div className="cal-rpanel-foot">
+          <button className="btn sm danger" onClick={del} disabled={busy}>Delete</button>
+          <button className="btn sm" onClick={onClose}>Done</button>
+        </div>
+      </aside>
     </div>
   )
 }
@@ -836,7 +890,7 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate }) {
                     onMouseDown={(e) => e.stopPropagation()}
                     onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
                     onClick={(e) => { e.stopPropagation(); onOpen(b) }}>
-                    <span className="wd-bar-t">{b.course}{b.delegates.length ? ` · ${b.delegates.length}` : ''}</span>
+                    <span className="wd-bar-t">{b.course}{b.isEngagement && b.startTime ? ' · ' + String(b.startTime).slice(0, 5) + (b.endTime ? '–' + String(b.endTime).slice(0, 5) : '') : (b.delegates.length ? ` · ${b.delegates.length}` : '')}</span>
                   </button>
                 )
               })}

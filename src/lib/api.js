@@ -1150,6 +1150,35 @@ export function weekdayDays(from, to) {
   return n
 }
 
+// ---- Engagements (personal timed calendar entries) --------------------------
+export async function listEngagements(ownerUserId) {
+  if (LIVE) {
+    let q = supabase.from('engagement').select('engagement_id,owner_user_id,title,start_date,start_time,end_time').order('start_date')
+    if (ownerUserId != null) q = q.eq('owner_user_id', ownerUserId)
+    const { data } = await q
+    return (data || []).map((e) => ({ engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time }))
+  }
+  D.engagements = D.engagements || []
+  return D.engagements.filter((e) => ownerUserId == null || e.owner_user_id === ownerUserId)
+    .map((e) => ({ engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title, date: e.start_date, startTime: e.start_time, endTime: e.end_time }))
+}
+export async function createEngagement({ ownerUserId, title, date, startTime, endTime }) {
+  if (!title || !title.trim()) throw new Error('Enter a title')
+  if (!date) throw new Error('Pick a date')
+  if (LIVE) {
+    const { error } = await supabase.from('engagement').insert({ owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null })
+    if (error) throw new Error(error.message)
+    return
+  }
+  D.engagements = D.engagements || []; D.seq.engagement = D.seq.engagement || 0
+  D.engagements.push({ engagement_id: ++D.seq.engagement, owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, start_time: startTime || null, end_time: endTime || null })
+}
+export async function deleteEngagement(engagementId) {
+  const id = Number(engagementId)
+  if (LIVE) { const { error } = await supabase.from('engagement').delete().eq('engagement_id', id); if (error) throw new Error(error.message); return }
+  D.engagements = (D.engagements || []).filter((e) => e.engagement_id !== id)
+}
+
 // Booking-type for a delegate inside a block: a no-show/NYC disposition wins,
 // otherwise reassessment vs new. Mirrors the waiting-pool colour kinds.
 const delegateKind = (disposition, isReassess) =>
