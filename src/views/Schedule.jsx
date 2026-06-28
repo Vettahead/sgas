@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getPool, loadPool, getReschedulePool, rescheduleDelegate, returnToPool, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, pushBlockToTeamup, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, loadPool, getReschedulePool, rescheduleDelegate, returnToPool, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -557,10 +557,6 @@ function AddQualRow({ d, scheme, categories, onAdded }) {
 }
 function BlockFooter({ b }) {
   const hasDelegates = b.delegates.length > 0
-  async function push() {
-    const r = await pushBlockToTeamup(b.id)
-    toast(`⟳ ${r.course}: would push to ${r.targets.join(', ') || 'no staff yet'}. ${r.note}`)
-  }
   async function forms(zip) {
     try {
       const data = await getBlockFormData(b.id)
@@ -581,9 +577,6 @@ function BlockFooter({ b }) {
         </div>
       </div>
       <div className="cfoot">
-        <button className="btn" style={{ width: '100%' }} disabled={!b.ready} onClick={push}>
-          {b.ready ? 'Push to Teamup ⟳' : 'Assign a trainer + a delegate'}
-        </button>
         <div className="form-row">
           <button className="btn-form" disabled={!hasDelegates} onClick={() => forms(false)} title="Batch-print one combined ACS form PDF for every delegate on this block">📄 Print ACS forms</button>
           <button className="btn-form ghost" disabled={!hasDelegates} onClick={() => forms(true)} title="Download one PDF per delegate as a zip">🗂 Zip</button>

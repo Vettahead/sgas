@@ -126,7 +126,6 @@ function AddCourse({ onDone }) {
       </div>
       <div className="twocol">
         <Field label="Package price (£, optional)" v={d.price} on={(v) => setD({ ...d, price: v })} placeholder="leave blank — price by module" />
-        <Field label="Teamup designator (optional)" v={d.teamup_designator} on={(v) => setD({ ...d, teamup_designator: v })} />
       </div>
       <button className="btn sm" onClick={save}>Add course</button>
     </div>
@@ -188,7 +187,6 @@ function CourseEdit({ course, onSaved }) {
       </div>
       <div className="twocol">
         <Field label="Package price (£, optional)" v={d.price} on={(v) => setD({ ...d, price: v })} placeholder="leave blank — price by module" />
-        <Field label="Teamup designator" v={d.teamup_designator} on={(v) => setD({ ...d, teamup_designator: v })} />
       </div>
       <div className="twocol">
         <div className="field">

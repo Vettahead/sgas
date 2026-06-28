@@ -1203,16 +1203,6 @@ export async function addQualsToBooking(bookingId, cats) {
   return n
 }
 
-// STUB: real Teamup push lands here once API + access keys are in place. It will
-// upsert this block onto each assigned staff member's Teamup sub-calendar.
-// For now it just reports what WOULD be pushed so the UI can confirm.
-export async function pushBlockToTeamup(blockId) {
-  const blocks = await listBlocks()
-  const b = blocks.find((x) => x.id === blockId)
-  if (!b) throw new Error('Block not found')
-  const targets = [b.trainer, b.assessor, b.verifier].filter(Boolean)
-  return { course: b.course, targets, note: 'Teamup integration not yet connected — this is a preview of what will be pushed.' }
-}
 
 // --- Catalogue tidy tools (move = updateCourse/updateCategory with {scheme}; delete below) ---
 export async function deleteCourse(courseId) {

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { listUsers, createUser, updateUser, setUserPassword, listStaff } from '../lib/api.js'
+import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { toast } from '../lib/toast.js'
 
+// One place for staff: every staff person is assignable (Trainer/Assessor/Verifier)
+// AND has a login with a role. Replaces the old separate Staff tab.
 export default function Admin({ currentUser }) {
-  // In live mode the admin re-confirms their password to unlock management
-  // (it is verified in the database). In demo mode no unlock is needed.
   const [unlocked, setUnlocked] = useState(!LIVE)
   const [adminAuth, setAdminAuth] = useState(LIVE ? null : undefined)
   const [pw, setPw] = useState('')
@@ -17,49 +17,58 @@ export default function Admin({ currentUser }) {
   const [staff, setStaff] = useState([])
   const [loading, setLoading] = useState(!LIVE)
   const [showAdd, setShowAdd] = useState(false)
-  const [nu, setNu] = useState({ username: '', name: '', email: '', role: 'STANDARD', password: '', staffId: '' })
-  const [created, setCreated] = useState(null) // show copyable details after creating a user
+  const [nu, setNu] = useState({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
   const [resetId, setResetId] = useState(null)
   const [resetPw, setResetPw] = useState('')
+  const [created, setCreated] = useState(null)
+  const [loginFor, setLoginFor] = useState(null)
+  const [loginForm, setLoginForm] = useState({ username: '', role: 'STANDARD', password: '' })
 
   async function load(auth) {
     setLoading(true)
-    try { setUsers(await listUsers(auth)); listStaff().then(setStaff).catch(() => {}) }
+    try { const [u, s] = await Promise.all([listUsers(auth), listStaff()]); setUsers(u); setStaff(s) }
     catch (e) { toast(e.message) }
     finally { setLoading(false) }
   }
-
   useEffect(() => { if (!LIVE) load(undefined) }, [])
 
   async function unlock(e) {
     e.preventDefault()
     setUnlockErr(''); setUnlocking(true)
     const auth = { username: currentUser.username, password: pw }
-    try {
-      const list = await listUsers(auth)
-      setUsers(list); setAdminAuth(auth); setUnlocked(true); setPw('')
-    } catch (ex) {
-      setUnlockErr(ex.message || 'Could not unlock')
-    } finally { setUnlocking(false) }
+    try { await load(auth); setAdminAuth(auth); setUnlocked(true); setPw('') }
+    catch (ex) { setUnlockErr(ex.message || 'Could not unlock') }
+    finally { setUnlocking(false) }
   }
 
-  async function add() {
+  const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
+
+  async function addStaff() {
+    if (!nu.name.trim()) return toast('Name is required')
+    if (!nu.username.trim()) return toast('Username is required')
+    if (!nu.password) return toast('Password is required')
     try {
-      await createUser(nu, adminAuth)
-      toast(`User created: ${nu.username}`)
-      setCreated({ username: nu.username, name: nu.name, email: nu.email, role: nu.role, password: nu.password })
-      setNu({ username: '', name: '', email: '', role: 'STANDARD', password: '', staffId: '' })
-      setShowAdd(false)
-      load(adminAuth)
+      const st = await createStaff({ name: nu.name.trim(), email: nu.email, room: nu.room })
+      await createUser({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password, staffId: st.staff_id }, adminAuth)
+      toast('Staff member created')
+      setCreated({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password })
+      setNu({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
+      setShowAdd(false); load(adminAuth)
+    } catch (e) { toast(e.message) }
+  }
+  async function createLogin(staffId) {
+    if (!loginForm.username.trim() || !loginForm.password) return toast('Username and password required')
+    const st = staff.find((s) => s.staff_id === staffId)
+    try {
+      await createUser({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password, staffId }, adminAuth)
+      toast('Login created')
+      setCreated({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password })
+      setLoginFor(null); setLoginForm({ username: '', role: 'STANDARD', password: '' }); load(adminAuth)
     } catch (e) { toast(e.message) }
   }
   async function changeRole(u, role) {
     if (role === u.role) return
     try { await updateUser(u.user_id, { role }, adminAuth); load(adminAuth) }
-    catch (e) { toast(e.message) }
-  }
-  async function linkStaff(u, staffId) {
-    try { await updateUser(u.user_id, { staffId }, adminAuth); toast('Staff link updated'); load(adminAuth) }
     catch (e) { toast(e.message) }
   }
   async function toggleActive(u) {
@@ -68,11 +77,8 @@ export default function Admin({ currentUser }) {
   }
   async function saveReset(u) {
     if (!resetPw) return toast('Enter a new password')
-    try {
-      await setUserPassword(u.user_id, resetPw, adminAuth)
-      toast(`Password reset for ${u.username}`)
-      setResetId(null); setResetPw('')
-    } catch (e) { toast(e.message) }
+    try { await setUserPassword(u.user_id, resetPw, adminAuth); toast(`Password reset for ${u.username}`); setResetId(null); setResetPw('') }
+    catch (e) { toast(e.message) }
   }
 
   if (!unlocked) {
@@ -91,63 +97,120 @@ export default function Admin({ currentUser }) {
     )
   }
 
+  const orphanAccounts = users.filter((u) => !u.staffId || !staff.some((s) => s.staff_id === u.staffId))
+
   return (
     <>
-      <div className="hint">Staff accounts live in your database and are managed here. In live mode, logins are verified inside Postgres (bcrypt) and the accounts table is locked so the app key can't read password hashes. Each <b>role</b> sees only the screens it needs — Admin sees everything; Standard is reception; Scheduler builds the timetable; Assessor marks results; Accounts handles payments.</div>
+      <div className="hint">Everyone who delivers or assesses lives here. Adding a staff member creates both their <b>assignable record</b> (Trainer / Assessor / Verifier on a course block) and their <b>login</b> with a role. Logins are verified inside Postgres (bcrypt) and the accounts table is locked so the app key can't read password hashes.</div>
+
       <div className="card">
-        <h3>👥 Staff accounts <span className="tag">{users.length} users</span>
-          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setShowAdd(!showAdd)}>＋ New user</button>
+        <h3>🎓 Staff &amp; access <span className="tag">{staff.length} staff</span>
+          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setShowAdd(!showAdd)}>＋ New staff member</button>
         </h3>
 
         {showAdd && (
           <div className="body">
             <div className="subform">
-              <div className="sfh">New staff account</div>
+              <div className="sfh">New staff member</div>
               <div className="twocol">
-                <Inp label="Username" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
                 <Inp label="Full name" v={nu.name} on={(v) => setNu({ ...nu, name: v })} />
+                <Inp label="Email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
               </div>
               <div className="twocol">
-                <Inp label="Email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
+                <Inp label="Room (optional)" v={nu.room} on={(v) => setNu({ ...nu, room: v })} />
+                <Inp label="Username (for login)" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
+              </div>
+              <div className="twocol">
                 <div className="field">
                   <label className="fl">Role</label>
                   <select value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}>
                     {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                   </select>
                 </div>
+                <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
               </div>
-              <div className="field">
-                <label className="fl">Linked staff member <span className="muted small">— so their dashboard shows their own calendar</span></label>
-                <select value={nu.staffId} onChange={(e) => setNu({ ...nu, staffId: e.target.value })}>
-                  <option value="">— not linked —</option>
-                  {staff.map((st) => <option key={st.staff_id} value={st.staff_id}>{st.name}</option>)}
-                </select>
-              </div>
-              <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
               <div className="inrow">
-                <button className="btn sm" onClick={add}>Create user</button>
+                <button className="btn sm" onClick={addStaff}>Create staff member</button>
                 <button className="btn ghost sm" onClick={() => setShowAdd(false)}>Cancel</button>
               </div>
             </div>
           </div>
         )}
 
-        {loading ? <div className="loading">Loading users…</div> : (
+        {loading ? <div className="loading">Loading staff…</div> : (
           <table>
-            <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Role</th><th>Staff</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {users.map((u) => {
+              {staff.length === 0 && <tr><td colSpan={7} className="empty">No staff yet — add the first one above.</td></tr>}
+              {staff.map((st) => {
+                const u = userForStaff(st.staff_id)
+                const isSelf = u && currentUser && u.user_id === currentUser.user_id
+                return (
+                  <tr key={st.staff_id}>
+                    <td><b>{st.name}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
+                    <td className="muted">{st.email || '—'}</td>
+                    <td className="muted small">{st.room || '—'}</td>
+                    <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
+                    <td>{u
+                      ? <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
+                          {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                        </select>
+                      : '—'}</td>
+                    <td>{u ? (u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>) : <span className="muted small">—</span>}</td>
+                    <td>
+                      {u ? (
+                        resetId === u.user_id ? (
+                          <span className="inrow" style={{ maxWidth: 320 }}>
+                            <input type="password" placeholder="new password" value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
+                            <button className="btn sm" onClick={() => saveReset(u)}>Save</button>
+                            <button className="btn ghost sm" onClick={() => { setResetId(null); setResetPw('') }}>✕</button>
+                          </span>
+                        ) : (
+                          <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                            <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
+                            <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
+                          </span>
+                        )
+                      ) : (
+                        loginFor === st.staff_id ? (
+                          <span className="inrow" style={{ flexWrap: 'wrap', maxWidth: 380 }}>
+                            <input type="text" placeholder="username" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} style={{ maxWidth: 130 }} />
+                            <select className="rolesel" value={loginForm.role} onChange={(e) => setLoginForm({ ...loginForm, role: e.target.value })}>
+                              {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                            </select>
+                            <input type="password" placeholder="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={{ maxWidth: 120 }} />
+                            <button className="btn sm" onClick={() => createLogin(st.staff_id)}>Save</button>
+                            <button className="btn ghost sm" onClick={() => setLoginFor(null)}>✕</button>
+                          </span>
+                        ) : (
+                          <button className="btn ghost sm" onClick={() => { setLoginFor(st.staff_id); setLoginForm({ username: (st.email || st.name || '').trim(), role: 'STANDARD', password: '' }) }}>Create login</button>
+                        )
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      {orphanAccounts.length > 0 && (
+        <div className="card" style={{ marginTop: 18 }}>
+          <h3>🔑 Other accounts <span className="tag">{orphanAccounts.length}</span></h3>
+          <div className="body" style={{ paddingBottom: 0 }}><span className="muted small">Logins not tied to a staff record (e.g. the original admin). Manage their role and access here.</span></div>
+          <table>
+            <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {orphanAccounts.map((u) => {
                 const isSelf = currentUser && u.user_id === currentUser.user_id
                 return (
                   <tr key={u.user_id}>
                     <td><b>{u.username}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
                     <td>{u.name || '—'}</td>
-                    <td className="muted">{u.email || '—'}</td>
-                    <td><span className={'b ' + (u.role === 'ADMIN' ? 'due' : 'scheme')}>{ROLE_LABELS[u.role] || u.role}</span></td>
                     <td>
-                      <select className="rolesel" value={u.staffId || ''} onChange={(e) => linkStaff(u, e.target.value)} title="Link this login to a staff record">
-                        <option value="">— none —</option>
-                        {staff.map((st) => <option key={st.staff_id} value={st.staff_id}>{st.name}</option>)}
+                      <select className="rolesel" value={u.role} disabled={isSelf} onChange={(e) => changeRole(u, e.target.value)}>
+                        {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                       </select>
                     </td>
                     <td>{u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>}</td>
@@ -161,9 +224,6 @@ export default function Admin({ currentUser }) {
                       ) : (
                         <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                           <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
-                          <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
-                            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                          </select>
                           <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
                         </span>
                       )}
@@ -173,8 +233,9 @@ export default function Admin({ currentUser }) {
               })}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
+
       {created && <CreatedModal u={created} onClose={() => setCreated(null)} />}
     </>
   )
@@ -197,7 +258,7 @@ Please sign in and change your password after your first login.`
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>User created — share these details</h3>
+        <h3>Login created — share these details</h3>
         <p className="muted small">No email is sent yet. Copy this and pass it to {u.name || u.username} securely.</p>
         <textarea readOnly rows={7} value={text} onFocus={(e) => e.target.select()} />
         <div className="modal-foot">

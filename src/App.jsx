@@ -13,7 +13,6 @@ import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
 import Companies from './views/Companies.jsx'
-import Staff from './views/Staff.jsx'
 import Courses from './views/Courses.jsx'
 import Admin from './views/Admin.jsx'
 
@@ -23,13 +22,12 @@ const TITLES = {
   dash: ['Dashboard', 'The renewal engine, scheduled sessions, and what is outstanding'],
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
-  sched: ['Schedule', 'Assign a trainer, assessor and verifier to each Teamup block, then add delegates'],
+  sched: ['Schedule', 'Assign a trainer to each course block and add delegates (assessor & verifier are set in Assess)'],
   calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day, staff or year'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
   companies: ['Companies', 'Employers and sole traders — the only payers'],
-  staff: ['Staff', 'Trainers, assessors and verifiers — each with their own Teamup sub-calendar'],
   courses: ['Courses', 'Qualification pools delegates book onto'],
   admin: ['Admin', 'Manage staff accounts and access'],
 }
@@ -47,7 +45,6 @@ const NAV_GROUPS = [
   { grp: 'Records', items: [
     { v: 'delegates', ic: '👤', label: 'Delegates' },
     { v: 'companies', ic: '🏢', label: 'Companies' },
-    { v: 'staff', ic: '🎓', label: 'Staff' },
     { v: 'courses', ic: '📚', label: 'Courses' },
   ] },
   { grp: 'Settings', items: [
@@ -153,7 +150,6 @@ export default function App() {
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
           {activeView === 'companies' && <Companies go={go} />}
-          {activeView === 'staff' && <Staff />}
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
         </div>
