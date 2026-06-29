@@ -11,7 +11,7 @@ const UPDATED = '29 Jun 2026'
 
 // Each section = a group of question/answer pairs.
 // q = question, a = answer (array of paragraphs; a leading "•" line becomes a bullet).
-const SECTIONS = [
+export const SECTIONS = [
   // ── 1. The basics ───────────────────────────────────────────────────────────
   {
     id: 'basics', icon: '🚀', title: 'Getting started',
@@ -513,8 +513,24 @@ const SECTIONS = [
   },
 ]
 
+// Which Help section(s) belong to each page (used by the per-page "?" button).
+export const VIEW_HELP = {
+  dash: ['dashboard', 'basics'],
+  inquiries: ['inquiries'],
+  book: ['book'],
+  sched: ['schedule'],
+  calendar: ['calendar'],
+  assess: ['assess', 'acs'],
+  pay: ['payments'],
+  delegates: ['delegates'],
+  companies: ['companies'],
+  courses: ['courses'],
+  admin: ['admin', 'roles'],
+  roadmap: ['progress'],
+}
+
 // Turn an answer line into a paragraph or a bullet (lines starting with "•").
-function Answer({ lines }) {
+export function Answer({ lines }) {
   const bullets = lines.filter((l) => l.trim().startsWith('•'))
   if (bullets.length === lines.length) {
     return (

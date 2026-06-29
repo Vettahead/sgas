@@ -782,3 +782,31 @@ select,select option{color:#1d2733;background:#fff}
 .help-a .help-p:last-child { margin-bottom: 0; }
 .help-bullets { margin: 2px 0 0; padding-left: 18px; }
 .help-bullets li { margin-bottom: 4px; }
+
+/* ── Per-page help "?" button + popover ──────────────────────────────────── */
+.pagehelp { position: relative; display: inline-flex; }
+.pagehelp-btn { width: 26px; height: 26px; border-radius: 50%; border: 1px solid #c8d2e0;
+  background: #fff; color: #0a5ad6; font-weight: 800; font-size: 14px; line-height: 1; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; }
+.pagehelp-btn:hover, .pagehelp-btn.on { background: #0a5ad6; color: #fff; border-color: #0a5ad6; }
+.pagehelp-pop { position: absolute; top: 34px; right: 0; width: 380px; max-width: 88vw;
+  max-height: 70vh; display: flex; flex-direction: column; background: #fff; color: #1f2733;
+  border: 1px solid #d8dee7; border-radius: 11px; box-shadow: 0 14px 40px rgba(20,30,50,.22);
+  z-index: 300; overflow: hidden; }
+.pagehelp-head { display: flex; align-items: center; justify-content: space-between;
+  padding: 11px 14px; border-bottom: 1px solid #eef1f5; background: #f6f8fb; }
+.pagehelp-head strong { font-size: 14px; }
+.pagehelp-x { border: none; background: none; cursor: pointer; font-size: 14px; color: #6b7686; padding: 2px 4px; }
+.pagehelp-x:hover { color: #1f2733; }
+.pagehelp-body { padding: 12px 14px; overflow-y: auto; }
+.pagehelp-sec + .pagehelp-sec { margin-top: 14px; padding-top: 12px; border-top: 1px solid #eef1f5; }
+.pagehelp-sec-t { font-weight: 700; font-size: 13px; color: #0a5ad6; margin-bottom: 8px; }
+.pagehelp-qa { margin-bottom: 11px; }
+.pagehelp-q { font-weight: 700; font-size: 13.5px; margin-bottom: 2px; }
+.pagehelp-a { font-size: 13px; line-height: 1.5; color: #3a4658; }
+.pagehelp-a .help-p { margin: 0 0 6px; }
+.pagehelp-a .help-bullets { margin: 2px 0 0; padding-left: 17px; }
+.pagehelp-foot { padding: 10px 14px; border-top: 1px solid #eef1f5; background: #fafbfc; }
+.pagehelp-link { border: none; background: none; color: #0a5ad6; font-weight: 600; font-size: 13px;
+  cursor: pointer; padding: 0; }
+.pagehelp-link:hover { text-decoration: underline; }

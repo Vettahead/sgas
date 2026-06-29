@@ -17,6 +17,7 @@ import Courses from './views/Courses.jsx'
 import Admin from './views/Admin.jsx'
 import Roadmap from './views/Roadmap.jsx'
 import Help from './views/Help.jsx'
+import PageHelp from './components/PageHelp.jsx'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -142,6 +143,7 @@ export default function App() {
           <button className="navtoggle" onClick={() => setNavOpen((o) => !o)} title="Toggle menu">☰</button>
           <div><h1>{title}</h1><div className="sub">{sub}</div></div>
           <div className="right">
+            <PageHelp view={activeView} onOpenFaq={() => go('help')} />
             <span className={'srcbadge ' + (LIVE ? 'live' : 'demo')}>{LIVE ? '● LIVE' : '● DEMO'}</span>
             <span className="pill">{today}</span>
             <span>{user.name || user.username} · {roleLabel(user.role)}</span>
