@@ -16,6 +16,7 @@ import Companies from './views/Companies.jsx'
 import Courses from './views/Courses.jsx'
 import Admin from './views/Admin.jsx'
 import Roadmap from './views/Roadmap.jsx'
+import Help from './views/Help.jsx'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -32,6 +33,7 @@ const TITLES = {
   courses: ['Courses', 'Qualification pools delegates book onto'],
   admin: ['Admin', 'Manage staff accounts and access'],
   roadmap: ['Progress', 'Where we are — what’s done, what’s next, and what’s waiting on us'],
+  help: ['Help & FAQ', 'How everything works — search or browse a plain-English guide to every screen'],
 }
 
 const NAV_GROUPS = [
@@ -52,6 +54,9 @@ const NAV_GROUPS = [
   { grp: 'Settings', items: [
     { v: 'admin', ic: '👥', label: 'Admin' },
     { v: 'roadmap', ic: '🗺', label: 'Progress' },
+  ] },
+  { grp: 'Help', items: [
+    { v: 'help', ic: '❓', label: 'Help & FAQ' },
   ] },
 ]
 
@@ -156,6 +161,7 @@ export default function App() {
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
           {activeView === 'roadmap' && isAdmin && <Roadmap />}
+          {activeView === 'help' && <Help />}
         </div>
       </div>
       <ToastHost />

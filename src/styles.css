@@ -760,3 +760,25 @@ select,select option{color:#1d2733;background:#fff}
 .rm-sub .rm-item-d{font-size:12px}
 .rm-move.rm-complete{color:#fff;background:#1a8a4b;border-color:#1a8a4b}
 .rm-move.rm-complete:hover{background:#14713d}
+
+/* ── Help & FAQ page ─────────────────────────────────────────────────────── */
+.help { display: flex; flex-direction: column; gap: 12px; }
+.help-head { display: flex; flex-direction: column; gap: 12px; }
+.help-intro { font-size: 15px; line-height: 1.5; }
+.help-updated { color: #7a8596; font-size: 12px; margin-left: 8px; white-space: nowrap; }
+.help-search { width: 100%; box-sizing: border-box; padding: 11px 14px; font-size: 15px;
+  border: 1px solid #d3d9e2; border-radius: 9px; background: #fff; color: #1f2733; }
+.help-search:focus { outline: none; border-color: #0a5ad6; box-shadow: 0 0 0 3px #eaf1fd; }
+.help-jump { display: flex; flex-wrap: wrap; gap: 7px; }
+.help-chip { border: 1px solid #d8dee7; background: #f6f8fb; color: #3a4658; border-radius: 999px;
+  padding: 5px 11px; font-size: 12.5px; cursor: pointer; }
+.help-chip:hover { background: #eaf1fd; border-color: #0a5ad6; color: #0a5ad6; }
+.help-sec .help-ic { margin-right: 8px; }
+.help-list { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
+.help-qa { border-left: 3px solid #e3e8ef; padding-left: 12px; }
+.help-q { font-weight: 700; font-size: 14.5px; color: #1f2733; margin-bottom: 3px; }
+.help-a { color: #3a4658; font-size: 14px; line-height: 1.55; }
+.help-a .help-p { margin: 0 0 7px; }
+.help-a .help-p:last-child { margin-bottom: 0; }
+.help-bullets { margin: 2px 0 0; padding-left: 18px; }
+.help-bullets li { margin-bottom: 4px; }

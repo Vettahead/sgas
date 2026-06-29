@@ -8,7 +8,7 @@ import { useState } from 'react'
 // Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATED = '28 Jun 2026'
+const UPDATED = '29 Jun 2026'
 
 const STATUS = {
   done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },
@@ -53,6 +53,7 @@ const ITEMS = [
   { t: 'SGAS branding', s: 'done', d: 'SGAS logo and branding throughout the app.' },
 
   // ── Building next ────────────────────────────────────────────────────────────
+  { t: 'In-app Help & FAQ', s: 'review', d: 'A searchable Help & FAQ screen for every user, in plain English, covering every part of the system — getting started, roles, dashboard, inquiries, booking, scheduling, the calendar, assessing, ACS forms, payments, delegates, companies, courses, admin and troubleshooting. (Per-page “how does this work” wizards still to come.)' },
   { t: 'Staff accreditations + expiry tracking', s: 'build', d: 'A bucket of accreditations dragged onto a staff member; on drop it asks for the start date and how long it lasts, then a renewal engine warns when one is running out. The big next piece.' },
   { t: 'GN8 tick rule on the ACS form', s: 'build', d: 'Renewal → tick box 1; anything other than a renewal → leave blank.' },
   { t: 'ACS form tweaks', s: 'build', d: 'Move the name into its own box and stamp the date printed; tick proof of prerequisites; leave the signature blank for a manual sign.' },
