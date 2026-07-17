@@ -1,0 +1,24 @@
+---
+name: sgas-doc-generation
+description: "SGAS §4.7 ACS application-form generation — pdf-lib overlay, where it's wired, open GN8 question"
+metadata: 
+  node_type: memory
+  type: project
+  originSessionId: 3df6b30f-e211-475d-b3ed-d37edca8a70e
+---
+
+§4.7 DOCUMENT GENERATION BUILT & live-buildable (11 Jun 2026, vite build passes: 293 modules, PDF asset bundled). The LCL Awards "Application for Assessment (ACS)" form (`uploads/ACS_Application___Redirection.pdf`, 2 pages) is a FLAT PDF (no AcroForm). We OVERLAY text + ticks onto the authentic template with pdf-lib, client-side — no backend. Chris approved the alignment prototype before porting.
+
+NEW FILES: `src/assets/acs_template.pdf` (bundled via Vite `?url` import) + `src/lib/acspdf.js` (the generator). acspdf.js exports: fillAcsForm(templateBytes,delegates)→Uint8Array (core), downloadForm(d) (single), downloadCombined(delegates,label) (ONE merged PDF), downloadZip(delegates,label) (one PDF/delegate via jszip dynamic import), gn8For(d). Coordinate maps (CODE_POS, DOB_X, NI_X, GN8) were measured from the template with pdfplumber; ticks are drawn as TWO line segments (drawLine) to dodge Helvetica/ZapfDingbats encoding issues. Deps added: pdf-lib 1.17.1 + jszip 3.10.1.
+
+DATA: api.js gained getFormData(bookingId) + getBlockFormData(sessionId) (live+demo, same shape) returning {surname,forename,fullname,dob(DDMMYYYY),ni,house,street,town,city,county,postcode,telephone,email,medical,isReassessment,codes[],redirect}. The `client` table ALREADY has structured address (premise,address_number,street,district,town,county,postcode) so NO migration needed. Qual→form-code map is IDENTITY — category.code already equals the form codes (CCN1,CENWAT,…); tick whatever's booked. redirect = company.send_to_employer!==false ? [name,...address] : null (respects the §4.9 per-company flag — verified: opted-out sole trader gets no redirect).
+
+WIRED IN: Assess.jsx — per-delegate "📄 ACS form" button (downloadForm) + block-level "📄 Generate ACS forms for this block" (downloadCombined). Schedule.jsx BlockFooter — "📄 Print ACS forms" (combined) + "🗂 Zip" (per-delegate zip), disabled when no delegates. styles.css += .btn-form/.block-actions/.cfoot .form-row. Demo clients 1-8 + 4 companies seeded with addresses so demo populates.
+
+OPEN QUESTION for Chris (asked, he said "looks good" to alignment but didn't pick GN8 rule): the GN8 Guidance-Note-8 category (the 1–13 row) is auto-ticked by a SIMPLE DEFAULT in gn8For(): reassessment→"1" (renewal), new→"11" (first time). The REAL GN8 number depends on the learner's held certs (see ACS GN8) — swap gn8For() for the true lookup when SGAS confirm the rule. Everything else on the form auto-fills correctly.
+
+Files for GitHub: src/lib/api.js, src/lib/demo.js, src/lib/acspdf.js (new), src/assets/acs_template.pdf (new), src/views/Assess.jsx, src/views/Schedule.jsx, src/styles.css, package.json/package-lock. NO Supabase migration.
+
+DEPLOY STATUS — RESOLVED (11 Jun 2026): the ACS-forms code is LIVE at https://sgas-opal.vercel.app. Root cause of the earlier "not showing": the "Document test" commit (9678cd9) simply MISSED its GitHub→Vercel webhook (one-off) — it was NOT a config problem. Vercel IS correctly set up: repo connected (Vettahead/sgas, since Jun 7, Settings→Git shows connected), Production Branch = `main` (confirmed by Chris). A FRESH push (a green "Deploy test" banner I added to Dashboard.jsx, since Chris is logged-in and can't see Login.jsx) DID auto-deploy and showed up → proves auto-deploy works; because it built from top of `main`, the ACS forms went live in the same build. So: pushes from GitHub Desktop normally auto-deploy; if one ever silently doesn't, just push again (or add a Deploy Hook — project currently has none). The Deploy-test banner was then REMOVED from Dashboard.jsx (Chris to commit+push the removal). Vercel org = "vettahead's project" (Pro). DEFERRED §4.7 (per roadmap): pack assembly (each qual's supporting docs bundled into one download), employer copy print, full PDF-options module, photo capture (later module). See [[sgas-frontend]], [[sgas-mount-write-gotcha]].
+
+MOUNT GOTCHA — NEW RELIABLE FIX this session: the Write/Edit tools wrote to Windows correctly (Read tool sees full content) but the sandbox MOUNT copies were TRUNCATED at the tail (lost final chunk) → vite "Expected > but found end of file". NEW files written by Write tool synced fine; only OVERWRITES of existing files truncated. FIX THAT WORKED: `git checkout` FAILS (unlink EPERM on mount), but `git show HEAD:path > path` (in-place redirect) restores clean committed originals reliably, then re-apply edits via python in-place writes (open(f,'w').write) which sync fine. Build to a writable outDir to avoid dist/ unlink EPERM: `npx vite build --outDir /tmp/x --emptyOutDir`. See [[sgas-mount-write-gotcha]].
