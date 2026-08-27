@@ -24,6 +24,7 @@ export const RELEASES = [
       'Live countdown on every accreditation: green in date, amber inside the warning window, red expired. Warning window set to 3, 6, 9 or 12 months.',
       'Each accreditation holds a certificate link and name, ready for Dropbox.',
       'Awards staff hold but delegates never book can be marked staff-only, keeping them off the booking screens.',
+      'Both new screens rebuilt on the app’s existing layout so they match the rest of the system.',
     ],
   },
   {

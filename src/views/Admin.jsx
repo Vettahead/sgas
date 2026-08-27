@@ -161,27 +161,21 @@ export default function Admin({ currentUser }) {
     const days = holDays(openStaff.staff_id)
     return (
       <>
-        <button className="crumb" onClick={() => setAccFor(null)}>← All staff</button>
-        <div className="card staffcard">
-          <div className="staffhead">
-            <div>
-              <h3 style={{ margin: 0 }}>{openStaff.name}</h3>
-              <div className="muted small">
-                {openStaff.email || 'no email'} · {openStaff.room || 'no room set'} ·{' '}
-                {u ? `${u.username} (${ROLE_LABELS[u.role] || u.role})` : 'no login'} ·{' '}
-                {days ? `${days} holiday ${days === 1 ? 'day' : 'days'}` : 'no holidays booked'}
-              </div>
-            </div>
+        <button className="linkbtn" style={{ marginBottom: 14 }} onClick={() => setAccFor(null)}>← All staff</button>
+        <div className="card" style={{ marginBottom: 18 }}>
+          <h3>👤 {openStaff.name}
+            {u && <span className="tag">{u.username} · {ROLE_LABELS[u.role] || u.role}</span>}
+          </h3>
+          <div className="body muted small">
+            {openStaff.email || 'no email'} · {openStaff.room || 'no room set'} ·{' '}
+            {days ? `${days} holiday ${days === 1 ? 'day' : 'days'}` : 'no holidays booked'}
           </div>
         </div>
-        <div className="card">
-          <h3>🎓 Accreditations &amp; expiry</h3>
-          <StaffAccreditations
-            staffId={openStaff.staff_id}
-            staffName={openStaff.name}
-            onCount={(rows) => setAccCounts((c) => ({ ...c, [openStaff.staff_id]: summarise(rows) }))}
-          />
-        </div>
+        <StaffAccreditations
+          staffId={openStaff.staff_id}
+          staffName={openStaff.name}
+          onCount={(rows) => setAccCounts((c) => ({ ...c, [openStaff.staff_id]: summarise(rows) }))}
+        />
       </>
     )
   }
@@ -244,12 +238,13 @@ export default function Admin({ currentUser }) {
                     ) : (
                       <>
                         <td>
-                          <button className="staff-link" onClick={() => setAccFor(st.staff_id)} title="Open this person's record">
-                            {st.name}
-                          </button>
-                          {accCounts[st.staff_id]?.expired > 0 && <span className="acc-dot expired" title="An accreditation has expired">!</span>}
-                          {accCounts[st.staff_id]?.expired === 0 && accCounts[st.staff_id]?.due > 0 && <span className="acc-dot due" title="An accreditation is expiring soon">!</span>}
+                          <b className="dn-link" onClick={() => setAccFor(st.staff_id)} title="Open this person's record">{st.name}</b>
                           {isSelf && <span className="muted small"> (you)</span>}
+                          {accCounts[st.staff_id]?.expired > 0
+                            ? <span className="b fail" style={{ marginLeft: 6 }}>{accCounts[st.staff_id].expired} expired</span>
+                            : accCounts[st.staff_id]?.due > 0
+                              ? <span className="b due" style={{ marginLeft: 6 }}>{accCounts[st.staff_id].due} expiring</span>
+                              : null}
                         </td>
                         <td className="muted">{st.email || '—'}</td>
                         <td className="muted small">{st.room || '—'}</td>

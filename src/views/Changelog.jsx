@@ -2,47 +2,45 @@ import { RELEASES, VERSION, BUILD, COMMIT } from '../lib/version.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHANGELOG — what changed, release by release. Admins only.
-// Pure data: everything here comes from RELEASES in src/lib/version.js.
+// Pure data: everything comes from RELEASES in src/lib/version.js.
+// Built from the app's existing card / stat / .b pieces — no bespoke styles.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function Changelog() {
   const current = RELEASES[0]
   return (
-    <div className="col">
-      <div className="card">
-        <div className="cl-head">
-          <div>
-            <div className="cl-now">v{VERSION}</div>
-            <div className="cl-sub">
-              Build {BUILD} · released {current.date}
-              {COMMIT !== 'dev' && <> · <span className="cl-commit" title="The exact push that is live">{COMMIT}</span></>}
-            </div>
+    <>
+      <div className="card" style={{ marginBottom: 18 }}>
+        <h3>📝 Current version <span className="tag">released {current.date}</span></h3>
+        <div className="body">
+          <div className="stat-row">
+            <div className="stat brand"><div className="n">v{VERSION}</div><div className="l">Version</div></div>
+            <div className="stat"><div className="n">{BUILD}</div><div className="l">Times pushed live</div></div>
+            <div className="stat"><div className="n">{RELEASES.length}</div><div className="l">Releases</div></div>
           </div>
-          <div className="cl-count">
-            <b>{RELEASES.length}</b>
-            <span>releases</span>
+          <div className="banner">
+            The <b>version</b> goes up whenever a new feature lands; <b>times pushed live</b> counts every
+            update sent to the site.
+            {COMMIT !== 'dev'
+              ? <> The update running right now is <span className="pill">{COMMIT}</span> — handy for checking whether a change has reached the site yet.</>
+              : <> Running locally, so there is no published update to name.</>}
           </div>
         </div>
-        <p className="cl-note">
-          The <b>build number</b> counts how many times the system has been pushed live.
-          The version number goes up whenever a new feature lands. The code beside it is
-          the exact push running right now — handy when checking whether a change has
-          reached the site yet.
-        </p>
       </div>
 
       {RELEASES.map((r) => (
-        <div className="card cl-rel" key={r.v}>
-          <div className="cl-rel-head">
-            <span className="cl-ver">v{r.v}</span>
-            <span className="cl-title">{r.title}</span>
-            <span className="cl-meta">build {r.build} · {r.date}</span>
+        <div className="card" style={{ marginBottom: 14 }} key={r.v}>
+          <h3>
+            <span className="b scheme">v{r.v}</span> {r.title}
+            <span className="tag">{r.date}</span>
+          </h3>
+          <div className="body">
+            <ul style={{ margin: 0, paddingLeft: 20 }}>
+              {r.notes.map((n, i) => <li key={i} style={{ marginBottom: 4 }}>{n}</li>)}
+            </ul>
           </div>
-          <ul className="cl-notes">
-            {r.notes.map((n, i) => <li key={i}>{n}</li>)}
-          </ul>
         </div>
       ))}
-    </div>
+    </>
   )
 }
