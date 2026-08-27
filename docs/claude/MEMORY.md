@@ -1,3 +1,4 @@
+- [SGAS client meeting 27 Aug 2026](sgas-client-meeting-aug26.md) — READ FIRST: verified live state, October deadlines, next builds, who owes what
 - [SGAS frontend](sgas-frontend.md) — React+Vite+Supabase app in Sgas project/sgas-app/; status, architecture, open gap
 - [Sandbox mount write gotcha](sgas-mount-write-gotcha.md) — Write tool shrinking a file leaves stale tail bytes on the mount; rewrite via bash
 - [SGAS doc generation](sgas-doc-generation.md) — §4.7 ACS form auto-fill (pdf-lib overlay) in Assess/Schedule; open GN8 category rule
@@ -5,4 +6,5 @@
 - [SGAS demo backlog](sgas-demo-backlog.md) — post-demo backlog; Teamup SCRATCHED, calendar BUILT — only item 4 (staff quals+expiry) left to build
 - [SGAS deploy flow](sgas-deploy-flow.md) — Vercel+Supabase ONLY; Chris just commit+push (no local npm/dev); don't run sandbox git
 - [SGAS progress page](sgas-progress-page.md) — in-app admins-only Roadmap.jsx; code-maintained; UPDATE ITEMS+UPDATED every session
+- [SGAS version + changelog](sgas-version-changelog.md) — sidebar version badge + Changelog.jsx; BUMP RELEASES in src/lib/version.js every session
 - [SGAS Help & FAQ](sgas-help-faq.md) — in-app all-roles Help.jsx (search + collapsible, 16 sections); code-maintained; built 29 Jun 2026

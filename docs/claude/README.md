@@ -1,12 +1,14 @@
 # Claude project knowledge — SGAS
 
 These files are Claude's accumulated working knowledge of the SGAS app (Jun 2026 sessions),
-imported into the repo on 17 Jul 2026 so any session can read them. **Start with `MEMORY.md`**
+imported into the repo on 17 Jul 2026 and refreshed 27 Aug 2026 so any session can read them. **Start with `MEMORY.md`**
 (the index), then `sgas-frontend.md` (architecture + full build history).
 
 | File | What it covers |
 |---|---|
 | `MEMORY.md` | Index of all the notes below |
+| `sgas-client-meeting-aug26.md` | **Start here** — 27 Aug 2026 client catch-up: verified live state, October deadlines, the agreed next builds |
+| `sgas-version-changelog.md` | Version badge + Changelog screen — **bump `RELEASES` in src/lib/version.js every session** |
 | `sgas-frontend.md` | Architecture, status, and the full session-by-session build history |
 | `sgas-calendar.md` | In-app Calendar (Month/Week/Day/Year, drag, holidays, engagements) — replaces Teamup |
 | `sgas-demo-backlog.md` | Post-demo backlog; only item 4 (staff quals + expiry) left to build |

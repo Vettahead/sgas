@@ -16,8 +16,10 @@ import Companies from './views/Companies.jsx'
 import Courses from './views/Courses.jsx'
 import Admin from './views/Admin.jsx'
 import Roadmap from './views/Roadmap.jsx'
+import Changelog from './views/Changelog.jsx'
 import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
+import { VERSION, BUILD, COMMIT } from './lib/version.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -34,6 +36,7 @@ const TITLES = {
   courses: ['Courses', 'Qualification pools delegates book onto'],
   admin: ['Admin', 'Manage staff accounts and access'],
   roadmap: ['Progress', 'Where we are — what’s done, what’s next, and what’s waiting on us'],
+  changelog: ['Changelog', 'Every release, newest first — what changed and when it went live'],
   help: ['Help & FAQ', 'How everything works — search or browse a plain-English guide to every screen'],
 }
 
@@ -55,6 +58,7 @@ const NAV_GROUPS = [
   { grp: 'Settings', items: [
     { v: 'admin', ic: '👥', label: 'Admin' },
     { v: 'roadmap', ic: '🗺', label: 'Progress' },
+    { v: 'changelog', ic: '📝', label: 'Changelog' },
   ] },
   { grp: 'Help', items: [
     { v: 'help', ic: '❓', label: 'Help & FAQ' },
@@ -134,7 +138,18 @@ export default function App() {
           )}
         </nav>
         <div className="foot">
-          {LIVE ? 'Connected to Supabase' : 'Demo data · no database connected'}
+          <div>{LIVE ? 'Connected to Supabase' : 'Demo data · no database connected'}</div>
+          {isAdmin ? (
+            <button
+              className="verbadge"
+              onClick={() => go('changelog')}
+              title={'Build ' + BUILD + (COMMIT !== 'dev' ? ' · push ' + COMMIT : '') + ' — open the changelog'}
+            >
+              v{VERSION} <span className="verbuild">build {BUILD}</span>
+            </button>
+          ) : (
+            <div className="verbadge static">v{VERSION} <span className="verbuild">build {BUILD}</span></div>
+          )}
         </div>
       </aside>
 
@@ -163,6 +178,7 @@ export default function App() {
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
           {activeView === 'roadmap' && isAdmin && <Roadmap />}
+          {activeView === 'changelog' && isAdmin && <Changelog />}
           {activeView === 'help' && <Help />}
         </div>
       </div>

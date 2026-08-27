@@ -8,7 +8,7 @@ import { useState } from 'react'
 // Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATED = '29 Jun 2026'
+const UPDATED = '27 Aug 2026'
 
 const STATUS = {
   done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },
@@ -52,16 +52,21 @@ const ITEMS = [
   { t: 'Admin = one place for staff', s: 'done', d: 'Adding a staff member creates the assignable record, their login and their role together.' },
   { t: 'SGAS branding', s: 'done', d: 'SGAS logo and branding throughout the app.' },
 
+  { t: 'Version number + changelog', s: 'review', d: 'The version and build number now sit in the bottom-left of the menu — the build number counts how many times the system has been pushed live. Click it (admins) for a Changelog screen listing every release and what changed. It also shows the exact push that is live, so you can tell at a glance whether a change has reached the site yet.' },
+
   // ── Building next ────────────────────────────────────────────────────────────
   { t: 'In-app Help & FAQ + per-page help', s: 'review', d: 'A searchable Help & FAQ screen for every user, in plain English, covering every part of the system — getting started, roles, dashboard, inquiries, booking, scheduling, the calendar, assessing, ACS forms, payments, delegates, companies, courses, admin and troubleshooting. Plus a “?” button in the top-right of every page that pops up just that page’s help, with a link through to the full FAQ — one shared source.' },
-  { t: 'Staff accreditations + expiry tracking', s: 'build', d: 'A bucket of accreditations dragged onto a staff member; on drop it asks for the start date and how long it lasts, then a renewal engine warns when one is running out. The big next piece.' },
+  { t: 'Staff accreditations + expiry tracking', s: 'build', d: 'THE NEXT BUILD — driven by the audit at the beginning of October. Click a staff member in Admin and get their full accreditation list. The dropdown reuses the same qualification list as Courses, grouped and ordered exactly the same way (so re-ordering the catalogue re-orders this too), plus the extra awards Simon supplies — verifier / IQA and similar. Each accreditation is tagged Must have / Nice to have / Optional, so the base requirement to work at SGAS is obvious. Per accreditation: date achieved, how long it lasts, expiry date, and a scanned copy of the certificate. Shows a countdown exactly like the delegate qualifications card (e.g. “expired 7 days ago”), warns at a lead time you choose, and emails an alert once SMTP is in. Plus a Staff qualifications report button — press it and it prints the lot for the auditor — and a staff panel on the dashboard flagging anything expiring or expired.' },
+  { t: 'Delete staff, logins and delegates', s: 'build', d: 'Admin can only disable a record today. Real people should stay disabled so their history is kept, but the made-up seed records need deleting outright — A Calvert, D Nuttall, S Johnston and the duplicate Keith Rimmer (the login is on the “Keith Rinmer” record, so that spelling wants fixing too). Same delete on delegates. Guarded so anything with real history can only be disabled, never deleted.' },
+  { t: 'Booking wizard (question tree)', s: 'build', d: 'The piece that gets Simon off the phone. Whoever answers picks Gas → commercial or industrial → initial or reassessment → a few work-experience questions, and the wizard lands on “this is the course they need” with the dates, then offers to book it there and then — name, email, and an automatic request for photo ID. Anything the tree can’t resolve gets referred to Simon. Built as a reusable engine so the same tree can go on the website later for self-service booking. Needs Simon to map the questions first.' },
+  { t: 'Dropbox document storage', s: 'build', d: 'Scanned portfolios, staff certificates and delegate ID stored in Dropbox over its API rather than on the web server — web-server storage gets expensive fast at portfolio scale. A folder is created automatically per delegate and per staff member, and the app links straight to the file. Decision made 27 Aug: build the Dropbox integration properly rather than a stopgap. Needs a Dropbox app key from Chris.' },
   { t: 'GN8 tick rule on the ACS form', s: 'build', d: 'Renewal → tick box 1; anything other than a renewal → leave blank.' },
   { t: 'ACS form tweaks', s: 'build', d: 'Move the name into its own box and stamp the date printed; tick proof of prerequisites; leave the signature blank for a manual sign.' },
   { t: 'Holiday requests workflow', s: 'build', d: 'Staff submit a request (not a confirmed booking); a "Holiday requests" block on the dashboard lets an admin accept or refuse.' },
   { t: 'NYC / Fail / No-show handling block', s: 'build', d: 'These flow into a block where you rebook them onto another course or write them off with a reason (logged on their record), so the history shows when they next enquire.' },
   { t: 'Assessor / verifier audit trail', s: 'build', d: 'Store who trained / assessed / verified each delegate + timestamp; show counts per staff member. ISO 9001 traceability.' },
   { t: 'Bundles within a course', s: 'build', d: 'In each course an "Add bundle" button: pick the modules that make up the bundle and give it its own discounted price. It still schedules and assesses exactly like the individual modules — purely a way to group them for a discount. Ready to build now; bundle names will need to match Sage.' },
-  { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar.' },
+  { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar; confirm the Courses catalogue saves on change — Simon lost about 20 minutes of tidy-up edits last time and it was never established whether they saved.' },
 
   // ── Waiting on Chris ─────────────────────────────────────────────────────────
   { t: 'Create 3 mailboxes + SMTP details', s: 'chris', d: 'holidays@, crm@ and bookings@ — plus the actual SMTP server settings (not just logins). Unblocks the email features.' },
@@ -69,18 +74,27 @@ const ITEMS = [
   { t: 'Course-name matching for Sage', s: 'chris', d: 'SGAS course names and bundles need marrying up to the Sage names by hand when Sage is wired in.' },
   { t: 'Map the pricing / discount matrix', s: 'chris', d: 'The price rules and any batch discounts need mapping before quotes, VAT and bundle pricing can be built.' },
   { t: 'Send the extra assessment forms', s: 'chris', d: 'The off-tech oil form and the QCF form, plus which course maps to which form, so they can be added alongside the ACS form.' },
+  { t: 'Dropbox app key / API access', s: 'chris', d: 'A Dropbox app with API access, so document storage can be wired up without putting scans on the web server.' },
+  { t: 'Paid address lookup — pick one', s: 'chris', d: 'The postcode lookup currently runs on a free service, which validates the postcode and fills the town and county but cannot offer a house-number dropdown. Re-set up the getAddress.io and Ideal Postcodes trials, compare the pricing, pick one — then it is a small swap to wire in.' },
+  { t: 'Data-handling form for the database', s: 'chris', d: 'The data-handling / processing form for Simon to sign before the customer database is shared — the paper trail for taking a copy of real delegate data.' },
+  { t: 'Session with Jen on Sage', s: 'chris', d: 'Jen coming in Wednesday to walk through Sage and start the course-name matching. Simon is in Australia from 11 September, so the Sage groundwork wants doing before then.' },
 
   // ── Waiting on Simon / client ────────────────────────────────────────────────
-  { t: 'Copy of the Access database', s: 'simon', d: 'A full export so we can delete the fake data and load the real data in. Wanted first, before Sage.' },
+  { t: 'Copy of the Access database', s: 'simon', d: 'Agreed 27 Aug: Simon drops the full Access file into Dropbox and sends the link — the raw database, not a spreadsheet export, so the tables and relationships come across. Then we map what is in there to what is in here, load the customers in, and — because the Access records hold who taught and who assessed each course — backfill the calendar with the course history at the same time. Chris sends the data-handling form first. This is the last big blocker before real use.' },
   { t: 'Sage access', s: 'simon', d: 'Ideally a read-only, non-destructive API key. The big later module.' },
-  { t: 'Get all staff entered', s: 'simon', d: 'Needed before accreditations and the assessor/verifier name-pull are fully useful. Admin screen is ready.' },
+  { t: 'Get all staff entered', s: 'done', d: 'Jen has entered the staff — Denis Brown, Jennifer Gadsdon, Keith Rimmer, Philip Rossall and Simon Gadsdon, with logins. The leftover made-up records get cleaned up with the delete button.' },
+  { t: 'List of staff accreditations', s: 'simon', d: 'Jen to put every staff accreditation on a spreadsheet with its expiry date, and the physical certificates scanned. Also the list of the extra awards that are not in the course catalogue — verifier / IQA and similar — and which of them are must-have to work at SGAS versus nice-to-have or optional.' },
+  { t: 'Map the booking question tree', s: 'simon', d: 'The question flow for the booking wizard: what gets asked, in what order, and which answers lead to which course. Simon has it in his head today, which is what keeps him tied to the phone.' },
+  { t: 'Finish the courses catalogue', s: 'simon', d: 'Homework from 27 Aug: go back through the Courses screen — 4 qualifications are still sitting in “Other” with no course product, a few need renaming, and colour-coding them makes the calendar much easier to read. No prices are set on any qualification yet either.' },
+  { t: 'Cancel the Teamup subscription', s: 'simon', d: 'Teamup expires in October and the in-app calendar replaces it — so the calendar wants to be in real use before then. A hard date worth working back from.' },
 
   // ── On the radar (discussed, not started / not resolved) ─────────────────────
-  { t: 'Sage integration', id: 'sage', s: 'future', d: 'Wire the system to Sage and pull data live (read-only, non-destructive). Money lives in Sage, so the items nested below hang off this — if Sage can’t do it, they fall away. Depends on Sage access + course-name matching.' },
+  { t: 'Sage integration', id: 'sage', s: 'future', d: 'Sage Business Cloud Accounting has a REST API with OAuth sign-in, so Jen would sign into the system with her Sage details and the two talk to each other. Bookings generate a draft invoice in Sage for Jen to check and release; payments come back the other way. Money lives in Sage, so the items nested below hang off this — if Sage can’t do it, they fall away. Depends on Sage access + course-name matching.' },
   { t: 'Invoicing', parent: 'sage', s: 'future', d: 'Raise and track invoices against bookings, cross-referenced to Sage by reference number.' },
   { t: 'Payment chasing (with reference IDs)', parent: 'sage', s: 'future', d: 'Log every chase and put a searchable ID in the email; tie outstanding payments back to the Sage record.' },
   { t: 'Quotes, discounts & VAT', parent: 'sage', s: 'future', d: 'Turn a booking into a priced quote (sum the modules, discounts, VAT) and email it. Needs the pricing matrix first.' },
   { t: 'PO numbers on bookings', parent: 'sage', s: 'future', d: 'Capture a purchase-order number against a booking for invoicing.' },
+  { t: 'Paid / part-paid / unpaid status', parent: 'sage', s: 'future', d: 'Every booking carries paid, part-paid (deposit) or unpaid, pulled back from Sage, with an outstanding balance per delegate. Outstanding shows on the dashboard as a list to work, and when that person rings again their balance flags up on the inquiry before anyone books them on. Means Keith no longer needs his own Sage login — he sees what he needs here when he signs a portfolio off.' },
   { t: 'Course information pool', s: 'future', d: 'A central pool of information and documents for each course that bundles and bookings link to — so they reuse one shared set rather than re-hooking the details every time. (The “pool of information” to-do.)' },
   { t: 'Security hardening', s: 'future', d: 'Lock down database access rules (RLS) and work toward Cyber Essentials before real delegate data goes in.' },
   { t: 'Strip demo / sample data before go-live', s: 'future', d: 'Remove the fake users and sample delegate details before the real data import.' },
@@ -104,6 +118,8 @@ const ITEMS = [
   { t: 'Front-desk sign-in / attendance', s: 'later', d: 'A tablet at reception lists who should attend; the delegate taps their name, signs and confirms — marking attendance automatically.' },
   { t: 'Passport-photo capture', s: 'later', d: 'Tablet / webcam with a countdown takes the delegate’s photo straight into the system and onto the printed form.' },
   { t: 'Claim workflow (no-portfolio courses)', s: 'later', d: 'For courses with no portfolio (e.g. heat pumps), after a pass the assessor marks it “claimed” on the external system — surfaced as a reminder on their dashboard.' },
+  { t: 'Phone app + calendar sharing', s: 'later', d: 'The calendar on a phone, so staff can see the courses and assessments they are on for the week without opening a laptop. Also the option to subscribe to it from an ordinary calendar app.' },
+  { t: 'Exam delivery on the training-room PCs', s: 'later', d: 'The next stage after this system: the delegate signs in at an assigned workstation, confirms their date of birth, and sees only the courses they are on that day — papers, job instructions and supporting PDFs opening in tabs, with a question matrix and timers if wanted. The machines get wiped down to a browser on a separate network with only this domain allowed, so nobody can wander off or cheat. Network and workstation work sits alongside it.' },
   { t: 'Bulk email / Mailchimp', s: 'later', d: 'Optional hook to a bulk-email tool for any mass sends (individual sends stay the default to avoid flooding the phones).' },
 ]
 
