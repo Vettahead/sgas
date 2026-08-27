@@ -25,6 +25,8 @@ export const RELEASES = [
       'Each accreditation holds a certificate link and name, ready for Dropbox.',
       'Awards staff hold but delegates never book can be marked staff-only, keeping them off the booking screens.',
       'Both new screens rebuilt on the app’s existing layout so they match the rest of the system.',
+      'Calendar: drag a delegate from the waiting pool onto a block, and drag a staff member onto the trainer slot — matching the Schedule screen. The ＋ and ↩ buttons still work.',
+      'Calendar: when finished blocks are being hidden it now says so, with a link to show them, instead of looking empty.',
     ],
   },
   {

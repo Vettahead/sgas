@@ -826,3 +826,6 @@ select,select option{color:#1d2733;background:#fff}
 
 /* Staff accreditations reuse the app's existing card / table / .b / .subform
    styles — the only addition is making .dn-link usable outside a delegate chip. */
+.asr-chip.sm{padding:4px 9px;font-size:11.5px}
+.staffdrag{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.cal-drop.over{outline:2px dashed var(--brand);outline-offset:3px;border-radius:8px;background:var(--brand-soft)}

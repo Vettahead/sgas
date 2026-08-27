@@ -135,6 +135,14 @@ export default function Calendar({ go, isAdmin, user }) {
     return list
   }, [blocks, selSchemes, selStaff, showFinished])
 
+  const hiddenFinished = useMemo(() => {
+    if (showFinished) return 0
+    let list = blocks || []
+    if (selSchemes.size) list = list.filter((b) => b.isHoliday || b.isEngagement || selSchemes.has(b.scheme))
+    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true : (b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId))))
+    return list.filter((b) => b.end && b.end < todayISO()).length
+  }, [blocks, selSchemes, selStaff, showFinished])
+
   function colourFor(b) {
     if (colourBy === 'status') return b.ready ? '#1f9d55' : '#b7791f'
     return b.color || '#48566a' // course colour is the default; scheme falls back to it too
@@ -231,6 +239,13 @@ export default function Calendar({ go, isAdmin, user }) {
         showFinished={showFinished} setShowFinished={setShowFinished}
         numMonths={numMonths} setNumMonths={setNumMonths} clearFilters={clearFilters}
       />
+
+      {hiddenFinished > 0 && (
+        <div className="banner">
+          {hiddenFinished} finished {hiddenFinished === 1 ? 'block is' : 'blocks are'} hidden.{' '}
+          <button className="linkbtn" onClick={() => setShowFinished(true)}>Show them</button>
+        </div>
+      )}
 
       {blocks === null ? (
         <div className="loading">Loading calendar…</div>
@@ -596,6 +611,11 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
   const [busy, setBusy] = useState(false)
   const [confirmDel, setConfirmDel] = useState(false)
   const [openCats, setOpenCats] = useState(null)
+  // Drag-and-drop, mirroring the Schedule screen: a delegate from the waiting
+  // pool onto the block, or a staff member onto the trainer slot. The ＋ / ↩
+  // buttons still work for anyone who would rather click.
+  const drag = useRef(null)
+  const [over, setOver] = useState(null)
 
   async function run(fn, okMsg) {
     setBusy(true)
@@ -669,18 +689,51 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
           <strong>Trainer</strong>
           {editing
             ? (
+              <div
+                className={'cal-drop' + (over === 'trainer' ? ' over' : '')}
+                onDragOver={(e) => { if (drag.current?.type === 'staff') { e.preventDefault(); setOver('trainer') } }}
+                onDragLeave={() => setOver(null)}
+                onDrop={(e) => {
+                  e.preventDefault(); setOver(null)
+                  if (drag.current?.type === 'staff') setTrainer(drag.current.id)
+                  drag.current = null
+                }}
+              >
               <select value={b.trainerId || ''} onChange={(e) => setTrainer(e.target.value)} disabled={busy}>
                 <option value="">— unassigned —</option>
                 {(staff || []).map((s) => <option key={s.staff_id ?? s.id} value={s.staff_id ?? s.id}>{s.name}</option>)}
               </select>
+              <div className="staffdrag">
+                {(staff || []).map((s) => (
+                  <span
+                    key={s.staff_id ?? s.id}
+                    className="asr-chip sm"
+                    style={{ background: s.color || 'var(--slate)' }}
+                    draggable
+                    onDragStart={() => { drag.current = { type: 'staff', id: s.staff_id ?? s.id } }}
+                    onDragEnd={() => { drag.current = null; setOver(null) }}
+                    title={'Drag ' + s.name + ' onto the trainer slot'}
+                  >{s.name}</span>
+                ))}
+              </div>
+              </div>
             )
             : <div className="muted small">{b.trainer || '—'}{b.assessor ? ` · Assessor: ${b.assessor}` : ''}{b.verifier ? ` · Verifier: ${b.verifier}` : ''}</div>}
           {!b.ready && <div className="cal-warn small">⚠ needs a trainer and at least one delegate</div>}
         </div>
 
-        <div className="cal-sec">
+        <div
+          className={'cal-sec' + (editing ? ' cal-drop' : '') + (over === 'block' ? ' over' : '')}
+          onDragOver={(e) => { if (editing && drag.current?.type === 'delegate') { e.preventDefault(); setOver('block') } }}
+          onDragLeave={() => setOver(null)}
+          onDrop={(e) => {
+            e.preventDefault(); setOver(null)
+            if (editing && drag.current?.type === 'delegate') addDelegate(drag.current.id)
+            drag.current = null
+          }}
+        >
           <strong>On this block ({b.delegates.length})</strong>
-          {b.delegates.length === 0 && <div className="muted small">No delegates yet.</div>}
+          {b.delegates.length === 0 && <div className="muted small">{editing ? 'No delegates yet — drag one over from the waiting pool below, or use ＋.' : 'No delegates yet.'}</div>}
           <ul className="cal-delg">
             {b.delegates.map((d) => {
               const full = !d.attendFrom && !d.attendTo
@@ -713,7 +766,14 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
                 {openSet.has(g.scheme) && (
                   <ul className="cal-delg">
                     {g.items.map((pe) => (
-                      <li key={pe.id}>
+                      <li
+                        key={pe.id}
+                        draggable
+                        onDragStart={() => { drag.current = { type: 'delegate', id: pe.id } }}
+                        onDragEnd={() => { drag.current = null; setOver(null) }}
+                        title="Drag onto the block above, or use ＋"
+                        style={{ cursor: 'grab' }}
+                      >
                         <span>{pe.name}{pe.count ? <span className="muted"> · {pe.count} qual(s)</span> : null}</span>
                         <button className="cal-mini add" title="Add to this block" onClick={() => addDelegate(pe.id)} disabled={busy}>＋</button>
                       </li>
