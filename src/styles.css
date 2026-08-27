@@ -829,3 +829,100 @@ select,select option{color:#1d2733;background:#fff}
 .asr-chip.sm{padding:4px 9px;font-size:11.5px}
 .staffdrag{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .cal-drop.over{outline:2px dashed var(--brand);outline-offset:3px;border-radius:8px;background:var(--brand-soft)}
+
+/* ── Planner (experimental calendar) ─────────────────────────────────────── */
+.pl-bar-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.pl-zoom{width:180px;flex:none;padding:0}
+.pl-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:16px;align-items:start}
+.pl-timeline{overflow:hidden}
+.pl-scroll{overflow-x:auto;overflow-y:hidden;touch-action:pan-x pan-y}
+.pl-inner{position:relative;padding-bottom:10px}
+
+.pl-ruler{position:sticky;top:0;z-index:4;background:var(--panel);border-bottom:1px solid var(--line)}
+.pl-months{display:flex}
+.pl-month{font-size:11px;font-weight:700;color:var(--slate);padding:7px 8px;border-right:1px solid var(--line);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;box-sizing:border-box}
+.pl-days{display:flex}
+.pl-day{font-size:10px;color:var(--muted);text-align:center;padding:3px 0;box-sizing:border-box;
+  border-right:1px solid #f1f4f8}
+.pl-day.wknd{background:#f7f9fc}
+.pl-day.today{background:var(--brand-soft);color:var(--brand-dark);font-weight:700}
+
+.pl-row{border-bottom:1px solid var(--line)}
+.pl-row:last-child{border-bottom:none}
+.pl-rowlabel{position:sticky;left:0;z-index:3;display:inline-flex;align-items:center;gap:7px;
+  background:var(--panel);font-size:11.5px;font-weight:650;color:var(--slate);padding:5px 10px}
+.pl-rowlabel.warn{color:var(--amber)}
+.pl-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.pl-lanes{position:relative}
+.pl-today{position:absolute;top:0;bottom:0;width:2px;background:var(--brand);opacity:.5;pointer-events:none;z-index:2}
+
+.pl-bar{position:absolute;border-radius:6px;color:#fff;display:flex;align-items:center;
+  box-shadow:0 1px 2px rgba(16,30,54,.18);cursor:pointer;overflow:hidden;
+  transition:left .32s cubic-bezier(.22,1,.36,1),width .32s cubic-bezier(.22,1,.36,1),
+             top .32s cubic-bezier(.22,1,.36,1),box-shadow .15s,transform .15s;
+  touch-action:none;z-index:1}
+.pl-bar:hover{box-shadow:0 3px 10px rgba(16,30,54,.28);transform:translateY(-1px);z-index:3}
+.pl-bar.dragging{transition:none;opacity:.85;z-index:6}
+.pl-bar.incomplete{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.16) 0 6px,transparent 6px 12px)}
+.pl-bar.armable{outline:1px dashed rgba(255,255,255,.7);outline-offset:-3px}
+.pl-bar.target{outline:2px solid #fff;outline-offset:-2px;transform:translateY(-2px) scale(1.015);
+  box-shadow:0 6px 18px rgba(16,30,54,.34);z-index:5}
+.pl-bar.flash{animation:plflash .9s ease-out}
+@keyframes plflash{
+  0%{box-shadow:0 0 0 0 rgba(26,138,75,.75)}
+  100%{box-shadow:0 0 0 16px rgba(26,138,75,0)}
+}
+.pl-bar-txt{padding:0 9px;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;display:flex;align-items:center;gap:7px;pointer-events:none}
+.pl-n{background:rgba(255,255,255,.25);border-radius:99px;padding:0 6px;font-size:10px}
+.pl-flag{background:rgba(0,0,0,.25);border-radius:4px;padding:1px 5px;font-size:9.5px;text-transform:uppercase;letter-spacing:.3px}
+.pl-grip{position:absolute;top:0;bottom:0;width:9px;cursor:ew-resize;touch-action:none}
+.pl-grip.l{left:0;cursor:grab}
+.pl-grip.r{right:0}
+.pl-bar:hover .pl-grip{background:rgba(255,255,255,.25)}
+
+.pl-rail{display:flex;flex-direction:column}
+.pl-railcard.warn>h3{color:var(--amber)}
+.pl-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:#fff;
+  border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px;cursor:pointer;
+  font:inherit;transition:border-color .15s,box-shadow .15s,transform .15s;touch-action:none}
+.pl-item:hover:not(:disabled){border-color:var(--brand);transform:translateX(2px)}
+.pl-item:disabled{opacity:.55;cursor:default}
+.pl-item.armed{border-color:var(--brand);background:var(--brand-soft);box-shadow:0 0 0 3px var(--brand-soft)}
+.pl-item.warn{border-color:#e8cf9a;background:var(--amber-soft)}
+.pl-item-c{width:9px;height:26px;border-radius:3px;flex:none}
+.pl-item-t{display:flex;flex-direction:column;min-width:0;line-height:1.3}
+.pl-item-t b{font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pl-item-go{margin-left:auto;font-size:10px;font-weight:700;color:var(--brand-dark);white-space:nowrap}
+.pl-att{display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;background:#fff;
+  border:1px solid var(--line);border-radius:9px;padding:7px 9px;margin-bottom:6px;cursor:pointer;font:inherit}
+.pl-att:hover{border-color:var(--amber)}
+.pl-att-c{width:9px;height:26px;border-radius:3px;flex:none}
+.pl-why{display:block;font-size:10.5px;font-weight:700;color:var(--amber);text-transform:uppercase;letter-spacing:.3px}
+
+.pl-ghost{position:fixed;z-index:999;pointer-events:none;background:var(--brand);color:#fff;
+  font-size:12px;font-weight:600;padding:5px 10px;border-radius:7px;box-shadow:0 6px 18px rgba(16,30,54,.3)}
+.pl-arming .pl-bar{cursor:copy}
+
+.pl-panel-wrap{position:fixed;inset:0;background:rgba(15,23,42,.28);z-index:60;display:flex;justify-content:flex-end}
+.pl-panel{width:min(420px,100%);background:var(--panel);height:100%;overflow:auto;
+  box-shadow:-8px 0 30px rgba(16,30,54,.18);animation:plslide .22s cubic-bezier(.22,1,.36,1)}
+@keyframes plslide{from{transform:translateX(30px);opacity:.4}to{transform:none;opacity:1}}
+.pl-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;
+  padding:16px 18px;border-top:4px solid var(--slate);border-bottom:1px solid var(--line)}
+.pl-delg{list-style:none;margin:0;padding:0}
+.pl-delg li{display:flex;align-items:center;gap:9px;padding:6px 0;border-bottom:1px solid var(--line)}
+.pl-delg li:last-child{border-bottom:none}
+.pl-delg li .linkbtn{margin-left:auto}
+
+@media (max-width:1100px){
+  .pl-main{grid-template-columns:1fr}
+  .pl-rail{flex-direction:row;flex-wrap:wrap;gap:12px}
+  .pl-railcard{flex:1 1 260px}
+}
+@media (prefers-reduced-motion:reduce){
+  .pl-bar,.pl-item{transition:none}
+  .pl-bar.flash,.pl-panel{animation:none}
+}
+.nav a .navbeta{margin-left:auto;font-size:9px;background:#22344f;color:#9fb2d0;padding:1px 6px;border-radius:10px}

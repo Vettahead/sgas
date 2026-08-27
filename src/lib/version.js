@@ -14,6 +14,18 @@
 
 export const RELEASES = [
   {
+    v: '1.8.0', build: 107, date: '27 Aug 2026',
+    title: 'Planner (experimental)',
+    notes: [
+      'New Planner tab beside the Calendar — an experiment. The existing Calendar is unchanged.',
+      'One timeline instead of four views: slide the zoom from a whole year down to a single day and the course bars grow smoothly instead of the screen redrawing.',
+      'Waiting delegates, courses needing attention, and staff all sit beside the timeline instead of being buried in a panel.',
+      'Everything works two ways — drag it across, or tap it then tap a course. Tapping is quicker on a tablet.',
+      'Drag a course to move it, or pull its edge to change the length.',
+      'Works on a tablet, which the current calendar does not.',
+    ],
+  },
+  {
     v: '1.7.0', build: 106, date: '27 Aug 2026',
     title: 'Staff accreditations',
     notes: [
