@@ -837,3 +837,57 @@ select,select option{color:#1d2733;background:#fff}
 .cl-meta{margin-left:auto;font-size:11.5px;color:#94a3b8;white-space:nowrap}
 .cl-notes{margin:10px 0 0;padding-left:18px;font-size:13px;line-height:1.65;color:#334155}
 .cl-notes li{margin-bottom:3px}
+
+/* ── Staff accreditations (Admin) ────────────────────────────────────────── */
+.accbtn{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 inherit;color:#0a5ad6;
+  background:#eaf1fd;border:1px solid #cfe0fb;border-radius:999px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+.accbtn:hover{background:#dce9fc}
+.accbtn.open{background:#0a5ad6;color:#fff;border-color:#0a5ad6}
+.accbtn .chev{font-size:9px;opacity:.75}
+.acc-dot{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
+  border-radius:999px;font-size:10px;font-weight:700;color:#fff;padding:0 4px}
+.acc-dot.due{background:#b7791f}
+.acc-dot.expired{background:#c0322b}
+
+tr.accrow>td{background:#f6f8fb;border-top:2px solid #0a5ad6;padding:14px 16px 18px}
+.acchead{font-size:13px;color:#334155;margin-bottom:10px}
+.accpanel{font-size:13px}
+.acc-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
+.acc-stats{display:flex;gap:8px;flex-wrap:wrap}
+.acc-stat{background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:5px 10px;font-size:12px;color:#64748b}
+.acc-stat b{color:#0f172a}
+.acc-stat.due{border-color:#e8cf9a;background:#fdf3e0;color:#8a5c11}
+.acc-stat.due b,.acc-stat.expired b,.acc-stat.missing b{color:inherit}
+.acc-stat.expired{border-color:#efc0bc;background:#fdeceb;color:#a32922}
+.acc-stat.missing{border-color:#d9c2f5;background:#f1e9fe;color:#5b21b6}
+.acc-actions{display:flex;align-items:center;gap:10px}
+.acc-warn{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#64748b}
+.acc-warn select{font-size:12px;padding:4px 6px}
+.acc-missing{background:#f1e9fe;border:1px solid #d9c2f5;color:#5b21b6;border-radius:8px;
+  padding:8px 11px;font-size:12px;margin-bottom:10px}
+
+.acc-form{background:#fff;border:1px solid #dbe3ec;border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.acc-form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px 12px;margin-bottom:10px}
+.acc-form label{display:flex;flex-direction:column;gap:4px;font-size:11.5px;color:#64748b;font-weight:600}
+.acc-form label small{font-weight:400}
+.acc-form input,.acc-form select{font-size:13px;padding:7px 8px;border:1px solid #cbd5e1;border-radius:7px;
+  background:#fff;color:#0f172a;width:100%}
+.acc-form-btns{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+.acctable{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden}
+.acctable th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#7c8aa0;
+  padding:8px 10px;border-bottom:1px solid #e2e8f0;background:#fbfcfe}
+.acctable td{padding:9px 10px;border-bottom:1px solid #eef2f6;vertical-align:top}
+.acctable tr:last-child td{border-bottom:none}
+.acc-row.expired td:first-child{box-shadow:inset 3px 0 0 #c0322b}
+.acc-row.due td:first-child{box-shadow:inset 3px 0 0 #b7791f}
+.acc-badge{display:inline-block;font-size:11px;font-weight:600;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.acc-ok{background:#e4f6ec;color:#146c3c}
+.acc-due{background:#fdf3e0;color:#8a5c11}
+.acc-expired{background:#fdeceb;color:#a32922}
+.acc-none{background:#eef1f5;color:#5b6779}
+.acc-req{display:inline-block;margin-left:7px;font-size:10px;font-weight:700;border-radius:4px;padding:2px 5px;
+  text-transform:uppercase;letter-spacing:.03em}
+.acc-req.r-MUST{background:#fdeceb;color:#a32922}
+.acc-req.r-NICE{background:#eaf1fd;color:#0a5ad6}
+.acc-req.r-OPTIONAL{background:#eef1f5;color:#5b6779}

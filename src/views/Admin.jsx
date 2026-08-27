@@ -2,7 +2,19 @@ import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, weekdayDays } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
+import { accreditationStatus } from '../lib/api.js'
+import StaffAccreditations from '../components/StaffAccreditations.jsx'
 import { toast } from '../lib/toast.js'
+
+// Roll a person's accreditation rows up into the counts shown on the closed row.
+function summarise(rows) {
+  let due = 0, expired = 0
+  for (const r of rows) {
+    const st = accreditationStatus(r.expiresOn).state
+    if (st === 'due') due++; else if (st === 'expired') expired++
+  }
+  return { total: rows.length, due, expired }
+}
 
 // One place for staff: every staff person is assignable (Trainer/Assessor/Verifier)
 // AND has a login with a role. Replaces the old separate Staff tab.
@@ -26,6 +38,10 @@ export default function Admin({ currentUser }) {
   const [loginForm, setLoginForm] = useState({ username: '', role: 'STANDARD', password: '' })
   const [editId, setEditId] = useState(null)
   const [editForm, setEditForm] = useState({ name: '', email: '', room: '', role: 'STANDARD' })
+  // Which staff member's accreditations are open, plus a per-person summary so a
+  // closed row still shows a warning.
+  const [accFor, setAccFor] = useState(null)
+  const [accCounts, setAccCounts] = useState({})
 
   async function load(auth) {
     setLoading(true)
@@ -160,9 +176,9 @@ export default function Admin({ currentUser }) {
 
         {loading ? <div className="loading">Loading staff…</div> : (
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Accreditations</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {staff.length === 0 && <tr><td colSpan={8} className="empty">No staff yet — add the first one above.</td></tr>}
+              {staff.length === 0 && <tr><td colSpan={9} className="empty">No staff yet — add the first one above.</td></tr>}
               {staff.map((st) => {
                 const u = userForStaff(st.staff_id)
                 const isSelf = u && currentUser && u.user_id === currentUser.user_id
@@ -183,6 +199,22 @@ export default function Admin({ currentUser }) {
                       </>
                     )}
                     <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
+                    <td>
+                      <button
+                        className={'accbtn' + (accFor === st.staff_id ? ' open' : '')}
+                        onClick={() => setAccFor(accFor === st.staff_id ? null : st.staff_id)}
+                        title="Accreditations, expiry dates and certificates"
+                      >
+                        {accCounts[st.staff_id]
+                          ? <>
+                              {accCounts[st.staff_id].total} held
+                              {accCounts[st.staff_id].expired > 0 && <span className="acc-dot expired" title="Expired">{accCounts[st.staff_id].expired}</span>}
+                              {accCounts[st.staff_id].due > 0 && <span className="acc-dot due" title="Expiring soon">{accCounts[st.staff_id].due}</span>}
+                            </>
+                          : 'View'}
+                        <span className="chev">{accFor === st.staff_id ? '▾' : '▸'}</span>
+                      </button>
+                    </td>
                     <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
                     <td>{editing && u
                       ? <select className="rolesel" value={editForm.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
@@ -235,6 +267,18 @@ export default function Admin({ currentUser }) {
                   </tr>
                 )
               })}
+              {staff.map((st) => (accFor === st.staff_id ? (
+                <tr key={'acc' + st.staff_id} className="accrow">
+                  <td colSpan={9}>
+                    <div className="acchead">🎓 <b>{st.name}</b> — accreditations &amp; expiry</div>
+                    <StaffAccreditations
+                      staffId={st.staff_id}
+                      staffName={st.name}
+                      onCount={(rows) => setAccCounts((c) => ({ ...c, [st.staff_id]: summarise(rows) }))}
+                    />
+                  </td>
+                </tr>
+              ) : null))}
             </tbody>
           </table>
         )}

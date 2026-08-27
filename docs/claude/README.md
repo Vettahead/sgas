@@ -9,6 +9,7 @@ imported into the repo on 17 Jul 2026 and refreshed 27 Aug 2026 so any session c
 | `MEMORY.md` | Index of all the notes below |
 | `sgas-client-meeting-aug26.md` | **Start here** — 27 Aug 2026 client catch-up: verified live state, October deadlines, the agreed next builds |
 | `sgas-version-changelog.md` | Version badge + Changelog screen — **bump `RELEASES` in src/lib/version.js every session** |
+| `sgas-staff-accreditations.md` | Staff accreditations + expiry — schema, API, Admin panel; core built 27 Aug 2026 |
 | `sgas-frontend.md` | Architecture, status, and the full session-by-session build history |
 | `sgas-calendar.md` | In-app Calendar (Month/Week/Day/Year, drag, holidays, engagements) — replaces Teamup |
 | `sgas-demo-backlog.md` | Post-demo backlog; only item 4 (staff quals + expiry) left to build |

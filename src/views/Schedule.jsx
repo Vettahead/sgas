@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { getPool, loadPool, getReschedulePool, rescheduleDelegate, returnToPool, listBlocks, listStaff, listSessions, listCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
+import { getPool, loadPool, getReschedulePool, rescheduleDelegate, returnToPool, listBlocks, listStaff, listSessions, listBookableCategories, listCourses, assignBlockRole, addDelegatesToBlock, addQualsToBooking, createBlock, setBookingAttendance, getBlockFormData, getFormData, ASSESSOR_COLOR } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -142,7 +142,7 @@ function MenuAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
-  const { data: categories } = useData(listCategories)
+  const { data: categories } = useData(listBookableCategories)
   const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
   useEffect(() => { loadPool().then(setPool) }, [])
@@ -264,7 +264,7 @@ function DragAssign({ f }) {
   const { data: blocks, loading: l1, reload } = useData(listBlocks)
   const { data: staff, loading: l2 } = useData(listStaff)
   const { data: resched, reload: reloadResched } = useData(getReschedulePool)
-  const { data: categories } = useData(listCategories)
+  const { data: categories } = useData(listBookableCategories)
   const { data: courses } = useData(listCourses)
   const [pool, setPool] = useState(() => getPool())
   useEffect(() => { loadPool().then(setPool) }, [])

@@ -307,6 +307,13 @@ export async function listCategories() {
   return D.categories
 }
 
+// Everything a DELEGATE can book — i.e. the catalogue minus the staff-only
+// awards (verifier / IQA), which staff hold but nobody books onto.
+export async function listBookableCategories() {
+  const cats = await listCategories()
+  return cats.filter((c) => !c.staff_only)
+}
+
 export async function listSessions() {
   if (LIVE) {
     const { data } = await supabase
@@ -1463,4 +1470,152 @@ export async function returnToPool(bookingId) {
   })
   D.booking_categories = D.booking_categories.filter((x) => x.booking_id !== bookingId)
   const i = D.bookings.findIndex((x) => x.booking_id === bookingId); if (i >= 0) D.bookings.splice(i, 1)
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STAFF ACCREDITATIONS + EXPIRY
+// The list of accreditations IS the qualification catalogue (src of truth =
+// the `category` table), so it groups and orders exactly like the Courses
+// screen and re-ordering there re-orders here. Two extra flags live on a
+// category: `staff_only` (an award staff hold but delegates never book, e.g.
+// verifier / IQA — hidden from booking) and `staff_requirement`
+// (MUST / NICE / OPTIONAL — how hard a requirement it is to work at SGAS).
+// A held accreditation is one row per staff member per qualification, updated
+// in place on re-certification so the record shows the CURRENT position.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const STAFF_REQUIREMENTS = ['MUST', 'NICE', 'OPTIONAL']
+export const REQUIREMENT_LABEL = { MUST: 'Must have', NICE: 'Nice to have', OPTIONAL: 'Optional' }
+// How far ahead to start warning. Chosen per browser in the Admin panel.
+export const WARN_MONTH_CHOICES = [3, 6, 9, 12]
+export const DEFAULT_WARN_MONTHS = 6
+
+// Pure: expiry from the date achieved + how many years it runs for.
+// Returns null when either is missing (some awards never expire).
+export function expiryFrom(achievedOn, years) {
+  if (!achievedOn || years === '' || years === null || years === undefined) return null
+  const n = Number(years)
+  if (!Number.isFinite(n) || n <= 0) return null
+  const d = new Date(achievedOn + 'T00:00:00')
+  if (Number.isNaN(d.getTime())) return null
+  // Whole years move the year; part years (e.g. 0.5) move whole months.
+  if (Number.isInteger(n)) d.setFullYear(d.getFullYear() + n)
+  else d.setMonth(d.getMonth() + Math.round(n * 12))
+  return d.toISOString().slice(0, 10)
+}
+
+// Pure: where an accreditation stands today.
+// state: 'none' (no expiry set) | 'ok' | 'due' (inside the warning window) | 'expired'
+export function accreditationStatus(expiresOn, warnMonths = DEFAULT_WARN_MONTHS) {
+  if (!expiresOn) return { state: 'none', days: null, label: 'No expiry set' }
+  const days = daysUntil(expiresOn)
+  if (days < 0) {
+    const n = Math.abs(days)
+    return { state: 'expired', days, label: n === 1 ? 'Expired yesterday' : `Expired ${n} days ago` }
+  }
+  const warnFrom = daysUntil(addMonths(todayISO(), warnMonths))
+  const label = days === 0 ? 'Expires today' : days === 1 ? 'Expires tomorrow'
+    : days < 60 ? `${days} days left`
+    : `${Math.round(days / 30.44)} months left`
+  return { state: days <= warnFrom ? 'due' : 'ok', days, label }
+}
+
+// The pick-list: every active qualification, ordered by scheme then code so the
+// UI can group it the same way the Courses screen does.
+export async function listAccreditationCatalogue() {
+  const cats = await listCategories()
+  return [...cats]
+    .map((c) => ({
+      category_id: c.category_id, code: c.code, description: c.description || '',
+      scheme: c.scheme, renewal_years: c.renewal_years ?? null,
+      staffOnly: !!c.staff_only, requirement: c.staff_requirement || null,
+    }))
+    .sort((a, b) => a.scheme.localeCompare(b.scheme) || a.code.localeCompare(b.code))
+}
+
+// Held accreditations. Pass a staffId for one person, or omit for everyone
+// (that's what the report and the expiring-soon counts run off).
+export async function listStaffAccreditations(staffId = null) {
+  const shape = (r, cat) => ({
+    id: r.staff_accreditation_id, staffId: r.staff_id, staffName: r.staffName || '',
+    categoryId: r.category_id, code: cat?.code || '?', description: cat?.description || '',
+    scheme: cat?.scheme || '—', requirement: cat?.staff_requirement || null,
+    achievedOn: r.achieved_on || '', years: r.years ?? '', expiresOn: r.expires_on || '',
+    evidenceUrl: r.evidence_url || '', evidenceName: r.evidence_name || '', notes: r.notes || '',
+  })
+  if (LIVE) {
+    let q = supabase.from('staff_accreditation')
+      .select('staff_accreditation_id,staff_id,category_id,achieved_on,years,expires_on,evidence_url,evidence_name,notes,staff:staff_id(name),category:category_id(code,description,scheme,staff_requirement)')
+    if (staffId) q = q.eq('staff_id', Number(staffId))
+    const { data } = await q
+    return (data || [])
+      .map((r) => shape({ ...r, staffName: r.staff?.name }, r.category))
+      .sort((a, b) => a.scheme.localeCompare(b.scheme) || a.code.localeCompare(b.code))
+  }
+  D.staffAccreditations = D.staffAccreditations || []
+  return D.staffAccreditations
+    .filter((r) => !staffId || r.staff_id === Number(staffId))
+    .map((r) => shape({ ...r, staffName: asr(r.staff_id)?.name }, D.categories.find((c) => c.category_id === r.category_id)))
+    .sort((a, b) => a.scheme.localeCompare(b.scheme) || a.code.localeCompare(b.code))
+}
+
+// Add or update. One row per staff member per qualification — re-certifying
+// overwrites rather than stacking up, so the record is always the current one.
+export async function saveStaffAccreditation(d) {
+  const staffId = Number(d.staffId), categoryId = Number(d.categoryId)
+  if (!staffId) throw new Error('Pick a staff member')
+  if (!categoryId) throw new Error('Pick an accreditation')
+  if (d.achievedOn && d.expiresOn && d.expiresOn < d.achievedOn) {
+    throw new Error('The expiry date is before the date achieved')
+  }
+  const row = {
+    staff_id: staffId, category_id: categoryId,
+    achieved_on: d.achievedOn || null,
+    years: d.years === '' || d.years === null || d.years === undefined ? null : Number(d.years),
+    expires_on: d.expiresOn || null,
+    evidence_url: d.evidenceUrl || null, evidence_name: d.evidenceName || null,
+    notes: d.notes || null,
+  }
+  if (LIVE) {
+    const { error } = await supabase
+      .from('staff_accreditation')
+      .upsert(row, { onConflict: 'staff_id,category_id' })
+    if (error) throw new Error(error.message)
+    return
+  }
+  D.staffAccreditations = D.staffAccreditations || []
+  D.seq.staffAccred = D.seq.staffAccred || 0
+  const existing = D.staffAccreditations.find((r) => r.staff_id === staffId && r.category_id === categoryId)
+  if (existing) Object.assign(existing, row)
+  else D.staffAccreditations.push({ staff_accreditation_id: ++D.seq.staffAccred, ...row })
+}
+
+export async function deleteStaffAccreditation(id) {
+  const n = Number(id)
+  if (LIVE) {
+    const { error } = await supabase.from('staff_accreditation').delete().eq('staff_accreditation_id', n)
+    if (error) throw new Error(error.message)
+    return
+  }
+  D.staffAccreditations = (D.staffAccreditations || []).filter((r) => r.staff_accreditation_id !== n)
+}
+
+// Tag a qualification as a staff requirement, and/or mark it staff-only so it
+// stays off the booking screens. Pass null to clear.
+export async function setCategoryStaffFlags(categoryId, { staffOnly, requirement }) {
+  const id = Number(categoryId)
+  const patch = {}
+  if (staffOnly !== undefined) patch.staff_only = !!staffOnly
+  if (requirement !== undefined) {
+    if (requirement && !STAFF_REQUIREMENTS.includes(requirement)) throw new Error('Unknown requirement level')
+    patch.staff_requirement = requirement || null
+  }
+  if (!Object.keys(patch).length) return
+  if (LIVE) {
+    const { error } = await supabase.from('category').update(patch).eq('category_id', id)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const c = D.categories.find((x) => x.category_id === id)
+  if (c) Object.assign(c, patch)
 }

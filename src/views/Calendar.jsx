@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-react'
-import { listBlocks, listCourses, listStaff, listCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listBookableCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
@@ -93,7 +93,7 @@ export default function Calendar({ go, isAdmin, user }) {
   const monthRef = useRef(null)
 
   async function refresh() {
-    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId)])
+    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listBookableCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId)])
     try { await loadPool() } catch { /* pool optional */ }
     const holBlocks = hol.map((h) => ({
       id: 'h' + h.holidayId, holidayId: h.holidayId, isHoliday: true, staffId: h.staffId, staffName: h.staffName, note: h.note,

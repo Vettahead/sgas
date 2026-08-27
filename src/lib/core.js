@@ -20,6 +20,13 @@ export const store = {
     { client_id: 8, company_id: 4, ni_number: 'AB823456C', forename: 'Rhys', surname: 'Evans', date_of_birth: '1993-02-27', premise: '9', street: 'Newton Drive', town: 'Blackpool', district: '', county: 'Lancashire', postcode: 'FY3 8LZ', mobile: '07700 900008', telephone: '', email: 'rhys.e@example.com' },
   ],
   // The `assessors` array is the shared STAFF list (anyone can be trainer/assessor/verifier).
+  // Demo-only sample accreditations, sized to show all three states.
+  staffAccreditations: [
+    { staff_accreditation_id: 1, staff_id: 1, category_id: 1, achieved_on: '2024-03-17', years: 5, expires_on: '2029-03-17', evidence_url: '', evidence_name: '', notes: '' },
+    { staff_accreditation_id: 2, staff_id: 1, category_id: 2, achieved_on: '2021-11-02', years: 5, expires_on: '2026-11-02', evidence_url: '', evidence_name: '', notes: '' },
+    { staff_accreditation_id: 3, staff_id: 2, category_id: 1, achieved_on: '2021-05-20', years: 5, expires_on: '2026-05-20', evidence_url: '', evidence_name: '', notes: 'Renewal booked' },
+    { staff_accreditation_id: 4, staff_id: 2, category_id: 3, achieved_on: '2025-01-14', years: 3, expires_on: '2028-01-14', evidence_url: '', evidence_name: '', notes: '' },
+  ],
   assessors: [
     { assessor_id: 1, name: 'S Johnston', assigned_room: 'Bay Block A', email: 's.johnston@sgas.test', teamup_subcalendar: 'sub_sjohnston', is_active: true },
     { assessor_id: 2, name: 'K Rimmer', assigned_room: 'Bay Block B', email: 'k.rimmer@sgas.test', teamup_subcalendar: 'sub_krimmer', is_active: true },
@@ -241,7 +248,7 @@ export const store = {
     { inquiry_id: 1, name: 'Dave Stott', email: 'dave.stott@example.com', mobile: '07700 900111', courses: 'Domestic Gas ACS, LPG', pref_date_from: '2026-07-13', pref_date_to: '2026-07-24', notes: 'Ticket runs out soon — also asked about CPA1.', status: 'open', created_at: '2026-06-24T10:12:00Z', handled_at: null },
     { inquiry_id: 2, name: 'Sue', email: '', mobile: '07700 900222', courses: 'Commercial Catering', pref_date_from: null, pref_date_to: null, notes: 'Name + number only — wants a callback with prices.', status: 'open', created_at: '2026-06-25T15:40:00Z', handled_at: null },
   ],
-  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2 },
+  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }

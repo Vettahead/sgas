@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listDelegates, listCompanies, listCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
+import { listDelegates, listCompanies, listBookableCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
 import { lookupPostcode } from '../lib/postcode.js'
 import { useData } from '../lib/hooks.js'
 import { toast } from '../lib/toast.js'
@@ -14,7 +14,7 @@ const EMPTY_OPTS = { mlp: false, igas: false, prefFrom: '', prefTo: '' }
 export default function Book({ prefill = null }) {
   const { data: delegates, loading: l1, reload: reloadDelegates } = useData(listDelegates)
   const { data: companies, loading: l2, reload: reloadCompanies } = useData(listCompanies)
-  const { data: categories, loading: l3 } = useData(listCategories)
+  const { data: categories, loading: l3 } = useData(listBookableCategories)
   const { data: courses, loading: l4 } = useData(listCourses)
 
   const [clientId, setClientId] = useState('')

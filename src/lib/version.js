@@ -14,6 +14,19 @@
 
 export const RELEASES = [
   {
+    v: '1.7.0', build: 106, date: '27 Aug 2026',
+    title: 'Staff accreditations',
+    notes: [
+      'Admin: click Accreditations against a staff member to open their record.',
+      'Add an accreditation from the qualification list, grouped by scheme exactly as the Courses screen groups it.',
+      'Date achieved plus how long it lasts works out the expiry date, which can be overridden if the certificate says otherwise.',
+      'Tag a qualification Must have / Nice to have / Optional — anyone missing a must-have is flagged on their record.',
+      'Live countdown on every accreditation: green in date, amber inside the warning window, red expired. Warning window set to 3, 6, 9 or 12 months.',
+      'Each accreditation holds a certificate link and name, ready for Dropbox.',
+      'Awards staff hold but delegates never book can be marked staff-only, keeping them off the booking screens.',
+    ],
+  },
+  {
     v: '1.6.0', build: 105, date: '27 Aug 2026',
     title: 'Version tracking',
     notes: [
