@@ -839,18 +839,18 @@ select,select option{color:#1d2733;background:#fff}
 .cl-notes li{margin-bottom:3px}
 
 /* ── Staff accreditations (Admin) ────────────────────────────────────────── */
-.accbtn{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 inherit;color:#0a5ad6;
-  background:#eaf1fd;border:1px solid #cfe0fb;border-radius:999px;padding:5px 10px;cursor:pointer;white-space:nowrap}
-.accbtn:hover{background:#dce9fc}
-.accbtn.open{background:#0a5ad6;color:#fff;border-color:#0a5ad6}
-.accbtn .chev{font-size:9px;opacity:.75}
-.acc-dot{display:inline-flex;align-items:center;justify-content:center;min-width:17px;height:17px;
-  border-radius:999px;font-size:10px;font-weight:700;color:#fff;padding:0 4px}
+.staff-link{font:700 inherit;font-size:13px;color:#0f172a;background:none;border:none;padding:0;
+  cursor:pointer;text-align:left;border-bottom:1px dotted #94a3b8}
+.staff-link:hover{color:#0a5ad6;border-bottom-color:#0a5ad6}
+.acc-dot{display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;
+  margin-left:6px;border-radius:999px;font-size:10px;font-weight:700;color:#fff;padding:0 4px;vertical-align:1px}
 .acc-dot.due{background:#b7791f}
 .acc-dot.expired{background:#c0322b}
 
-tr.accrow>td{background:#f6f8fb;border-top:2px solid #0a5ad6;padding:14px 16px 18px}
-.acchead{font-size:13px;color:#334155;margin-bottom:10px}
+.crumb{display:inline-flex;align-items:center;gap:6px;font:600 12px/1 inherit;color:#475569;
+  background:#eef1f5;border:1px solid #dbe3ec;border-radius:999px;padding:6px 12px;cursor:pointer;margin-bottom:14px}
+.crumb:hover{background:#e2e8f0;color:#0f172a}
+.staffcard .staffhead{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
 .accpanel{font-size:13px}
 .acc-top{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:10px}
 .acc-stats{display:flex;gap:8px;flex-wrap:wrap}

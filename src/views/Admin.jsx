@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, weekdayDays } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
-import { accreditationStatus } from '../lib/api.js'
+import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
 import StaffAccreditations from '../components/StaffAccreditations.jsx'
 import { toast } from '../lib/toast.js'
 
@@ -61,6 +61,24 @@ export default function Admin({ currentUser }) {
   }
 
   const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
+  // One pass over every staff member's accreditations, purely so an expiry can
+  // show as a dot beside the name without opening anyone.
+  useEffect(() => {
+    if (!unlocked) return
+    let alive = true
+    listStaffAccreditations()
+      .then((rows) => {
+        if (!alive) return
+        const by = {}
+        for (const r of rows) (by[r.staffId] = by[r.staffId] || []).push(r)
+        const out = {}
+        for (const id of Object.keys(by)) out[id] = summarise(by[id])
+        setAccCounts(out)
+      })
+      .catch(() => { /* the dot is a nicety — never block the staff list */ })
+    return () => { alive = false }
+  }, [unlocked, accFor])
+
   const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + weekdayDays(h.start, h.end), 0)
 
   async function addStaff() {
@@ -136,6 +154,38 @@ export default function Admin({ currentUser }) {
 
   const orphanAccounts = users.filter((u) => !u.staffId || !staff.some((s) => s.staff_id === u.staffId))
 
+  // Clicking a name opens that person's own page — the staff list stays clean.
+  const openStaff = staff.find((s) => s.staff_id === accFor)
+  if (openStaff) {
+    const u = userForStaff(openStaff.staff_id)
+    const days = holDays(openStaff.staff_id)
+    return (
+      <>
+        <button className="crumb" onClick={() => setAccFor(null)}>← All staff</button>
+        <div className="card staffcard">
+          <div className="staffhead">
+            <div>
+              <h3 style={{ margin: 0 }}>{openStaff.name}</h3>
+              <div className="muted small">
+                {openStaff.email || 'no email'} · {openStaff.room || 'no room set'} ·{' '}
+                {u ? `${u.username} (${ROLE_LABELS[u.role] || u.role})` : 'no login'} ·{' '}
+                {days ? `${days} holiday ${days === 1 ? 'day' : 'days'}` : 'no holidays booked'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="card">
+          <h3>🎓 Accreditations &amp; expiry</h3>
+          <StaffAccreditations
+            staffId={openStaff.staff_id}
+            staffName={openStaff.name}
+            onCount={(rows) => setAccCounts((c) => ({ ...c, [openStaff.staff_id]: summarise(rows) }))}
+          />
+        </div>
+      </>
+    )
+  }
+
   return (
     <>
       <div className="hint">Everyone who delivers or assesses lives here. Adding a staff member creates both their <b>assignable record</b> (Trainer / Assessor / Verifier on a course block) and their <b>login</b> with a role. Logins are verified inside Postgres (bcrypt) and the accounts table is locked so the app key can't read password hashes.</div>
@@ -176,9 +226,9 @@ export default function Admin({ currentUser }) {
 
         {loading ? <div className="loading">Loading staff…</div> : (
           <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Accreditations</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {staff.length === 0 && <tr><td colSpan={9} className="empty">No staff yet — add the first one above.</td></tr>}
+              {staff.length === 0 && <tr><td colSpan={8} className="empty">No staff yet — add the first one above.</td></tr>}
               {staff.map((st) => {
                 const u = userForStaff(st.staff_id)
                 const isSelf = u && currentUser && u.user_id === currentUser.user_id
@@ -193,28 +243,20 @@ export default function Admin({ currentUser }) {
                       </>
                     ) : (
                       <>
-                        <td><b>{st.name}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
+                        <td>
+                          <button className="staff-link" onClick={() => setAccFor(st.staff_id)} title="Open this person's record">
+                            {st.name}
+                          </button>
+                          {accCounts[st.staff_id]?.expired > 0 && <span className="acc-dot expired" title="An accreditation has expired">!</span>}
+                          {accCounts[st.staff_id]?.expired === 0 && accCounts[st.staff_id]?.due > 0 && <span className="acc-dot due" title="An accreditation is expiring soon">!</span>}
+                          {isSelf && <span className="muted small"> (you)</span>}
+                        </td>
                         <td className="muted">{st.email || '—'}</td>
                         <td className="muted small">{st.room || '—'}</td>
                       </>
                     )}
                     <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
-                    <td>
-                      <button
-                        className={'accbtn' + (accFor === st.staff_id ? ' open' : '')}
-                        onClick={() => setAccFor(accFor === st.staff_id ? null : st.staff_id)}
-                        title="Accreditations, expiry dates and certificates"
-                      >
-                        {accCounts[st.staff_id]
-                          ? <>
-                              {accCounts[st.staff_id].total} held
-                              {accCounts[st.staff_id].expired > 0 && <span className="acc-dot expired" title="Expired">{accCounts[st.staff_id].expired}</span>}
-                              {accCounts[st.staff_id].due > 0 && <span className="acc-dot due" title="Expiring soon">{accCounts[st.staff_id].due}</span>}
-                            </>
-                          : 'View'}
-                        <span className="chev">{accFor === st.staff_id ? '▾' : '▸'}</span>
-                      </button>
-                    </td>
+
                     <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
                     <td>{editing && u
                       ? <select className="rolesel" value={editForm.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
@@ -267,18 +309,6 @@ export default function Admin({ currentUser }) {
                   </tr>
                 )
               })}
-              {staff.map((st) => (accFor === st.staff_id ? (
-                <tr key={'acc' + st.staff_id} className="accrow">
-                  <td colSpan={9}>
-                    <div className="acchead">🎓 <b>{st.name}</b> — accreditations &amp; expiry</div>
-                    <StaffAccreditations
-                      staffId={st.staff_id}
-                      staffName={st.name}
-                      onCount={(rows) => setAccCounts((c) => ({ ...c, [st.staff_id]: summarise(rows) }))}
-                    />
-                  </td>
-                </tr>
-              ) : null))}
             </tbody>
           </table>
         )}

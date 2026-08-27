@@ -17,7 +17,7 @@ export const RELEASES = [
     v: '1.7.0', build: 106, date: '27 Aug 2026',
     title: 'Staff accreditations',
     notes: [
-      'Admin: click Accreditations against a staff member to open their record.',
+      'Admin: click a staff member\'s name to open their own page. The staff list stays clean, with a small red or amber dot beside anyone who has an accreditation expired or expiring.',
       'Add an accreditation from the qualification list, grouped by scheme exactly as the Courses screen groups it.',
       'Date achieved plus how long it lasts works out the expiry date, which can be overridden if the certificate says otherwise.',
       'Tag a qualification Must have / Nice to have / Optional — anyone missing a must-have is flagged on their record.',
