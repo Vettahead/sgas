@@ -44,6 +44,27 @@ const kindOf = (k) => KIND[k] || KIND.NEW
 // A delegate doing only part of a course — the "split" case.
 const isPart = (d) => !!(d.attendFrom || d.attendTo)
 
+// A colour per scheme, so "who is waiting and what for" reads without being
+// read. The schemes we actually run are pinned; anything new hashes to the same
+// palette so it is at least stable between visits.
+const SCHEME_C = {
+  'ACS Domestic': '#2f6fd0', 'ACS Commercial': '#1d4ed8', 'Industrial': '#3730a3',
+  'LPG': '#b45309', 'OFTEC': '#c2410c', 'Solid Fuel': '#7c2d12',
+  'Renewables': '#1f9d55', 'Electrical': '#0f766e', 'F-gas': '#0891b2',
+  'Water': '#0369a1', 'Meters': '#7b2ff2', 'IGAS': '#a21caf',
+  'Catering': '#be185d', 'Laundry': '#9d174d', 'ESP': '#4d7c0f',
+  'Limited Scope': '#57534e',
+}
+const PALETTE = ['#2f6fd0', '#1f9d55', '#b45309', '#7b2ff2', '#0891b2', '#be185d', '#4d7c0f', '#c2410c']
+export function schemeColour(name) {
+  if (!name) return '#94a3b8'
+  if (SCHEME_C[name]) return SCHEME_C[name]
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return PALETTE[h % PALETTE.length]
+}
+
+const RAIL_KEY = 'sgas_cx_rail'
 const VIEW_KEY = 'sgas_cx_view'
 const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
@@ -76,6 +97,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // just finished dragging.
   const justDragged = useRef(false)
   const [at, setAt] = useState(null)   // the bar the popover is anchored to
+  // The rail is a sidebar of things to deal with, not part of the calendar —
+  // it slides in when you want it and gets out of the way when you don't.
+  const [rail, setRail] = useState(() => {
+    const v = readLS(RAIL_KEY, null)
+    return v === null ? window.innerWidth >= 1280 : v === '1'
+  })
   const [jump, setJump] = useState(false)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
@@ -88,6 +115,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   useEffect(() => { (async () => { try { await loadPool() } catch { /* optional */ } await load() })() }, [])
   useEffect(() => { try { localStorage.setItem(THEME_KEY, theme) } catch { /* private */ } }, [theme])
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
+  useEffect(() => { try { localStorage.setItem(RAIL_KEY, rail ? '1' : '0') } catch { /* private */ } }, [rail])
   useEffect(() => { try { localStorage.setItem(DENSE_KEY, dense ? '1' : '0') } catch { /* private */ } }, [dense])
 
   const step = (n) => {
@@ -357,6 +385,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <button className={dense ? '' : 'on'} onClick={() => setDense(false)}>Comfortable</button>
             <button className={dense ? 'on' : ''} onClick={() => setDense(true)}>Compact</button>
           </div>
+          <button className={'cx-icon cx-railbtn' + (rail ? ' on' : '')} onClick={() => setRail((r) => !r)}
+            aria-pressed={rail} aria-label={rail ? 'Hide the side panel' : 'Show the side panel'}
+            title={rail ? 'Hide the side panel' : 'Show the side panel'}>
+            ▤{!rail && needsWork.length > 0 && <em>{needsWork.length}</em>}
+          </button>
           <button className="cx-icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
             aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
             {theme === 'dark' ? '☀' : '☾'}
@@ -377,7 +410,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
         <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
       </div>
 
-      <div className="cx-body">
+      <div className={'cx-body' + (rail ? '' : ' no-rail')}>
         {/* ── Month grid ──────────────────────────────────────────────── */}
         <section className="cx-cal" aria-label={'Courses — ' + title}>
           {view === 'Month' && <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>}
@@ -447,7 +480,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </section>
 
         {/* ── Agenda rail ─────────────────────────────────────────────── */}
-        <aside className="cx-rail">
+        <aside className="cx-rail" hidden={!rail}>
           {needsWork.length > 0 && (
             <div className="cx-card cx-warn">
               <h3>Needs attention <span>{needsWork.length}</span></h3>
@@ -477,7 +510,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
             {pool.slice(0, 5).map((p) => (
               <div key={p.id} className="cx-row static">
-                <i style={{ background: '#22a06b' }} />
+                <i style={{ background: schemeColour(p.scheme) }} />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
               </div>
             ))}
@@ -613,20 +646,47 @@ export default function CalendarNext({ isAdmin, user, go }) {
                     </ul>}
                 {/* Quiet until you want it — eight name chips permanently on
                     show made the popover twice as tall as it needed to be. */}
-                {isAdmin && pool.length > 0 && (
-                  <details className="cx-add">
-                    <summary>Add someone from the waiting list<span>{pool.length}</span></summary>
-                    <div className="cx-chips">
-                      {pool.slice(0, 10).map((p) => (
-                        <button key={p.id} className="cx-chip" disabled={busy} onClick={async () => {
-                          setBusy(true)
-                          try { await addDelegatesToBlock(open.id, [p.id]); const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast(`${p.name} added`) }
-                          catch (err) { toast(err.message) } finally { setBusy(false) }
-                        }}>＋ {p.name}</button>
-                      ))}
-                    </div>
-                  </details>
-                )}
+                {isAdmin && pool.length > 0 && (() => {
+                  // Whoever is waiting for THIS scheme belongs at the top, and
+                  // everyone carries the colour of what they are waiting for —
+                  // you can see who fits without reading a single line.
+                  const fits = (x) => !!open.scheme && x.scheme === open.scheme
+                  // Somebody can hold a second booking, so this is a warning
+                  // rather than a filter — but adding the same person twice by
+                  // accident is easy and nothing here undoes it.
+                  const onIt = new Set(open.delegates.map((d) => d.name))
+                  const sorted = [...pool].sort((a, z) => (fits(z) ? 1 : 0) - (fits(a) ? 1 : 0)
+                    || (a.scheme || '').localeCompare(z.scheme || '') || a.name.localeCompare(z.name))
+                  const n = sorted.filter(fits).length
+                  return (
+                    <details className="cx-add">
+                      <summary>Add someone from the waiting list<span>{pool.length}</span></summary>
+                      <div className="cx-chips">
+                        {sorted.slice(0, 12).map((x) => (
+                          <button key={x.id} className={'cx-chip cx-pchip' + (fits(x) ? ' fits' : '') + (onIt.has(x.name) ? ' already' : '')}
+                            disabled={busy} style={{ '--s': schemeColour(x.scheme) }}
+                            title={onIt.has(x.name)
+                              ? `${x.name} is already on this course — this is a second booking`
+                              : `${x.name} — waiting for ${x.scheme || 'no scheme'}, ${x.count} qualification${x.count === 1 ? '' : 's'}`}
+                            onClick={async () => {
+                              setBusy(true)
+                              try { await addDelegatesToBlock(open.id, [x.id]); const f = await load(); setOpen(f.find((y) => y.id === open.id) || null); toast(`${x.name} added`) }
+                              catch (err) { toast(err.message) } finally { setBusy(false) }
+                            }}>
+                            <b>{x.name}</b>
+                            <small>{onIt.has(x.name) ? 'already on this course' : `${x.scheme || 'no scheme'} · ${x.count}`}</small>
+                          </button>
+                        ))}
+                      </div>
+                      <p className="cx-addnote">
+                        {n > 0
+                          ? <><b>{n} of these {n === 1 ? 'is' : 'are'} waiting for {open.scheme}</b> — shown first. </>
+                          : <>Nobody here is waiting for {open.scheme || 'this scheme'}. </>}
+                        The line down the side is what each person is waiting for.
+                      </p>
+                    </details>
+                  )
+                })()}
               </div>
             </div>
 
@@ -657,7 +717,7 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
   const part = isPart(d)
   const k = kindOf(d.kind)
   return (
-    <li className={part ? 'part' : ''}>
+    <li className={part ? 'part' : ''} style={{ '--s': schemeColour(block.scheme) }}>
       <span className="cx-kind" style={{ background: k.c }} title={k.label} />
       <span className="cx-dinfo">
         <b>{d.name}</b>

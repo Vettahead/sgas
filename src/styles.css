@@ -1477,3 +1477,32 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-delg .cx-x{padding:5px 8px;border-radius:7px;font-size:11.5px;min-height:28px}
 .cx-delg .cx-x:hover{background:var(--cx-soft)}
 .cx-delg .cx-x.danger:hover{background:var(--cx-warn-soft);color:var(--cx-warn)}
+
+/* ── The rail slides in when you want it ───────────────────────────────── */
+.cx-body.no-rail{grid-template-columns:minmax(0,1fr)}
+/* .cx-rail sets display:flex, which beats the [hidden] attribute on its own. */
+.cx-rail[hidden]{display:none}
+.cx-railbtn{position:relative}
+.cx-railbtn.on{background:var(--cx-brand-soft);border-color:var(--cx-brand);color:var(--cx-brand)}
+.cx-railbtn em{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;
+  border-radius:99px;background:var(--cx-warn);color:#fff;font:700 10px/16px inherit;
+  font-style:normal;text-align:center}
+.cx-rail{animation:cx-rail-in .18s cubic-bezier(.2,.9,.3,1)}
+@keyframes cx-rail-in{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.cx-rail{animation:none}}
+
+/* ── Who is waiting, and what for ──────────────────────────────────────── */
+.cx-pchip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
+  padding:7px 11px 7px 12px;border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;
+  text-align:left;line-height:1.25}
+.cx-pchip b{font:600 12.5px/1.2 inherit;color:var(--cx-ink)}
+.cx-pchip small{font:500 10.5px/1 inherit;color:var(--cx-mute)}
+.cx-pchip.fits{background:color-mix(in srgb,var(--s) 10%,var(--cx-panel));
+  border-color:var(--s);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--s) 35%,transparent)}
+.cx-pchip:hover:not(:disabled){background:color-mix(in srgb,var(--s) 16%,var(--cx-panel))}
+.cx-addnote{margin:8px 0 2px 6px;font:500 10.5px/1.5 inherit;color:var(--cx-mute)}
+.cx-addnote b{font-weight:700;color:var(--cx-ink)}
+.cx-add .cx-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.cx-course-pop .cx-delg li{border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;padding-left:10px}
+.cx-pchip.already{opacity:.55}
+.cx-pchip.already small{color:var(--cx-warn);font-weight:600}

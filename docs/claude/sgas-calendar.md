@@ -86,3 +86,18 @@ that shape, not a centred modal.
 
 Colour: "needs a trainer or delegates" is a **triangle**, not an amber dot —
 some courses are amber themselves and the two were indistinguishable.
+
+## Scheme colour, and the rail (28 Aug 2026)
+
+- **`schemeColour(name)`** in `CalendarNext.jsx` is the single source of a
+  scheme's colour. The sixteen schemes we run are pinned in `SCHEME_C`; anything
+  else hashes into `PALETTE` so it stays stable between visits. Use it anywhere
+  a scheme is shown — the attendee selector, the waiting list and the delegate
+  rows all share it, which is what makes them read as one system.
+- **The rail is collapsible** (`sgas_cx_rail`, default open at ≥1280px). While
+  it is closed the toolbar button carries the "needs attention" count, so
+  folding it away can never hide an unstaffed course.
+- Gotcha: `.cx-rail` sets `display:flex`, which beats the `[hidden]` attribute.
+  `.cx-rail[hidden]{display:none}` is load-bearing — without it the rail drops
+  below the calendar instead of disappearing, and an assertion that only checks
+  the attribute will not catch it. Check computed display and height.

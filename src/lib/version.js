@@ -14,6 +14,18 @@
 
 export const RELEASES = [
   {
+    v: '1.12.0', build: 121, date: '28 Aug 2026',
+    title: 'Calendar (new look): the side panel folds away',
+    notes: [
+      'The panel on the right folds away with the button in the toolbar, and the calendar takes the space back. It remembers whether you had it open, and starts closed on a smaller screen.',
+      'While it is closed the button carries a count, so you still know when something needs a trainer.',
+      'Picking somebody for a course now shows what each person is waiting for, with a coloured line down the side for the scheme \u2014 blue for ACS Domestic, green for Renewables, and so on.',
+      'Anyone waiting for the same scheme as the course you are looking at is highlighted and listed first.',
+      'Somebody already on the course is greyed out and says so, so you do not add them twice.',
+      'The waiting list on the right uses the same colours, so the two lists read as one thing.',
+    ],
+  },
+  {
     v: '1.11.0', build: 120, date: '28 Aug 2026',
     title: 'Calendar (new look): a lighter way to open a course',
     notes: [

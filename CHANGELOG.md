@@ -4,6 +4,47 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): a collapsible rail, and colour by scheme
+
+Review: *"can we have the right bar collapsable/comes in when needed, and on the
+modal \u2026 can we have the courses the attendees are doing on the selector part
+colour coded with a line or something?"*
+
+### Added
+- **The rail collapses.** A toggle in the toolbar; `.cx-body.no-rail` drops to a
+  single column and the calendar takes the space back (900 → 1218px at 1500
+  wide). Persisted in `sgas_cx_rail`, defaulting to open at ≥1280px and closed
+  below. While it is closed the button carries the "needs attention" count, so
+  folding it away never hides an unstaffed course — that is the "comes in when
+  needed" half.
+- **`schemeColour(name)`** — the sixteen schemes we run are pinned to a colour;
+  anything new hashes into the same palette so it is at least stable between
+  visits.
+- **The attendee selector is colour-coded.** Each person waiting carries a
+  4px line in the colour of the scheme they are waiting for, plus the scheme
+  name and how many qualifications. Anyone waiting for the same scheme as the
+  open course is tinted, outlined and **sorted to the front**, with a line under
+  the list saying how many. Delegate rows already on the course carry the same
+  line, so the two lists read as one system.
+- Somebody already on the course is dimmed and labelled — a person can hold a
+  second booking so it is a warning, not a filter, but nothing here undoes an
+  accidental double-add.
+- The rail's "Waiting to be placed" rows use the scheme colour instead of a
+  hardcoded green.
+
+### Fixed
+- `.cx-rail` sets `display:flex`, which beats the `[hidden]` attribute — the
+  rail was dropping below the calendar instead of disappearing. Caught by
+  screenshot, not by the assertion, which had only checked the attribute; the
+  test now checks computed display and height.
+
+### Verified
+66 Playwright assertions. The new ones: the rail toggles, the calendar reclaims
+the width, closed really means gone, the state survives a reload, the button
+badges the attention count while closed; the selector renders a chip per person,
+each names its scheme, the lines are distinct per scheme, and the ones that fit
+the open course come first.
+
 ## 2026-08-28 — Calendar (new look): the Calendars-style popover
 
 Review: Chris sent Calendars by Readdle — *"the popout/modal window looks super
