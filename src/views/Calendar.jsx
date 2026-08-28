@@ -130,7 +130,7 @@ export default function Calendar({ go, isAdmin, user }) {
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const all = [...b, ...holBlocks, ...engBlocks]
-    setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool()); setNonce((n) => n + 1)
+    setBlocks(all); setCourses(c); setStaff(s); setCategories(cats); setHolidays(hol); setPool(getPool())
     return all
   }
   // Refresh data but keep the right panel open on the (now-updated) same block.

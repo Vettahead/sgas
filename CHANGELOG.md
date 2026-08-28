@@ -4,6 +4,27 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Critical fixes
+
+### Fixed
+- **`setNonce is not defined` — every calendar write threw.** Introduced in
+  v1.8.0: `nonce` was DayPilot's re-render key and was removed with the widget,
+  but the `setNonce((n) => n + 1)` call at the end of `refresh()` survived a
+  regex that required the call to end the line. `refresh()` therefore threw a
+  ReferenceError on every invocation, so: the grid never reloaded after a save,
+  `refreshKeepOpen` never reassigned the open block, and the user was shown the
+  literal string "setNonce is not defined" after every trainer assignment,
+  delegate add, delegate return, attendance change and date edit. A runtime
+  error, so `vite build` passed and it shipped. Found by an adversarial audit,
+  not by the build.
+- **Schedule → Calendar tab leaked every user's private engagements.**
+  `CalendarTab` rendered `<CalendarView />` with no props. `user` being
+  undefined made it call `listEngagements(undefined, undefined)`, which in
+  `api.js` skips the owner/member filter entirely and returns all rows — with
+  an ungated Delete button. `isAdmin` being undefined also silently stripped
+  every edit control from that tab. `Schedule` now takes `user`/`isAdmin`/`go`
+  from `App.jsx` and forwards them.
+
 ## 2026-08-27 — v1.8.0 — Calendar rebuilt, set-up wizard
 
 ### Added

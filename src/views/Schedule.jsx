@@ -63,7 +63,7 @@ function DelegateChip({ d, scheme, block, categories, onAdded, onReturn, locked 
   )
 }
 
-export default function Schedule() {
+export default function Schedule({ user, isAdmin, go }) {
   const [tab, setTab] = useState('drag')
   // Filters + per-block collapse state are lifted here so they persist across tabs.
   const [courseType, setCourseType] = useState('')   // '' = all course types (scheme)
@@ -89,7 +89,7 @@ export default function Schedule() {
         </div>
       </div>
       {tab === 'drag' && <DragAssign f={f} />}
-      {tab === 'cal' && <CalendarTab f={f} />}
+      {tab === 'cal' && <CalendarTab user={user} isAdmin={isAdmin} go={go} />}
     </>
   )
 }
@@ -587,9 +587,12 @@ function BlockFooter({ b }) {
 }
 
 /* ============================ calendar ============================ */
-function CalendarTab() {
+function CalendarTab({ user, isAdmin, go }) {
   // Reuse the full calendar (the same one as the standalone Calendar tab).
-  return <CalendarView />
+  // These props MUST be forwarded: without `user`, listEngagements falls back
+  // to an unfiltered query and shows every user's private entries; without
+  // `isAdmin` the tab silently loses all its edit controls.
+  return <CalendarView user={user} isAdmin={isAdmin} go={go} />
 }
 
 function Calendar({ blocks }) {
