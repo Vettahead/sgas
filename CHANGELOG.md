@@ -4,6 +4,40 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look), round two
+
+Review feedback: white modal in dark mode, no resize, no create, missing the
+split colour coding, and no way to split a delegate's attendance.
+
+### Fixed
+- **The course window was white in dark mode.** `.cal-modal` hardcodes
+  `background:#fff`, and `.cx-modal` never overrode it — so the panel was a
+  white box with `--cx-ink` (pale) text on it. `.cx-modal` now carries its own
+  surface, and `.cx select` / `.cx input` are themed too.
+
+### Added
+- **Resize.** A `.cx-resize` handle mirrors the move handle: the left edge
+  moves the course, the right edge changes its length, clamped so the end can
+  never pass the start. Both are pointer-driven, so both work on touch.
+- **Create.** Dragging across days now opens a small New course sheet
+  (dates + which course + Create it), which drops you straight into the new
+  course's window to add a trainer and delegates. "Use the full set-up instead"
+  hands off to the wizard. Previously the drag only raised a toast.
+- **Split colour coding, carried over from the calendar people know.** Each bar
+  gets a stripe along its bottom edge with one segment per delegate, coloured
+  by why they are there — New, Reassessment, Not yet competent, No-show. A
+  mixed course now reads without opening it. A legend above the grid decodes it.
+- **Splitting a delegate's attendance.** `isPart()` marks anyone with
+  `attendFrom`/`attendTo` set: their stripe segment is half-opacity, the bar
+  carries a ◧ marker, and their row in the course window shows the dates they
+  actually attend. Admins get a "split" control writing through the existing
+  `setBookingAttendance`, with "all of it" to clear it.
+
+Verified in headless Chromium: dark modal renders on the dark surface,
+3 delegate stripes and 4 resize handles present, drag-to-create opens the sheet
+and creates a real course, and a resize grew a bar from 249px to 377px. No
+console errors.
+
 ## 2026-08-28 — Calendar (new look), on its own tab
 
 ### Added

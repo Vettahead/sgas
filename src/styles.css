@@ -1138,3 +1138,49 @@ select,select option{color:#1d2733;background:#fff}
   .cx-rail{flex-direction:column}
 }
 @media (prefers-reduced-motion:reduce){ .cx-grid,.cx-bar,.cx-skel div{animation:none!important;transition:none} }
+
+/* ── Calendar (new look) — dark-mode fix + resize, split colours, legend ─── */
+/* .cal-modal hardcodes a white background, so in dark mode the course window
+   was a white box with pale text. The new look brings its own surface. */
+.cx-modal{background:var(--cx-panel);color:var(--cx-ink);border:1px solid var(--cx-line)}
+.cx select,.cx input[type=date],.cx input[type=text]{
+  background:var(--cx-panel);color:var(--cx-ink);border:1px solid var(--cx-line);
+  border-radius:10px;padding:10px 12px;font:inherit;font-size:13.5px;width:100%}
+.cx select:focus,.cx input:focus{outline:none;border-color:var(--cx-brand);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--cx-brand) 22%,transparent)}
+
+/* resize handle, mirroring the move handle on the left */
+.cx-resize{position:absolute;right:0;top:0;bottom:0;width:16px;cursor:ew-resize;touch-action:none}
+.cx-bar:hover .cx-resize{background:linear-gradient(270deg,rgba(0,0,0,.10),transparent)}
+.cx-dark .cx-bar:hover .cx-resize{background:linear-gradient(270deg,rgba(255,255,255,.16),transparent)}
+.cx-dark .cx-bar:hover .cx-grab{background:linear-gradient(90deg,rgba(255,255,255,.16),transparent)}
+
+/* the delegate-mix stripe along the bottom of a bar */
+.cx-mix{position:absolute;left:0;right:0;bottom:0;height:3px;display:flex;gap:1px;pointer-events:none;
+  border-bottom-left-radius:8px;border-bottom-right-radius:8px;overflow:hidden}
+.cx-mix i{flex:1}
+.cx-part{font-size:11px;opacity:.75;flex:none}
+
+/* legend */
+.cx-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 2px 12px;
+  font-size:11.5px;color:var(--cx-mute)}
+.cx-legend span{display:inline-flex;align-items:center;gap:6px}
+.cx-legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.cx-l-part{background:linear-gradient(90deg,var(--cx-mute) 50%,transparent 50%);
+  border:1px solid var(--cx-mute)}
+.cx-l-warn{background:var(--cx-warn);border-radius:99px!important;width:8px!important;height:8px!important}
+.cx-l-sep{width:1px;height:14px;background:var(--cx-line)}
+
+/* delegate rows */
+.cx-delg li{flex-wrap:wrap}
+.cx-delg li.part{background:color-mix(in srgb,var(--cx-warn) 9%,var(--cx-soft))}
+.cx-kind{width:9px;height:30px;border-radius:3px;flex:none}
+.cx-dinfo{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
+.cx-dinfo b{font-size:13px;font-weight:650}
+.cx-dinfo small{font-size:11.5px;color:var(--cx-mute)}
+.cx-split{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:8px}
+.cx-split input[type=date]{width:auto;padding:7px 9px;font-size:12px}
+.cx-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.cx-ghost{background:none;border:1px solid var(--cx-line);color:var(--cx-mute);border-radius:10px;
+  padding:10px 14px;font:600 12.5px/1 inherit;cursor:pointer}
+.cx-ghost:hover{color:var(--cx-ink);border-color:var(--cx-brand)}

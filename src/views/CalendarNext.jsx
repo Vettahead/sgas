@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
+  createBlock, setBookingAttendance,
 } from '../lib/api.js'
 import { todayISO, fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -29,6 +30,19 @@ const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
   'August', 'September', 'October', 'November', 'December']
 const DOW = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+// How each delegate on a course is counted. The bar carries a stripe of these
+// so a mixed course reads at a glance without opening it.
+const KIND = {
+  NEW:      { c: '#1f9d55', label: 'New' },
+  REASSESS: { c: '#2f6fd0', label: 'Reassessment' },
+  MIXED:    { c: '#7b2ff2', label: 'Mixed' },
+  NYC:      { c: '#b7791f', label: 'Not yet competent' },
+  NO_SHOW:  { c: '#c0392b', label: 'No-show' },
+}
+const kindOf = (k) => KIND[k] || KIND.NEW
+// A delegate doing only part of a course — the "split" case.
+const isPart = (d) => !!(d.attendFrom || d.attendTo)
+
 const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
@@ -45,10 +59,13 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [dense, setDense] = useState(() => readLS(DENSE_KEY, '0') === '1')
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState(null)
+  const [courses, setCourses] = useState([])
+  const [creating, setCreating] = useState(null)   // { from, to } after a drag
 
   async function load() {
-    const [b, s, h] = await Promise.all([listBlocks(), listStaff(), listHolidays()])
+    const [b, s, h, cs] = await Promise.all([listBlocks(), listStaff(), listHolidays(), listCourses()])
     setBlocks(b); setStaff(s); setHolidays(h); setPool(getPool())
+    setCourses(cs.filter((c) => c.is_active !== false))
     return b
   }
   useEffect(() => { (async () => { try { await loadPool() } catch { /* optional */ } await load() })() }, [])
@@ -127,13 +144,13 @@ export default function CalendarNext({ isAdmin, user, go }) {
     const end = (ok) => () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cx)
-      setSel((s) => { if (ok && s && s.from !== s.to) toast(`Would create ${fmt(s.from)} – ${fmt(s.to)} — this is the demo`); return null })
+      setSel((s) => { if (ok && s && s.from !== s.to) setCreating({ from: s.from, to: s.to }); return null })
     }
     const up = end(true), cx = end(false)
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cx)
   }
-  function barDown(b, e) {
+  function barDown(b, e, mode) {
     if (!isAdmin) return
     e.preventDefault(); e.stopPropagation()
     const cell = document.querySelector('.cx-cell')
@@ -144,18 +161,25 @@ export default function CalendarNext({ isAdmin, user, go }) {
       const dx = ev.clientX - x0
       dragRef.current.delta = Math.round(dx / w)
       if (Math.abs(dx) > 4) dragRef.current.moved = true
-      el.style.transform = `translateX(${dx}px)`; el.style.zIndex = 9; el.style.opacity = '.9'
+      if (mode === 'move') el.style.transform = `translateX(${dx}px)`
+      else el.style.width = Math.max(w * 0.6, el.offsetWidth) + 'px'
+      el.style.zIndex = 9; el.style.opacity = '.9'
     }
     const up = async () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
-      el.style.transform = ''; el.style.zIndex = ''; el.style.opacity = ''
+      el.style.transform = ''; el.style.width = ''; el.style.zIndex = ''; el.style.opacity = ''
       const { delta, moved } = dragRef.current || {}
       dragRef.current = null
       if (!moved || !delta) return
+      // Moving shifts both ends; resizing only moves the end, and never past
+      // the start.
+      const from = mode === 'move' ? addDays(b.start, delta) : b.start
+      let to = addDays(b.end, delta)
+      if (to < from) to = from
       setBusy(true)
       try {
-        await updateBlock(b.id, { from: addDays(b.start, delta), to: addDays(b.end, delta) })
+        await updateBlock(b.id, { from, to })
         await load(); setFlash(String(b.id)); setTimeout(() => setFlash(null), 800)
       } catch (err) { toast(err.message) } finally { setBusy(false) }
     }
@@ -191,6 +215,15 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </div>
       </header>
 
+      <div className="cx-legend">
+        {Object.entries(KIND).filter(([k]) => k !== 'MIXED').map(([k, v]) => (
+          <span key={k}><i style={{ background: v.c }} />{v.label}</span>
+        ))}
+        <span><i className="cx-l-part" />Doing part of it</span>
+        <span className="cx-l-sep" />
+        <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
+      </div>
+
       <div className="cx-body">
         {/* ── Month grid ──────────────────────────────────────────────── */}
         <section className="cx-cal" aria-label={'Courses in ' + title}>
@@ -223,14 +256,28 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
                         '--c': s.b.color || '#5b6b80',
                       }}
-                      onPointerDown={(e) => { if (e.target.classList.contains('cx-grab')) barDown(s.b, e) }}
+                      onPointerDown={(e) => {
+                        if (e.target.classList.contains('cx-grab')) barDown(s.b, e, 'move')
+                        else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
+                      }}
                       onClick={() => { if (!dragRef.current?.moved) setOpen(s.b) }}>
-                      {isAdmin && !s.b.isHoliday && <span className="cx-grab" aria-hidden="true" />}
+                      {isAdmin && !s.b.isHoliday && <span className="cx-grab" aria-hidden="true" title="Drag to move" />}
                       <span className="cx-bar-t">
                         {s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}
+                        {s.head && s.b.delegates?.some(isPart) && <span className="cx-part" title="Somebody is doing only part of this course">◧</span>}
                         {s.head && s.b.delegates?.length > 0 && <em>{s.b.delegates.length}</em>}
                       </span>
+                      {/* One segment per delegate, coloured by what they are
+                          here for — a mixed course reads without opening it. */}
+                      {s.head && s.b.delegates?.length > 0 && (
+                        <span className="cx-mix" aria-hidden="true">
+                          {s.b.delegates.slice(0, 10).map((d) => (
+                            <i key={d.bookingId} style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />
+                          ))}
+                        </span>
+                      )}
                       {s.head && !s.b.ready && !s.b.isHoliday && <span className="cx-dot" title="Needs a trainer or delegates" />}
+                      {isAdmin && !s.b.isHoliday && <span className="cx-resize" aria-hidden="true" title="Drag to change the length" />}
                     </button>
                   ))}
                 </div>
@@ -278,6 +325,44 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </aside>
       </div>
 
+      {creating && (
+        <Modal onClose={() => setCreating(null)} label="New course" className="cx-modal" dirty={!!creating.courseId}>
+          <div className="cx-mhead" style={{ '--c': courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80' }}>
+            <div>
+              <h3>New course</h3>
+              <p>{fmt(creating.from)} – {fmt(creating.to)} · {between(creating.from, creating.to) + 1} days</p>
+            </div>
+            <button className="cx-icon" onClick={() => setCreating(null)} aria-label="Close">✕</button>
+          </div>
+          <div className="cx-mbody">
+            <div className="cx-field">
+              <label>Which course</label>
+              <select value={creating.courseId || ''} onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
+                <option value="">— pick one —</option>
+                {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+              </select>
+            </div>
+            <div className="cx-actions">
+              <button className="cx-ghost" onClick={() => { const r = creating; setCreating(null); go?.('setup') }}>
+                Use the full set-up instead
+              </button>
+              <button className="cx-primary" disabled={!creating.courseId || busy} onClick={async () => {
+                setBusy(true)
+                try {
+                  const id = await createBlock({ courseId: Number(creating.courseId), from: creating.from, to: creating.to })
+                  setCreating(null)
+                  const f = await load()
+                  const made = f.find((x) => String(x.id) === String(id))
+                  setFlash(String(id)); setTimeout(() => setFlash(null), 900)
+                  if (made) setOpen(made)
+                  toast('Course created — add a trainer and delegates')
+                } catch (err) { toast(err.message) } finally { setBusy(false) }
+              }}>{busy ? 'Creating…' : 'Create it'}</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {open && (
         <Modal onClose={() => setOpen(null)} label={open.course} className="cx-modal">
           <div className="cx-mhead" style={{ '--c': open.color || '#5b6b80' }}>
@@ -310,14 +395,17 @@ export default function CalendarNext({ isAdmin, user, go }) {
               {open.delegates.length === 0
                 ? <p className="cx-empty">Nobody yet.</p>
                 : <ul className="cx-delg">{open.delegates.map((d) => (
-                    <li key={d.bookingId}>
-                      <span>{d.name}{d.codes?.length ? <small> · {d.codes.join(', ')}</small> : null}</span>
-                      {isAdmin && <button className="cx-x" disabled={busy} onClick={async () => {
+                    <Delegate key={d.bookingId} d={d} block={open} isAdmin={isAdmin} busy={busy}
+                      onSplit={async (f, t) => {
                         setBusy(true)
-                        try { await returnToPool(d.bookingId); const f = await load(); setOpen(f.find((x) => x.id === open.id) || null) }
+                        try { await setBookingAttendance(d.bookingId, f, t); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(f || t ? 'Part attendance set' : 'Back to the full course') }
                         catch (err) { toast(err.message) } finally { setBusy(false) }
-                      }}>remove</button>}
-                    </li>))}
+                      }}
+                      onRemove={async () => {
+                        setBusy(true)
+                        try { await returnToPool(d.bookingId); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null) }
+                        catch (err) { toast(err.message) } finally { setBusy(false) }
+                      }} />))}
                   </ul>}
             </div>
             {isAdmin && pool.length > 0 && (
@@ -338,5 +426,39 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </Modal>
       )}
     </div>
+  )
+}
+
+/* One person on a course: what they are here for, and whether they are only
+   doing part of it — the "split" case. */
+function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
+  const [edit, setEdit] = useState(false)
+  const [f, setF] = useState(d.attendFrom || block.start)
+  const [t, setT] = useState(d.attendTo || block.end)
+  const part = isPart(d)
+  const k = kindOf(d.kind)
+  return (
+    <li className={part ? 'part' : ''}>
+      <span className="cx-kind" style={{ background: k.c }} title={k.label} />
+      <span className="cx-dinfo">
+        <b>{d.name}</b>
+        <small>
+          {k.label}
+          {d.codes?.length ? ' · ' + d.codes.join(', ') : ''}
+          {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
+        </small>
+      </span>
+      {isAdmin && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change' : 'split'}</button>}
+      {isAdmin && !edit && <button className="cx-x" disabled={busy} onClick={onRemove}>remove</button>}
+      {edit && (
+        <span className="cx-split">
+          <input type="date" value={f} min={block.start} max={block.end} onChange={(e) => setF(e.target.value)} />
+          <input type="date" value={t} min={block.start} max={block.end} onChange={(e) => setT(e.target.value)} />
+          <button className="cx-x" disabled={busy} onClick={() => { onSplit(f, t); setEdit(false) }}>save</button>
+          <button className="cx-x" disabled={busy} onClick={() => { onSplit(null, null); setEdit(false) }}>all of it</button>
+          <button className="cx-x" onClick={() => setEdit(false)}>cancel</button>
+        </span>
+      )}
+    </li>
   )
 }
