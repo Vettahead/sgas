@@ -9,6 +9,7 @@ import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
 import Calendar from './views/Calendar.jsx'
+import CalendarNext from './views/CalendarNext.jsx'
 import SetupWizard from './views/SetupWizard.jsx'
 import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
@@ -31,6 +32,7 @@ const TITLES = {
   setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
   sched: ['Schedule', 'Assign a trainer to each course block and add delegates (assessor & verifier are set in Assess)'],
   calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day, staff or year'],
+  calendarnext: ['Calendar — new look', 'A redesign, side by side with the one you know. Nothing here replaces it yet.'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -50,6 +52,7 @@ const NAV_GROUPS = [
     { v: 'setup', ic: '🪄', label: 'Set up a course' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
     { v: 'calendar', ic: '📅', label: 'Calendar' },
+    { v: 'calendarnext', ic: '✨', label: 'Calendar — new look' },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
@@ -191,6 +194,7 @@ export default function App() {
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'sched' && <Schedule user={user} isAdmin={isAdmin} go={go} />}
           {activeView === 'calendar' && <Calendar go={go} isAdmin={isAdmin} user={user} />}
+          {activeView === 'calendarnext' && <CalendarNext go={go} isAdmin={isAdmin} user={user} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}

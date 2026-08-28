@@ -4,6 +4,36 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look), on its own tab
+
+### Added
+- **`src/views/CalendarNext.jsx`** — a visual revamp of the month calendar,
+  added as a separate "Calendar — new look" tab. **The live Calendar, Schedule
+  and Set up a course screens are untouched.** All styles are namespaced `.cx-`
+  so they cannot leak into the existing calendar.
+  - Real type hierarchy: a 26px month title instead of a row of small grey
+    buttons, and a single primary action.
+  - Bars are tinted with the course colour and carry it as a left edge, with
+    the delegate count as a pill and an amber dot when the course is missing a
+    trainer or delegates.
+  - An agenda rail: what needs attention, what is on in the month being viewed,
+    and who is waiting to be placed — scoped to the visible month, so it never
+    contradicts the grid.
+  - Comfortable / Compact density, and a **dark mode** (`.cx-dark`), both
+    remembered per browser.
+  - Motion that carries meaning: the grid slides in the direction of travel,
+    a moved course pulses once on landing, skeleton cells while loading.
+  - Rows size themselves to the number of stacked courses rather than always
+    rendering six weeks.
+  - The course window puts the trainer, the roster and the waiting list in one
+    place, with the waiting list as tappable chips — the drawer's job, done in
+    a window.
+  - Reuses the shared `Modal`, so Escape, the focus trap and `role="dialog"`
+    come with it.
+
+Rendered and checked in headless Chromium at 1500px and 390px, light and dark,
+with no console errors.
+
 ## 2026-08-28 — Calendar correctness pass
 
 Driven by an adversarial audit against Google Calendar. Verified in a real

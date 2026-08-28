@@ -14,6 +14,19 @@
 
 export const RELEASES = [
   {
+    v: '1.9.0', build: 111, date: '28 Aug 2026',
+    title: 'Calendar fixes, and a new look to try',
+    notes: [
+      'Fixed a fault that showed an error message after every change you made on the calendar, and stopped the screen refreshing.',
+      'The Schedule tab’s calendar was showing everyone’s private entries — now it only shows your own.',
+      'Nothing gets thrown away any more: pressing Escape closes a window, and closing one with something typed in it asks first. Setting up a course remembers where you were if you wander off.',
+      'Dragging now works on a tablet in every view. The drag handles are big enough to grab with a finger.',
+      'On a phone the menu slides over the page instead of pushing it sideways, and closes itself once you pick something.',
+      'Filtering by staff no longer hides the courses that have nobody assigned yet.',
+      'NEW “Calendar — new look” tab: a redesign to look at, sitting next to the one you know. Nothing has been replaced.',
+    ],
+  },
+  {
     v: '1.8.0', build: 107, date: '27 Aug 2026',
     title: 'Calendar rebuilt, and a set-up wizard',
     notes: [
