@@ -17,7 +17,8 @@ export const RELEASES = [
     v: '1.8.0', build: 107, date: '27 Aug 2026',
     title: 'Calendar rebuilt, and a set-up wizard',
     notes: [
-      'New “Set up a course” screen — one question at a time: the course, the dates, who is teaching, who is attending, then a check. No dragging, so it works the same on a phone, tablet or desktop.',
+      'New “Set up a course” screen — one question at a time: the course, the dates, who is teaching, who is attending, then a check.',
+      'Pick the dates by dragging across a calendar, in Month or Year view, with courses already booked shown alongside so you can see what else is on.',
       'The Month view has been rebuilt so the whole calendar matches, and it now works on a tablet.',
       'The app is around a quarter smaller and loads faster — a bought-in calendar component has been removed.',
       'Clicking a course opens it straight away, in a proper centred window instead of a narrow strip. It no longer asks whether you want to view or edit first.',

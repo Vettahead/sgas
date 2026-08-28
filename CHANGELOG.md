@@ -11,8 +11,14 @@ releases in plain English for the client; this file carries the technical detail
   Set up a course). Five steps: course → dates → trainer → delegates → check.
   Writes through the existing API (`createBlock` → `assignBlockRole` →
   `addDelegatesToBlock`), so a course created here is an ordinary course.
-  Weekend dates snap to weekdays; staff on holiday for the chosen dates cannot
-  be selected; the delegate list is filtered to the course's scheme.
+  The dates step is a real calendar — drag across the days in either Month or
+  Year view, with existing blocks shown for context. `MonthView` and `YearView`
+  gained a `selection` prop so a committed range stays highlighted after the
+  drag ends. `applyRange()` normalises a drag: it orders the ends, snaps them
+  inside Mon-Fri, and collapses to a single day when a drag lands entirely on a
+  weekend (which would otherwise invert the range — caught by unit test).
+  Staff on holiday for the chosen dates cannot be selected; the delegate list
+  is filtered to the course's scheme.
 - **`MonthView`** in `Calendar.jsx` — our own month grid, exported along with
   `cal()` so the dashboard can reuse it. Week rows, lane-packed multi-day bars,
   drag across cells to create, drag a bar to move, drag its edge to resize.
@@ -25,6 +31,10 @@ releases in plain English for the client; this file carries the technical detail
   directly with the edit controls inline; everyone else sees it read-only.
 - `Dashboard.jsx` "Month at a glance" now renders the shared `MonthView` in
   `readOnly` mode; its bespoke hover card and event-mapping code are gone.
+- `YearView` day-cell dragging moved from `onMouseDown`/`onMouseEnter` to
+  pointer events with `elementFromPoint` tracking, plus `touch-action:none` on
+  `.yc-cell`. `mouseenter` never fires during a touch drag, so year-view
+  selection had been desktop-only.
 
 ### Removed
 - **`@daypilot/daypilot-lite-react`** — the last third-party UI dependency.

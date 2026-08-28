@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import {
-  listCourses, listStaff, listHolidays, getPool, loadPool,
+  listCourses, listStaff, listHolidays, getPool, loadPool, listBlocks,
   createBlock, assignBlockRole, addDelegatesToBlock, staffOnHoliday, weekdayDays,
 } from '../lib/api.js'
+import { MonthView, YearView, cal } from './Calendar.jsx'
 import { todayISO, fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 
@@ -36,6 +37,9 @@ export default function SetupWizard({ go }) {
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
   const [pool, setPool] = useState([])
+  const [existing, setExisting] = useState([])          // what is already booked, for context
+  const [pickView, setPickView] = useState('Month')     // Month | Year
+  const [anchor, setAnchor] = useState(() => cal(todayISO()))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(null)
@@ -51,8 +55,9 @@ export default function SetupWizard({ go }) {
   useEffect(() => {
     (async () => {
       try { await loadPool() } catch { /* pool optional */ }
-      const [c, s, h] = await Promise.all([listCourses(), listStaff(), listHolidays()])
+      const [c, s, h, b] = await Promise.all([listCourses(), listStaff(), listHolidays(), listBlocks()])
       setCourses(c.filter((x) => x.is_active !== false)); setStaff(s); setHolidays(h); setPool(getPool())
+      setExisting(b)
       setLoading(false)
     })()
   }, [])
@@ -85,9 +90,22 @@ export default function SetupWizard({ go }) {
     if (!from) {
       const start = snapWeekday(addDaysISO(todayISO(), 14), 'start')
       setFrom(start); setTo(snapWeekday(addDaysISO(start, 4), 'end'))
+      setAnchor(cal(start))
     }
     setStep(1)
   }
+  // Take whatever was dragged and turn it into a sane Mon-Fri range.
+  // A drag that lands entirely on a weekend has no working days in it, so both
+  // ends would snap past each other and invert — that becomes the next Monday.
+  function applyRange(a, b) {
+    const lo = a < b ? a : b
+    const hi = a < b ? b : a
+    let f = snapWeekday(lo, 'start')
+    let t = snapWeekday(hi, 'end')
+    if (f > t) t = f
+    setFrom(f); setTo(t)
+  }
+
   function setStart(v) {
     if (!v) return setFrom('')
     const start = snapWeekday(v, 'start')
@@ -173,14 +191,72 @@ export default function SetupWizard({ go }) {
           {step === 1 && (
             <>
               <h3 className="wz-h">When does it run?</h3>
-              <p className="muted wz-sub">Courses run Monday to Friday — a weekend date moves to the nearest working day.</p>
-              <div className="twocol">
-                <div className="field"><label className="fl">First day</label>
-                  <input type="date" value={from} onChange={(e) => setStart(e.target.value)} /></div>
-                <div className="field"><label className="fl">Last day</label>
-                  <input type="date" value={to} min={from} onChange={(e) => setTo(snapWeekday(e.target.value, 'end'))} /></div>
+              <p className="muted wz-sub">
+                Drag across the days it runs. Courses already booked are shown so you can
+                see what else is on — Monday to Friday, so a weekend edge moves to the
+                nearest working day.
+              </p>
+
+              <div className="wz-caltop">
+                <div className="seg">
+                  <button className={pickView === 'Month' ? 'on' : ''} onClick={() => setPickView('Month')}>Month</button>
+                  <button className={pickView === 'Year' ? 'on' : ''} onClick={() => setPickView('Year')}>Year</button>
+                </div>
+                <div className="cal-nav-grp">
+                  <button className="cal-nav" onClick={() => setAnchor((a) => a.addMonths(pickView === 'Year' ? -12 : -1))}>‹</button>
+                  <span className="wz-caltitle">{anchor.toString(pickView === 'Year' ? 'yyyy' : 'MMMM yyyy')}</span>
+                  <button className="cal-nav" onClick={() => setAnchor((a) => a.addMonths(pickView === 'Year' ? 12 : 1))}>›</button>
+                </div>
+                <button className="btn ghost sm" onClick={() => setAnchor(cal(from || todayISO()))}>
+                  {from ? 'Back to the dates' : 'Today'}
+                </button>
               </div>
-              {days > 0 && <div className="banner">{days} working day{days === 1 ? '' : 's'}{to < todayISO() ? ' — note these dates are in the past' : ''}</div>}
+
+              <div className="wz-cal">
+                {pickView === 'Month' ? (
+                  <MonthView
+                    anchor={anchor}
+                    blocks={existing}
+                    colourFor={(b) => b.color || 'var(--slate)'}
+                    onOpen={() => {}}
+                    onDragCommit={() => {}}
+                    onCreate={applyRange}
+                    selection={from && to ? { from, to } : null}
+                  />
+                ) : (
+                  <YearView
+                    anchor={anchor}
+                    numMonths={12}
+                    blocks={existing}
+                    colourFor={(b) => b.color || 'var(--slate)'}
+                    onOpen={() => {}}
+                    onDragCommit={() => {}}
+                    onCreate={applyRange}
+                    selection={from && to ? { from, to } : null}
+                  />
+                )}
+              </div>
+
+              <div className="wz-caldates">
+                <span className="wz-picked">
+                  {from && to
+                    ? <><b>{fmt(from)}</b> to <b>{fmt(to)}</b> · {days} working day{days === 1 ? '' : 's'}</>
+                    : <span className="muted">Nothing picked yet — drag across the calendar above.</span>}
+                </span>
+                <details className="wz-manual">
+                  <summary className="muted small">Type the dates instead</summary>
+                  <div className="twocol" style={{ marginTop: 10 }}>
+                    <div className="field"><label className="fl">First day</label>
+                      <input type="date" value={from} onChange={(e) => setStart(e.target.value)} /></div>
+                    <div className="field"><label className="fl">Last day</label>
+                      <input type="date" value={to} min={from} onChange={(e) => {
+                        const t = snapWeekday(e.target.value, 'end')
+                        setTo(t < from ? from : t)
+                      }} /></div>
+                  </div>
+                </details>
+              </div>
+              {from && to && to < todayISO() && <div className="hint">These dates are in the past.</div>}
             </>
           )}
 

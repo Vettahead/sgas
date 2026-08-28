@@ -514,7 +514,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .yc-bar{align-self:center;margin:1px 1px;height:18px;border:none;border-radius:4px;color:#fff;font-size:10.5px;font-weight:600;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;text-align:left;display:flex;align-items:center;box-shadow:0 1px 2px rgba(0,0,0,.18)}
 .yc-bar:hover{filter:brightness(1.07)}
 .yc-bar-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.yc-cell{cursor:cell}
+.yc-cell{cursor:cell;touch-action:none}
 .yc-cell.sel{background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}
 /* Year view: bigger to match Teamup/ClickUp + day numbers in their own strip */
 .yc-mlabel{font-size:13.5px;padding:8px 12px}
@@ -925,3 +925,12 @@ select,select option{color:#1d2733;background:#fff}
   .wz-foot{position:sticky;bottom:0}
 }
 @media (prefers-reduced-motion:reduce){.wz-pick,.wz-tick{transition:none;animation:none}}
+.wz-caltop{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.wz-caltitle{font-weight:700;font-size:13px;min-width:120px;text-align:center}
+.wz-cal{border-radius:12px;overflow:auto;max-height:56vh}
+.wz-cal .mv{box-shadow:none}
+.wz-caldates{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;
+  flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.wz-picked{font-size:13.5px}
+.wz-manual summary{cursor:pointer;list-style:revert}
+.wz-manual{min-width:280px}

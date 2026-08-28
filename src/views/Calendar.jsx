@@ -752,7 +752,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
    overlapping courses stack instead of hiding each other. Everything is
    pointer events, so it works with a mouse, a finger or a pen.
 ==================================================================== */
-export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragCommit, readOnly = false }) {
+export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragCommit, readOnly = false, selection = null }) {
   const [hover, setHover] = useState(null)
   const [sel, setSel] = useState(null)          // {from,to} while dragging out a new block
   const gridRef = useRef(null)
@@ -849,7 +849,9 @@ export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragC
     window.addEventListener('pointerup', up)
   }
 
-  const inSel = (d) => sel && d >= sel.from && d <= sel.to
+  // Highlighted while dragging, and afterwards if a range has been committed.
+  const inSel = (d) => (sel && d >= sel.from && d <= sel.to) ||
+                       (!!selection && d >= selection.from && d <= selection.to)
   const maxLane = (r) => Math.max(0, ...(rows.get(r) || []).map((x) => x.lane))
 
   return (
@@ -904,7 +906,7 @@ export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragC
 /* ============================ Year view ============================ */
 /* Teamup-style: each month is a row, days are weekday-aligned columns, course
  * blocks are colour bars that stack into lanes. Drag across day cells to create. */
-function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, onCreate, onDragCommit }) {
+export function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, onCreate, onDragCommit, selection = null }) {
   const movedRef = useRef(false)
   const startY = Number(anchor.toString('yyyy'))
   const startM = Number(anchor.toString('MM')) - 1
@@ -918,8 +920,8 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
   let y = startY, m = startM
   for (let i = 0; i < numMonths; i++) { months.push({ y, m }); m++; if (m > 11) { m = 0; y++ } }
 
-  const lo = dragStart && dragEnd ? (dragStart < dragEnd ? dragStart : dragEnd) : null
-  const hi = dragStart && dragEnd ? (dragStart < dragEnd ? dragEnd : dragStart) : null
+  const lo = dragStart && dragEnd ? (dragStart < dragEnd ? dragStart : dragEnd) : (selection ? selection.from : null)
+  const hi = dragStart && dragEnd ? (dragStart < dragEnd ? dragEnd : dragStart) : (selection ? selection.to : null)
 
   function finish() {
     if (dragStart && dragEnd) {
@@ -930,8 +932,23 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
     setDragStart(null); setDragEnd(null)
   }
 
+  // Resolve whichever day cell is under the pointer. mouseenter does not fire
+  // during a touch drag, so the cell is looked up by position instead.
+  function trackPointer(e) {
+    if (!dragStart) return
+    const el = document.elementFromPoint(e.clientX, e.clientY)
+    const cell = el && el.closest ? el.closest('.yc-cell[data-d]') : null
+    if (cell) setDragEnd(cell.dataset.d)
+  }
+
   return (
-    <div className="yc" onMouseUp={finish} onMouseLeave={() => { setDragStart(null); setDragEnd(null) }}>
+    <div
+      className="yc"
+      onPointerMove={trackPointer}
+      onPointerUp={finish}
+      onPointerCancel={() => { setDragStart(null); setDragEnd(null) }}
+      onMouseLeave={() => { setDragStart(null); setDragEnd(null) }}
+    >
       <div className="yc-head">
         <div className="yc-mlabel" />
         <div className="yc-dowrow">
@@ -943,7 +960,8 @@ function YearView({ blocks, colourFor, numMonths, anchor, showStripes, onOpen, o
           onHover={onHover} onHoverEnd={onHoverEnd} onDragCommit={onDragCommit} movedRef={movedRef}
           lo={lo} hi={hi}
           onCellDown={(d) => { setDragStart(d); setDragEnd(d) }}
-          onCellEnter={(d) => { if (dragStart) setDragEnd(d) }} />
+          onCellEnter={(d) => { if (dragStart) setDragEnd(d) }}
+          selection={selection} />
       ))}
       {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
@@ -1012,7 +1030,7 @@ function HoverCard({ b, x, y }) {
   )
 }
 
-function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, onDragCommit, movedRef, lo, hi, onCellDown, onCellEnter }) {
+function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, onDragCommit, movedRef, lo, hi, onCellDown, onCellEnter, selection }) {
   function startBarDrag(b, e, mode) {
     if (e.button !== 0) return
     e.stopPropagation(); e.preventDefault()
@@ -1092,7 +1110,8 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
             <div key={'c' + c}
               className={'yc-cell' + (inMonth ? '' : ' out') + (isWknd && inMonth ? ' wknd' : '') + (isToday ? ' today' : '') + (sel ? ' sel' : '')}
               style={{ gridColumn: c + 1, gridRow: `2 / span ${lanes}` }}
-              onMouseDown={inMonth ? () => onCellDown(dateStr) : undefined}
+              data-d={dateStr || undefined}
+              onPointerDown={inMonth ? (e) => { e.preventDefault(); onCellDown(dateStr) } : undefined}
               onMouseEnter={inMonth ? () => onCellEnter(dateStr) : undefined} />
           )
         })}
