@@ -4,6 +4,63 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): drag people onto the calendar
+
+Review: *"the sidebar with waiting to be placed etc should be able to be dragged
+onto the calendar (thoughts?) multiple ways to do things i always feel is best"*,
+then *"needs to be doable on all things including touch. phone tablet the lot"*.
+
+### Added
+- **One drag layer, four drops.** `targetAt()` hit-tests with `elementFromPoint`,
+  `dropVerdict()` decides what a drop would do, `performDrop()` does it. The
+  highlight under the pointer and the action on release read the same function,
+  so they can never disagree.
+  - a waiting delegate onto a **course** → booked on it
+  - a waiting delegate onto **empty days** → the booking panel opens on that day
+    with their scheme's courses in a first `<optgroup>`, and they are added the
+    moment it is booked
+  - a **trainer** onto a course → assigned
+  - a delegate **off** a course onto the waiting list → returned to the pool
+- **A Trainers card in the rail**, showing how many courses each already has on.
+- **A ghost that follows the pointer** naming the person and what the drop will
+  do, coloured green / amber / red, with the target outlined to match. It warns
+  before a scheme mismatch or a trainer who is on holiday that week.
+- **Tap to pick up, tap to put down.** Dragging a person the length of a phone
+  screen is a bad gesture however well it is built, so a tap arms "placing":
+  every valid target lights up, a pinned bar says what you are holding, and a
+  tap puts them there. Escape or Cancel puts them down. This is the phone route
+  and it works on a desktop too.
+- **Edge auto-scroll while dragging**, so the rail and the calendar do not have
+  to be on screen together — on a phone the rail is a long way below the grid.
+
+### Accessibility
+Everything here is an accelerator. The course panel keeps "Add someone from the
+waiting list", a trainer picker, and "take off" with a confirm, so there is a
+non-drag route to all four — WCAG 2.2 SC 2.5.7. Pointer events throughout, with
+`touch-action:none` on the handles; no HTML5 drag-and-drop, which is dead on
+touch and still is on the Schedule board.
+
+### Fixed along the way
+- The popover sat above the rail and swallowed the drop when you dragged a
+  delegate out of a course. `body.cx-dragging` now takes the panel, its caret
+  and its scrim out of hit-testing.
+- Auto-scroll fought the drop: a course within 90px of the top slid out from
+  under the pointer as you reached it. It now holds still while you are over a
+  valid target, except in the outer 40px, where it always scrolls so you are
+  never stuck on something you were only passing over.
+- Picking somebody up from inside the course panel closes it — on a phone it is
+  a full-width sheet over the very list you then have to tap.
+- The placing bar was `position:sticky` and scrolled away on a phone, which is
+  exactly when it is needed. It is pinned.
+
+### Verified
+76 assertions across **desktop (1600×1000), tablet (820×1180) and phone
+(390×844)**, plus 101 in the existing suite. Every drop is checked by the data
+changing, not by the gesture completing: the waiting-list count, the delegate
+appearing on the booked course, the trainer's course count. The phone run
+exercises the real gesture — hold at the top edge and let the page scroll (1176
+→ 600 during one drag). A click still does nothing but pick somebody up.
+
 ## 2026-08-28 — Calendar (new look): the popover came unstuck on scroll
 
 Reported with a screenshot: with a course open, scrolling left the panel nailed

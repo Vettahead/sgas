@@ -1520,3 +1520,72 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-chip-len.float{position:fixed;transform:translate(-50%,-100%);z-index:200}
 @keyframes cx-pop-f{from{opacity:0}to{opacity:1}}
 .cx-chip-len.float{animation:cx-pop-f .12s ease}
+
+/* ── Dragging somebody onto the calendar ───────────────────────────────────
+   Pointer events, so it works with a finger. Every one of these has a
+   non-drag route in the popover — this is the shortcut, not the only way. */
+.cx-row.grabby{cursor:grab;touch-action:none;user-select:none;border-radius:9px}
+.cx-row.grabby:hover{background:var(--cx-soft)}
+.cx-row.grabby:active{cursor:grabbing}
+.cx-delg li.grabby{cursor:grab;touch-action:none}
+.cx-hintline{margin:0 0 8px;font:500 10.5px/1.4 inherit;color:var(--cx-mute)}
+
+/* the thing in your hand */
+.cx-ghost{position:fixed;z-index:400;pointer-events:none;transform:translate(12px,10px);
+  max-width:260px;background:var(--cx-panel);border:1px solid var(--cx-line);
+  border-left:4px solid var(--s);border-radius:4px 10px 10px 4px;padding:7px 11px;
+  box-shadow:0 10px 26px rgba(15,23,42,.24)}
+.cx-ghost b{display:block;font:600 12.5px/1.2 inherit;color:var(--cx-ink)}
+.cx-ghost small{display:block;margin-top:3px;font:500 10.5px/1.3 inherit;color:var(--cx-mute)}
+.cx-ghost small.ok{color:#1f9d55}
+.cx-ghost small.warn{color:var(--cx-warn)}
+.cx-ghost small.no{color:#c0392b}
+
+/* what you are about to drop it on */
+.cx-bar.drop-ok,.cx-ybar.drop-ok{box-shadow:0 0 0 2px #1f9d55,0 2px 8px rgba(15,23,42,.2)}
+.cx-bar.drop-warn,.cx-ybar.drop-warn{box-shadow:0 0 0 2px var(--cx-warn),0 2px 8px rgba(15,23,42,.2)}
+.cx-bar.drop-no,.cx-ybar.drop-no{box-shadow:0 0 0 2px #c0392b}
+.cx-cell.drop-ok,.cx-ycell.drop-ok,.cx-band-cell.drop-ok{background:var(--cx-brand-soft);
+  box-shadow:inset 0 0 0 2px var(--cx-brand)}
+.cx-cell.drop-no,.cx-ycell.drop-no,.cx-band-cell.drop-no{box-shadow:inset 0 0 0 2px #c0392b}
+
+/* dropping somebody back onto the waiting list */
+.cx-droppool.armed{border-style:dashed;border-color:var(--cx-brand)}
+.cx-droppool.on{background:var(--cx-brand-soft);box-shadow:0 0 0 2px var(--cx-brand)}
+.cx-dropnote{margin:8px 0 0;padding:9px;border:1px dashed var(--cx-brand);border-radius:9px;
+  text-align:center;font:600 11px/1.3 inherit;color:var(--cx-brand)}
+
+/* While a drag is in flight nothing may intercept the hit-test — the popover
+   sits above the rail, so dragging somebody out of a course landed on the
+   panel instead of the waiting list. */
+body.cx-dragging .cx-pop,body.cx-dragging .cx-pop-caret,
+body.cx-dragging .cx-pop-scrim{pointer-events:none}
+
+/* Tap to pick up, tap to put down — the route that works on a phone. */
+/* Pinned, not sticky: on a phone you pick somebody up at the bottom of the
+   page and scroll a long way to the calendar, and the bar has to come with.
+   Centred with margin rather than a transform, so the narrow layout does not
+   have to fight a translate it did not ask for. */
+.cx-placing{position:fixed;left:12px;right:12px;bottom:16px;z-index:380;
+  width:auto;max-width:560px;margin:0 auto;
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  padding:11px 13px;border-radius:14px;background:var(--cx-ink);color:var(--cx-bg);
+  box-shadow:0 10px 30px rgba(15,23,42,.36);animation:cx-slide-up .18s cubic-bezier(.2,.9,.3,1)}
+@keyframes cx-slide-up{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.cx-placing{animation:none}}
+.cx-dark .cx-placing{background:#e8ecf3;color:#0e1117}
+.cx-placing-who{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}
+.cx-placing-dot{width:10px;height:10px;border-radius:99px;flex:0 0 10px}
+.cx-placing b{font:700 12.5px/1.25 inherit;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-placing-what{flex:1 1 auto;min-width:0;font:500 11.5px/1.35 inherit;opacity:.8}
+.cx-placing .cx-x{margin-left:auto;color:inherit;border:1px solid currentColor;opacity:.75;
+  padding:6px 11px;border-radius:9px;font-size:11.5px;background:none;cursor:pointer;white-space:nowrap}
+.cx-placing .cx-x:hover{opacity:1}
+@media (max-width:520px){
+  .cx-placing-what{flex:1 0 100%;order:3}
+  .cx-placing .cx-x{order:2}
+}
+/* everything you could put it on says so */
+.cx-body.placing .cx-bar.drop-ok,.cx-body.placing .cx-cell.drop-ok,
+.cx-body.placing .cx-ycell.drop-ok,.cx-body.placing .cx-band-cell.drop-ok{cursor:copy}
+.cx-body.placing .cx-droppool{border-style:dashed;border-color:var(--cx-brand)}

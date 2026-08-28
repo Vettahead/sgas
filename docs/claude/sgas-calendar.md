@@ -140,3 +140,38 @@ that was clicked, so it stays right through scrolls and resizes.
 - If the anchor cannot be resolved or is fully out of the viewport, the popover
   closes itself. Anything opening a popover must therefore anchor to something
   that is actually on screen.
+
+## Dragging people onto the calendar (28 Aug 2026)
+
+Three functions in `CalendarNext.jsx` carry the whole feature:
+
+- `targetAt(x, y)` — what is under the pointer: `{type:'course',id}`,
+  `{type:'day',d}` or `{type:'pool'}`.
+- `dropVerdict(d, over)` — `{ok, warn, why}` or null. **The highlight and the
+  action both read this**, so what lights up and what happens cannot diverge.
+  Add a new drop by extending this and `performDrop`, nothing else.
+- `performDrop(d, over)` — does it, confirming first when `warn`.
+
+Two ways in, on every device:
+
+- **Drag** — `dragStart(kind, item, label, colour, e)` on the source. 5px
+  threshold so a click is still a click. Edge auto-scroll (90px band, always
+  scrolls inside the outer 40px, otherwise holds while over a valid target).
+- **Tap** — a pointerup with no movement arms `placing`. Every valid target gets
+  its drop class, a pinned bar names what you are holding, and a tap on the
+  calendar drops it. `placeAt` only swallows the tap when `dropVerdict` is
+  truthy, so tapping another person switches to them instead of cancelling.
+
+Gotchas that cost time:
+
+- The popover is above the rail; without `body.cx-dragging .cx-pop{pointer-events:none}`
+  (and its caret and scrim) a drag out of a course lands on the panel.
+- Arming `placing` from a delegate row closes the popover — on a phone it is a
+  sheet covering the list you have to tap next.
+- The placing bar must be `position:fixed`, not sticky: you pick somebody up at
+  the bottom of a phone page and scroll a long way to the calendar.
+- Everything must keep a non-drag route in the popover (WCAG 2.2 SC 2.5.7).
+  Pointer events only — HTML5 drag-and-drop is dead on touch.
+
+`/tmp/sgastest/dnd.mjs` runs the whole thing at desktop, tablet and phone sizes
+and asserts on the DATA changing, not on the gesture completing.

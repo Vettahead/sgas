@@ -14,6 +14,19 @@
 
 export const RELEASES = [
   {
+    v: '1.14.0', build: 124, date: '28 Aug 2026',
+    title: 'Calendar (new look): drag people straight onto the calendar',
+    notes: [
+      'Drag anybody from the waiting list onto a course to book them on it, or onto empty days to book a new course for them \u2014 the course list opens with what they are waiting for at the top, and they go on it as soon as you book it.',
+      'A new Trainers list in the side panel: drag one onto a course to put them on it. It tells you how many courses each already has on.',
+      'Drag somebody off a course to put them back on the waiting list.',
+      'While you drag, a card follows your finger telling you exactly what the drop will do \u2014 and it warns you before putting somebody on a course for a different scheme, or a trainer who is on holiday that week.',
+      'Tapping works everywhere too: tap a person, everywhere you could put them lights up, then tap a course or a day. That is the way to do it on a phone, and it works on a desktop as well.',
+      'Dragging near the top or bottom of the screen scrolls the page, so you can drag from the list up to the calendar on a phone.',
+      'Nothing here replaces the old way \u2014 the course window still has \u201cAdd someone from the waiting list\u201d and a trainer picker.',
+    ],
+  },
+  {
     v: '1.13.1', build: 123, date: '28 Aug 2026',
     title: 'Calendar (new look): fixed the panel coming unstuck when you scroll',
     notes: [

@@ -90,6 +90,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [hint, setHint] = useState(null)     // the chip that rides the bar you drag
   // Selecting empty days has no bar to ride, so its chip follows the pointer.
   const [selHint, setSelHint] = useState(null)
+  // Dragging a person out of the rail and onto the calendar. Pointer events,
+  // not HTML5 drag-and-drop, which is dead on touch — the Schedule board still
+  // proves that. Everything here is an accelerator: the popover keeps a
+  // non-drag route for all four of these, which is what WCAG 2.2 asks for.
+  const [drag, setDrag] = useState(null)   // { kind, item, label, colour, x, y, over }
   // While a course is being dragged its dates live here, and the whole grid
   // lays out from them. Nudging inline width/transform could not reflow a
   // course across a week boundary, so shrinking a two-row course looked stuck.
@@ -247,7 +252,212 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const needsWork = useMemo(() => (shown || [])
     .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || !b.delegates.length))
     .sort((a, z) => a.start.localeCompare(z.start)), [shown])
+  // What a trainer already has on, so you are not dropping blind.
+  const teaching = (id) => {
+    const n = thisMonth.filter((b) => String(b.trainerId) === String(id)).length
+    return n ? `${n} course${n === 1 ? '' : 's'} ${view === 'Year' ? 'this year' : 'this month'}` : 'nothing booked'
+  }
   const monthLabel = view === 'Year' ? month.slice(0, 4) : MONTHS[Number(month.slice(5, 7)) - 1]
+
+  // ── Dragging people and trainers onto the calendar ───────────────────────
+  // Pointer events, not HTML5 drag-and-drop, which is dead on touch — the
+  // Schedule board still proves that. All four of these are accelerators: the
+  // popover keeps a non-drag route for every one, which is what WCAG 2.2 asks.
+  //
+  // `over` is the drop target under the pointer right now:
+  //   { type: 'course', id }  a course bar
+  //   { type: 'day', d }      a day in any grid
+  //   { type: 'pool' }        the waiting list, to take somebody off a course
+  function targetAt(x, y) {
+    const el = document.elementFromPoint(x, y)
+    if (!el) return null
+    if (el.closest('.cx-droppool')) return { type: 'pool' }
+    const bar = el.closest('.cx-bar[data-bid]')
+    if (bar) return { type: 'course', id: bar.dataset.bid }
+    const cell = el.closest('[data-d]')
+    if (cell) return { type: 'day', d: cell.dataset.d }
+    return null
+  }
+
+  // Would this drop do anything, and is it a good idea? One place decides, so
+  // the highlight under the pointer and what actually happens can never differ.
+  function dropVerdict(d, over) {
+    if (!d || !over) return null
+    const block = over.type === 'course' ? (blocks || []).find((b) => String(b.id) === String(over.id)) : null
+    if (over.type === 'course' && (!block || block.isHoliday || block.isEngagement)) return null
+    if (d.kind === 'staff') {
+      if (over.type !== 'course') return null
+      if (String(block.trainerId) === String(d.item.staff_id)) return { ok: false, why: `${d.label} already has it` }
+      const away = staffOnHoliday(holidays, d.item.staff_id, block.start, block.end)
+      return { ok: true, warn: away, why: away ? `${d.label} is on holiday then` : `${d.label} teaches ${block.course}` }
+    }
+    if (d.kind === 'pool') {
+      if (over.type === 'course') {
+        if (block.delegates.some((x) => x.name === d.label)) return { ok: false, why: `${d.label} is already on it` }
+        const clash = d.item.scheme && block.scheme && d.item.scheme !== block.scheme
+        return { ok: true, warn: clash, why: clash ? `${d.label} is waiting for ${d.item.scheme}, not ${block.scheme}` : `${d.label} joins ${block.course}` }
+      }
+      if (over.type === 'day') return { ok: true, why: `Book a course for ${d.label} on ${fmt(over.d)}` }
+      return null
+    }
+    if (d.kind === 'delegate') {
+      if (over.type === 'pool') return { ok: true, why: `${d.label} goes back on the waiting list` }
+      if (over.type === 'course') return { ok: false, why: 'Put them back on the waiting list first' }
+      return null
+    }
+    return null
+  }
+
+  // The class the thing under the pointer wears while you hover it. While
+  // placing by tap there is no pointer, so everything droppable is marked.
+  const dropClass = (type, key) => {
+    if (placing) {
+      const v = dropVerdict(placing, type === 'course' ? { type, id: key } : { type, d: key })
+      return v ? (v.ok ? (v.warn ? ' drop-warn' : ' drop-ok') : '') : ''
+    }
+    if (!drag?.over || drag.over.type !== type) return ''
+    if (type === 'course' && String(drag.over.id) !== String(key)) return ''
+    if (type === 'day' && drag.over.d !== key) return ''
+    const v = drag.verdict
+    return v ? (v.ok ? (v.warn ? ' drop-warn' : ' drop-ok') : ' drop-no') : ' drop-no'
+  }
+
+  // Dragging a person the length of a phone screen is a bad gesture however
+  // well it is built. So picking up is also a TAP: tap somebody, then tap where
+  // they go. Same verdicts, same drops, no dragging at all.
+  const [placing, setPlacing] = useState(null)   // { kind, item, label, colour }
+  useEffect(() => {
+    if (!placing) return
+    const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setPlacing(null) } }
+    document.addEventListener('keydown', esc, true)
+    return () => document.removeEventListener('keydown', esc, true)
+  }, [placing])
+
+  // While placing, a tap anywhere on the calendar is the drop.
+  async function placeAt(e) {
+    if (!placing) return false
+    const over = targetAt(e.clientX, e.clientY)
+    // Only swallow the tap if it would actually DO something. Tapping another
+    // person in the list should switch to them, not silently cancel.
+    if (!over || !dropVerdict(placing, over)) return false
+    e.preventDefault(); e.stopPropagation()
+    const d = placing
+    setPlacing(null)
+    justDragged.current = true
+    setTimeout(() => { justDragged.current = false }, 250)
+    await performDrop(d, over)
+    return true
+  }
+
+  function dragStart(kind, item, label, colour, e) {
+    if (!isAdmin || (e.button != null && e.button !== 0)) return
+    const x0 = e.clientX, y0 = e.clientY
+    let live = false
+    // On a phone or a tablet the rail sits BELOW the calendar, so the thing you
+    // are dragging from and the thing you are dropping onto are never on screen
+    // together. Holding near an edge scrolls the page under your finger.
+    let py = y0, raf = 0
+    // Inside EDGE_BAND the page scrolls; inside HARD_BAND it scrolls whatever
+    // is under you, so there is always a way to keep going.
+    const EDGE_BAND = 90, HARD_BAND = 40, MAX_STEP = 22
+    const autoScroll = () => {
+      raf = 0
+      if (!live) return
+      const vh = window.innerHeight
+      // Found what you were looking for? Then hold still — a course near the
+      // top of the screen used to slide out from under the pointer the moment
+      // you reached it. Right at the very edge it always scrolls, so you are
+      // never stuck on something you were only passing over.
+      if (py > HARD_BAND && py < vh - HARD_BAND) {
+        const here = targetAt(lastX, py)
+        if (here && dropVerdict({ kind, item, label }, here)) { raf = requestAnimationFrame(autoScroll); return }
+      }
+      let dy = 0
+      if (py < EDGE_BAND) dy = -MAX_STEP * (1 - py / EDGE_BAND)
+      else if (py > vh - EDGE_BAND) dy = MAX_STEP * (1 - (vh - py) / EDGE_BAND)
+      if (dy) {
+        const before = window.scrollY
+        window.scrollBy(0, dy)
+        // Nothing left to scroll? Stop asking every frame.
+        if (window.scrollY !== before) {
+          const over = targetAt(lastX, py)
+          setDrag((g) => (g ? { ...g, y: py, over, verdict: dropVerdict({ kind, item, label }, over) } : g))
+        }
+      }
+      raf = requestAnimationFrame(autoScroll)
+    }
+    let lastX = x0
+    const move = (ev) => {
+      // A click must still be a click. Nothing happens until you mean it.
+      if (!live) {
+        if (Math.abs(ev.clientX - x0) < 5 && Math.abs(ev.clientY - y0) < 5) return
+        live = true
+        document.body.classList.add('cx-dragging')
+      }
+      lastX = ev.clientX; py = ev.clientY
+      if (!raf) raf = requestAnimationFrame(autoScroll)
+      const over = targetAt(ev.clientX, ev.clientY)
+      setDrag({ kind, item, label, colour, x: ev.clientX, y: ev.clientY, over,
+        verdict: dropVerdict({ kind, item, label }, over) })
+    }
+    const end = (ok) => async (ev) => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cx)
+      if (raf) cancelAnimationFrame(raf)
+      raf = 0
+      document.body.classList.remove('cx-dragging')
+      const over = live && ok ? targetAt(ev.clientX, ev.clientY) : null
+      setDrag(null)
+      if (!live) {
+        // A tap, not a drag: pick them up and wait for you to tap a target.
+        if (ok) {
+          setPlacing((cur) => (cur && cur.label === label ? null : { kind, item, label, colour }))
+          // Picked somebody up from inside the course panel? Get the panel out
+          // of the way — on a phone it is a full-width sheet over the very list
+          // you now have to tap.
+          if (kind === 'delegate') setOpen(null)
+        }
+        return
+      }
+      // Swallow the click this drag is about to produce.
+      justDragged.current = true
+      setTimeout(() => { justDragged.current = false }, 250)
+      if (over) await performDrop({ kind, item, label }, over)
+    }
+    const up = end(true), cx = end(false)
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cx)
+  }
+
+  async function performDrop(d, over) {
+    const v = dropVerdict(d, over)
+    if (!v || !v.ok) { if (v?.why) toast(v.why); return }
+    if (v.warn && !window.confirm(`${v.why}. Go ahead anyway?`)) return
+    const block = over.type === 'course' ? (blocks || []).find((b) => String(b.id) === String(over.id)) : null
+    setBusy(true)
+    try {
+      if (d.kind === 'staff') {
+        await assignBlockRole(block.id, 'trainer', Number(d.item.staff_id))
+        await load(); setFlash(String(block.id)); setTimeout(() => setFlash(null), 900)
+        toast(`${d.label} is teaching ${block.course}`)
+      } else if (d.kind === 'pool' && over.type === 'course') {
+        await addDelegatesToBlock(block.id, [d.item.id])
+        await load(); setFlash(String(block.id)); setTimeout(() => setFlash(null), 900)
+        toast(`${d.label} added to ${block.course}`)
+      } else if (d.kind === 'pool' && over.type === 'day') {
+        // Booking a course FOR somebody: the panel opens on that day with the
+        // course list narrowed to what they are waiting for, and they go on it
+        // the moment it is booked.
+        setAt({ sel: `[data-d="${over.d}"]`, fx: 0.5 })
+        setCreating({ from: over.d, to: over.d, forPool: d.item })
+      } else if (d.kind === 'delegate' && over.type === 'pool') {
+        await returnToPool(d.item.bookingId)
+        const f = await load()
+        setOpen((o) => (o ? f.find((x) => x.id === o.id) || null : null))
+        toast(`${d.label} is back on the waiting list`)
+      }
+    } catch (err) { toast(err.message) } finally { setBusy(false) }
+  }
 
   // ── Drag to create, drag a bar to move ───────────────────────────────────
   const [sel, setSel] = useState(null)
@@ -442,10 +652,38 @@ export default function CalendarNext({ isAdmin, user, go }) {
         <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
       </div>
 
+      {drag && (
+        <>
+          <div className="cx-ghost" style={{ left: drag.x, top: drag.y, '--s': drag.colour }}>
+            <b>{drag.label}</b>
+            {drag.verdict && <small className={drag.verdict.ok ? (drag.verdict.warn ? 'warn' : 'ok') : 'no'}>{drag.verdict.why}</small>}
+          </div>
+        </>
+      )}
       {selHint && (
         <div className="cx-chip-len float" style={{ left: selHint.x, top: selHint.y - 26 }}>{selHint.text}</div>
       )}
-      <div className={'cx-body' + (rail ? '' : ' no-rail')}>
+      {/* Placing by tap: one bar telling you what you are holding and how to
+          put it down. This is the route that works on a phone, and it is the
+          non-drag route WCAG 2.2 asks for on every device. */}
+      {placing && (
+        <div className="cx-placing" role="status">
+          <span className="cx-placing-who">
+            <i className="cx-placing-dot" style={{ background: placing.colour }} />
+            <b>{placing.label}</b>
+          </span>
+          <span className="cx-placing-what">
+            {placing.kind === 'delegate'
+              ? 'Tap the waiting list to take them off'
+              : placing.kind === 'staff'
+                ? 'Tap a course to put them on it'
+                : 'Tap a course to add them, or any day to book one'}
+          </span>
+          <button className="cx-x" onClick={() => setPlacing(null)}>Cancel</button>
+        </div>
+      )}
+      <div className={'cx-body' + (rail ? '' : ' no-rail') + (placing ? ' placing' : '')}
+        onPointerDownCapture={(e) => { if (placing) placeAt(e) }}>
         {/* ── Month grid ──────────────────────────────────────────────── */}
         <section className="cx-cal" aria-label={'Courses — ' + title}>
           {view === 'Month' && <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>}
@@ -455,11 +693,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
           ) : view === 'Year' ? (
             <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
               onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null}
-              onCellDown={cellDown} inSel={inSel} isAdmin={isAdmin} />
+              onCellDown={cellDown} inSel={inSel} isAdmin={isAdmin} dropClass={dropClass} />
           ) : view !== 'Month' ? (
             <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
               onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null}
-              onCellDown={cellDown} inSel={inSel} />
+              onCellDown={cellDown} inSel={inSel} dropClass={dropClass} />
           ) : (
             <div className={'cx-grid ' + (dir < 0 ? 'from-left' : dir > 0 ? 'from-right' : 'fade')} key={month}>
               {Array.from({ length: grid.rows }, (_, r) => (
@@ -470,7 +708,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                     const today = d === todayISO()
                     return (
                       <div key={d} data-d={d}
-                        className={'cx-cell' + (out ? ' out' : '') + (isWknd(d) ? ' wknd' : '') + (today ? ' today' : '') + (inSel(d) ? ' sel' : '')}
+                        className={'cx-cell' + (out ? ' out' : '') + (isWknd(d) ? ' wknd' : '') + (today ? ' today' : '') + (inSel(d) ? ' sel' : '') + dropClass('day', d)}
                         onPointerDown={(e) => cellDown(d, e)}>
                         <span className="cx-num">{today ? <b>{Number(d.slice(8))}</b> : Number(d.slice(8))}</span>
                       </div>
@@ -478,7 +716,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                   })}
                   {segments.filter((s) => s.row === r).map((s) => (
                     <button key={s.key} type="button" data-bid={s.b.id} data-head={s.head ? '1' : '0'}
-                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '')}
+                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
                       style={{
                         left: `calc(${(s.col / 7) * 100}% + 4px)`,
                         width: `calc(${(s.span / 7) * 100}% - 8px)`,
@@ -542,16 +780,34 @@ export default function CalendarNext({ isAdmin, user, go }) {
               </button>
             ))}
           </div>
-          <div className="cx-card">
+          <div className={'cx-card cx-droppool' + (drag?.kind === 'delegate' ? ' armed' : '')
+            + (drag?.over?.type === 'pool' ? ' on' : '')}>
             <h3>Waiting to be placed <span>{pool.length}</span></h3>
+            {isAdmin && <p className="cx-hintline">Drag anybody onto a course, or onto empty days to book one. Tapping picks them up too.</p>}
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
-            {pool.slice(0, 5).map((p) => (
-              <div key={p.id} className="cx-row static">
+            {pool.slice(0, 6).map((p) => (
+              <div key={p.id} className={'cx-row' + (isAdmin ? ' grabby' : ' static')}
+                onPointerDown={(e) => dragStart('pool', p, p.name, schemeColour(p.scheme), e)}>
                 <i style={{ background: schemeColour(p.scheme) }} />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
               </div>
             ))}
+            {drag?.kind === 'delegate' && <p className="cx-dropnote">Drop here to take them off the course</p>}
           </div>
+
+          {isAdmin && staff.length > 0 && (
+            <div className="cx-card">
+              <h3>Trainers <span>{staff.length}</span></h3>
+              <p className="cx-hintline">Drag or tap one, then put them on a course.</p>
+              {staff.slice(0, 8).map((t) => (
+                <div key={t.staff_id} className="cx-row grabby"
+                  onPointerDown={(e) => dragStart('staff', t, t.name, '#334155', e)}>
+                  <i style={{ background: '#334155' }} />
+                  <span><b>{t.name}</b><small>{teaching(t.staff_id)}</small></span>
+                </div>
+              ))}
+            </div>
+          )}
         </aside>
       </div>
 
@@ -563,7 +819,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
           <header className="cx-pop-head"
             style={{ '--c': courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80' }}>
             <span className="cx-pop-dot" />
-            <h3 className="cx-pop-title">New course</h3>
+            <h3 className="cx-pop-title">{creating.forPool ? `Book for ${creating.forPool.name}` : 'New course'}</h3>
             <button className="cx-icon" onClick={() => setCreating(null)} aria-label="Close">✕</button>
           </header>
 
@@ -592,7 +848,20 @@ export default function CalendarNext({ isAdmin, user, go }) {
                 <select autoFocus value={creating.courseId || ''} aria-label="Which course"
                   onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
                   <option value="">Pick a course</option>
-                  {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                  {/* Dropped somebody here? Then what they are waiting for goes
+                      at the top — that is the whole reason you dragged them. */}
+                  {creating.forPool?.scheme && courses.some((c) => c.scheme === creating.forPool.scheme) && (
+                    <optgroup label={`${creating.forPool.scheme} — what they are waiting for`}>
+                      {courses.filter((c) => c.scheme === creating.forPool.scheme)
+                        .map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                    </optgroup>
+                  )}
+                  {creating.forPool?.scheme
+                    ? <optgroup label="Everything else">
+                        {courses.filter((c) => c.scheme !== creating.forPool.scheme)
+                          .map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                      </optgroup>
+                    : courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
                 </select>
               </span>
             </div>
@@ -606,12 +875,16 @@ export default function CalendarNext({ isAdmin, user, go }) {
               setBusy(true)
               try {
                 const id = await createBlock({ courseId: Number(creating.courseId), from: creating.from, to: creating.to })
+                // Dragged somebody onto the calendar? They go on it, or the
+                // drag did nothing and you would have to add them by hand.
+                if (creating.forPool) { try { await addDelegatesToBlock(id, [creating.forPool.id]) } catch { /* the course is booked either way */ } }
+                const who = creating.forPool?.name
                 setCreating(null)
                 const f = await load()
                 const made = f.find((x) => String(x.id) === String(id))
                 setFlash(String(id)); setTimeout(() => setFlash(null), 900)
                 if (made) setOpen(made)
-                toast('Course booked — add a trainer and delegates')
+                toast(who ? `Course booked with ${who} on it — it needs a trainer` : 'Course booked — add a trainer and delegates')
               } catch (err) { toast(err.message) } finally { setBusy(false) }
             }}>{busy ? 'Booking…' : 'Book it'}</button>
           </footer>
@@ -693,6 +966,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                   ? <span className="cx-rtext">Nobody booked on yet</span>
                   : <ul className="cx-delg">{open.delegates.map((d) => (
                       <Delegate key={d.bookingId} d={d} block={open} isAdmin={isAdmin} busy={busy}
+                        onDragStart={(e) => dragStart('delegate', { ...d, blockId: open.id }, d.name, schemeColour(open.scheme), e)}
                         onSplit={async (f, t) => {
                           setBusy(true)
                           try { await setBookingAttendance(d.bookingId, f, t); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(f || t ? 'Part attendance set' : 'Back to the full course') }
@@ -770,14 +1044,15 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
+function Delegate({ d, block, isAdmin, busy, onSplit, onRemove, onDragStart }) {
   const [edit, setEdit] = useState(false)
   const [f, setF] = useState(d.attendFrom || block.start)
   const [t, setT] = useState(d.attendTo || block.end)
   const part = isPart(d)
   const k = kindOf(d.kind)
   return (
-    <li className={part ? 'part' : ''} style={{ '--s': schemeColour(block.scheme) }}>
+    <li className={(part ? 'part' : '') + (isAdmin ? ' grabby' : '')} style={{ '--s': schemeColour(block.scheme) }}
+      onPointerDown={(e) => { if (!e.target.closest('button, input')) onDragStart?.(e) }}>
       <span className="cx-kind" style={{ background: k.c }} title={k.label} />
       <span className="cx-dinfo">
         <b>{d.name}</b>
@@ -812,7 +1087,7 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
    main event, not an afterthought above a time grid. Below it sits the hour
    grid for timed entries, with a line showing where we are now. */
 const H0 = 7, H1 = 20, HPX = 46
-function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip, onCellDown, inSel }) {
+function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip, onCellDown, inSel, dropClass }) {
   const [hours, setHours] = useState(false)
   const first = days[0], last = days[days.length - 1]
   const allDay = useMemo(() => {
@@ -858,12 +1133,12 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
         <div className="cx-band" data-cols={days.length} style={{ height: laneCount * 28 + 10 }}>
           {days.map((d) => (
             <div key={d} data-d={d}
-              className={'cx-band-cell' + (isWknd(d) ? ' wknd' : '') + (inSel?.(d) ? ' sel' : '')}
+              className={'cx-band-cell' + (isWknd(d) ? ' wknd' : '') + (inSel?.(d) ? ' sel' : '') + (dropClass?.('day', d) || '')}
               onPointerDown={(e) => onCellDown?.(d, e)} />
           ))}
           {allDay.map(({ b, col, span, lane }) => (
             <button key={b.id} type="button" data-bid={b.id}
-              className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (flash === String(b.id) ? ' flash' : '')}
+              className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (flash === String(b.id) ? ' flash' : '') + (dropClass?.('course', b.id) || '')}
               style={{ left: `calc(${(col / days.length) * 100}% + 4px)`, width: `calc(${(span / days.length) * 100}% - 8px)`,
                 top: lane * 28 + 5, height: 24, '--c': b.color || '#5b6b80' }}
               onPointerDown={(e) => {
@@ -968,7 +1243,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
 /* ── Year ──────────────────────────────────────────────────────────────────
    Months as rows, the whole year in one screen. This is the view Teamup did
    well and the one Simon reads the shape of the business from. */
-function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCellDown, inSel }) {
+function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCellDown, inSel, dropClass }) {
   const y = Number(year)
   const TICKS = [1, 5, 10, 15, 20, 25, 31]
   return (
@@ -1017,14 +1292,14 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCel
               {Array.from({ length: dim }, (_, i) => {
                 const d = `${y}-${String(m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
                 return <div key={d} data-d={d}
-                  className={'cx-ycell' + (isWknd(d) ? ' wknd' : '') + (d === todayISO() ? ' today' : '') + (inSel?.(d) ? ' sel' : '')}
+                  className={'cx-ycell' + (isWknd(d) ? ' wknd' : '') + (d === todayISO() ? ' today' : '') + (inSel?.(d) ? ' sel' : '') + (dropClass?.('day', d) || '')}
                   onPointerDown={(e) => onCellDown?.(d, e)}
                   style={{ left: `${(i / 31) * 100}%`, width: `${(1 / 31) * 100}%` }} />
               })}
               {dim < 31 && <div className="cx-ydead" style={{ left: `${(dim / 31) * 100}%`, width: `${((31 - dim) / 31) * 100}%` }} />}
               {laid.map(({ b, col, span, lane, gap }) => (
                 <button key={b.id} type="button" data-bid={b.id} title={`${b.course || b.title} · ${fmt(b.start)} – ${fmt(b.end)}`}
-                  className={'cx-bar cx-ybar' + (b.isHoliday ? ' hol' : '') + (flash === String(b.id) ? ' flash' : '')}
+                  className={'cx-bar cx-ybar' + (b.isHoliday ? ' hol' : '') + (flash === String(b.id) ? ' flash' : '') + (dropClass?.('course', b.id) || '')}
                   style={{ left: `calc(${(col / 31) * 100}% + 2px)`, width: `calc(${(span / 31) * 100}% - 4px)`,
                     top: lane * 22 + 6, height: 18, '--c': b.color || '#5b6b80' }}
                   onPointerDown={(e) => {
