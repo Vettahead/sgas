@@ -1,33 +1,25 @@
 ---
 name: sgas-planner
-description: "SGAS Planner — the experimental calendar (one zooming timeline + rail). Design rationale, library research, what is still rough."
+description: "Planner — an experimental calendar built and REJECTED on 27 Aug 2026. Kept as a record of what was tried and why it did not land."
 type: project
 ---
 
-Built 27 Aug 2026. NEW `src/views/Planner.jsx` + a `.pl-*` CSS block. View key `planner`, nav item 🧪 "Planner" with a `beta` pill, in ADMIN + SCHEDULER `ROLE_VIEWS`. **The existing Calendar.jsx is untouched and stays the default** — a parallel experiment.
+# REJECTED — do not rebuild this without asking
 
-## THE CORE IDEA
-**One timeline that zooms, not four views.** Days are columns of `pxDay` pixels; zooming just changes `pxDay`. Because the bars are the SAME DOM elements throughout, a CSS transition on `left/width/top` does the morphing — **that is where the animation comes from. No animation library.**
+Built 27 Aug 2026 as an experimental tab, reviewed by Chris the same day, and **deleted**. `src/views/Planner.jsx` and its CSS are gone. This note exists so nobody proposes the same thing again.
 
-## THE OTHER BIG DECISION
-**Everything works two ways: drag it, or tap it then tap the target.** Tap-to-place is not an afterthought — WCAG 2.2 SC 2.5.7 requires a non-drag alternative, and on a tablet it is faster and more discoverable.
+## What it was
+One horizontal timeline replacing the four Year/Month/Week/Day views. Days were columns of `pxDay` pixels and zooming just changed that number, so bars morphed smoothly between scales. A permanent right-hand rail held delegates waiting to be placed, courses needing attention, and staff. Everything worked two ways — drag, or tap-then-tap.
 
-## LIBRARY RESEARCH (done first — don't redo it)
-- **Three.js/WebGL: ruled out.** No text primitive, canvas is opaque to screen readers, ~230 KB gzip. Right only for 50k+ bar Gantts.
-- **DayPilot Lite (the current Calendar) does not support touch — PRO-only paid feature.** $1,449 to unlock, and it is ~100 KB gzip of the app's 468 KB. **That is why dragging never worked on a tablet.**
-- Recommended but **NOT installed**: `@dnd-kit/react` 0.5.x (MIT, pointer events) + `motion` 13.x (ex-Framer Motion, MIT, `layoutId` morphing). Prototype was built with **zero new dependencies** — npm on the mount is fragile, the prototype needed to prove the design not the library, and plain Pointer Events already give the tablet support that was the main win.
-- Schedule-X now paywalls drag AND resize; FullCalendar resource views still paid; react-big-calendar is MIT but has no year/timeline view; **Syncfusion Community Licence is free under $1M revenue / ≤10 employees — worth checking**; GSAP went fully free in Apr 2025.
-- React `<ViewTransition>` is canary-only — do not build on it.
+## Why it was rejected
+Chris: *"yeah, dont like this."* No detailed critique — it simply did not feel like the answer. What he wanted instead, in his words: a calendar that is **"interactive, works on everything"**; the existing calendar **"works as it is but its clunky, like it was made with old tech"**; the side drawer that opens to add delegates and educators **"dosent work — maybe a nice modal?"**; and a third option: **a wizard**.
 
-## IMPLEMENTATION NOTES
-- **Window is BOUNDED**: today−92 → today+365 (stretched to the latest block within +730). Blocks run back to 2011; unbounded would be ~200,000px wide. `outsideCount` is reported in the toolbar rather than silently dropping them.
-- **Weekends are a repeating-linear-gradient background, not one div per day.** Offset `(6-dow0+7)%7`, 2 shaded / 5 clear over 7 days. Unit-tested: 0 mismatches across 472 days.
-- **Lane packing** greedy first-fit; unit-tested against the three overlapping June blocks.
-- **Rail drag has a 5px threshold** so a tap stays a tap and only a real drag lifts a ghost.
-- `groupBy: 'course' | 'trainer'`; attention list = upcoming blocks missing a trainer or delegates, or clashing with a holiday.
-- API reused as-is — **no new API, no migration.** All drag is Pointer Events + `setPointerCapture` + `touch-action:none`. `prefers-reduced-motion` respected.
+## What was learned, and what replaced it
+The real problems were not the calendar's *shape*, they were:
+1. **The Month view was a bought-in widget** (DayPilot Lite) that never matched the app and could not do touch on its free tier. That is what "made with old tech" meant. **Fixed** — rebuilt as `MonthView` in `Calendar.jsx`, dependency removed, bundle down 23%.
+2. **The block panel was a cramped right-hand drawer behind a "view or edit?" question.** **Fixed** — now a centred modal, and the question is gone.
+3. **Scheduling needed a route with no dragging at all.** **Fixed** — `SetupWizard.jsx`, "Set up a course".
 
-## STILL ROUGH / NOT DONE
-No block creation on the timeline; no holidays/engagements rendered; no filters; no attendance editing or delete (panel links out to Schedule); keyboard drag not implemented (tap-to-place covers the WCAG requirement); many-trainer-row scrolling untested at volume.
+**The lesson: when the user says a screen feels dated, look for the bought-in component and the extra click before redesigning the whole interaction model.** A parallel rebuild was the expensive way to find that out.
 
-See [[sgas-calendar]], [[sgas-ui-conventions]], [[sgas-client-meeting-aug26]], [[sgas-deploy-flow]].
+The library research behind it is still valid and worth keeping: see the 2026 comparison of dnd-kit / Motion / GSAP / scheduler licences summarised in [[sgas-ui-conventions]] and the session notes. Three.js remains ruled out for a text-heavy scheduler.

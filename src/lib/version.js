@@ -15,14 +15,13 @@
 export const RELEASES = [
   {
     v: '1.8.0', build: 107, date: '27 Aug 2026',
-    title: 'Planner (experimental)',
+    title: 'Calendar rebuilt, and a set-up wizard',
     notes: [
-      'New Planner tab beside the Calendar — an experiment. The existing Calendar is unchanged.',
-      'One timeline instead of four views: slide the zoom from a whole year down to a single day and the course bars grow smoothly instead of the screen redrawing.',
-      'Waiting delegates, courses needing attention, and staff all sit beside the timeline instead of being buried in a panel.',
-      'Everything works two ways — drag it across, or tap it then tap a course. Tapping is quicker on a tablet.',
-      'Drag a course to move it, or pull its edge to change the length.',
-      'Works on a tablet, which the current calendar does not.',
+      'New “Set up a course” screen — one question at a time: the course, the dates, who is teaching, who is attending, then a check. No dragging, so it works the same on a phone, tablet or desktop.',
+      'The Month view has been rebuilt so the whole calendar matches, and it now works on a tablet.',
+      'The app is around a quarter smaller and loads faster — a bought-in calendar component has been removed.',
+      'Clicking a course opens it straight away, in a proper centred window instead of a narrow strip. It no longer asks whether you want to view or edit first.',
+      'The course window fills the screen on a phone.',
     ],
   },
   {

@@ -9,7 +9,7 @@ import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
 import Calendar from './views/Calendar.jsx'
-import Planner from './views/Planner.jsx'
+import SetupWizard from './views/SetupWizard.jsx'
 import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
@@ -28,9 +28,9 @@ const TITLES = {
   dash: ['Dashboard', 'The renewal engine, scheduled sessions, and what is outstanding'],
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
+  setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
   sched: ['Schedule', 'Assign a trainer to each course block and add delegates (assessor & verifier are set in Assess)'],
   calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day, staff or year'],
-  planner: ['Planner', 'Experimental — one timeline you zoom, with everything waiting to be placed alongside it'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -47,9 +47,9 @@ const NAV_GROUPS = [
     { v: 'dash', ic: '▦', label: 'Dashboard' },
     { v: 'inquiries', ic: '💬', label: 'Inquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
+    { v: 'setup', ic: '🪄', label: 'Set up a course' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
     { v: 'calendar', ic: '📅', label: 'Calendar' },
-    { v: 'planner', ic: '🧪', label: 'Planner', beta: true },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
@@ -136,7 +136,6 @@ export default function App() {
             ) : (
               <a key={item.v} className={activeView === item.v ? 'active' : ''} onClick={() => go(item.v)}>
                 <span className="ic">{item.ic}</span> {item.label}
-                {item.beta && <small className="navbeta">beta</small>}
               </a>
             )
           )}
@@ -173,9 +172,9 @@ export default function App() {
           {activeView === 'dash' && <Dashboard go={go} user={user} />}
           {activeView === 'inquiries' && <Inquiries go={go} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
+          {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'sched' && <Schedule />}
           {activeView === 'calendar' && <Calendar go={go} isAdmin={isAdmin} user={user} />}
-          {activeView === 'planner' && <Planner go={go} isAdmin={isAdmin} user={user} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}

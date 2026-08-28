@@ -4,6 +4,10 @@ React + Vite single-page app for the SGAS training-management system, wired to
 the live Supabase database (the schema built in `../sgas_setup_supabase.sql`).
 It is the React port of `../sgas_mockup.html`.
 
+The calendar, month grid and all drag interactions are written in-house — there
+are no third-party UI component libraries. See `CHANGELOG.md` for release history
+and `docs/claude/` for the working notes behind each area.
+
 ## Running it
 
 ```bash

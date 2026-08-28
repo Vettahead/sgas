@@ -1407,7 +1407,7 @@ export async function createBlock({ courseId, from, to }) {
 }
 
 // Move/resize a block on the calendar — persist new start/end dates (drag-move or
-// edge-resize). Dates are ISO 'YYYY-MM-DD'. Used by the DayPilot calendar.
+// edge-resize). Dates are ISO 'YYYY-MM-DD'. Used by the calendar.
 export async function updateBlock(sessionId, { from, to, courseId }) {
   const patch = {}
   if (from) patch.start_date = from

@@ -1,6 +1,6 @@
 - [SGAS client meeting 27 Aug 2026](sgas-client-meeting-aug26.md) — READ FIRST: verified live state, October deadlines, next builds, who owes what
 - [SGAS UI conventions](sgas-ui-conventions.md) — READ BEFORE WRITING ANY SCREEN: reuse the existing CSS classes, never invent a parallel set
-- [SGAS Planner (experimental)](sgas-planner.md) — the new zooming-timeline calendar + rail; library research (why no deps, why not Three.js); what's still rough
+- [Planner — REJECTED](sgas-planner.md) — an experimental timeline calendar, built and binned 27 Aug 2026; what it taught us
 - [SGAS staff accreditations](sgas-staff-accreditations.md) — accreditations + expiry: schema, API, Admin panel; core BUILT, report/dashboard/alerts still to do
 - [SGAS frontend](sgas-frontend.md) — React+Vite+Supabase app in Sgas project/sgas-app/; status, architecture, open gap
 - [Sandbox mount write gotcha](sgas-mount-write-gotcha.md) — Write tool shrinking a file leaves stale tail bytes on the mount; rewrite via bash

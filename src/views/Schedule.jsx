@@ -588,7 +588,7 @@ function BlockFooter({ b }) {
 
 /* ============================ calendar ============================ */
 function CalendarTab() {
-  // Reuse the full DayPilot calendar (the same one as the standalone Calendar tab).
+  // Reuse the full calendar (the same one as the standalone Calendar tab).
   return <CalendarView />
 }
 

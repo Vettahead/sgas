@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-react'
+import { MonthView, cal } from './Calendar.jsx'
 import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
@@ -355,13 +355,11 @@ function renderModule(id, c) {
   return null
 }
 
-// Month at a glance — the SAME DayPilot month view as the calendar page, with
-// the calendar's rich hover card (events tagged with their block id so we can
-// detect the hovered block and show full course detail).
+// Month at a glance — the SAME month grid as the calendar page, with
+// hover detail handled by the shared grid itself.
 function MonthGlance({ go, user }) {
   const { data: blocks } = useData(listBlocks)
-  const [anchor, setAnchor] = useState(new DayPilot.Date(new Date().toISOString().slice(0, 10)))
-  const [hover, setHover] = useState(null)
+  const [anchor, setAnchor] = useState(cal(new Date().toISOString().slice(0, 10)))
   if (!blocks) return <div className="body"><div className="muted small">Loading…</div></div>
   // Admin sees every block; a staff member sees only the courses they're on.
   const myName = user?.name
@@ -369,20 +367,7 @@ function MonthGlance({ go, user }) {
   const shown = user?.role === 'ADMIN'
     ? blocks
     : blocks.filter((b) => (myStaffId != null ? [b.trainerId, b.assessorId, b.verifierId].includes(myStaffId) : [b.trainer, b.assessor, b.verifier].includes(myName)))
-  const blockMap = {}
-  shown.forEach((b) => { blockMap[b.id] = b })
-  const events = shown.filter((b) => b.start && b.end).map((b) => ({
-    id: b.id, text: `${b.course} · ${b.delegates.length}\u{1F464}`,
-    start: `${b.start}T09:00:00`, end: `${b.end}T17:00:00`,
-    backColor: b.color || '#48566a', block: b,
-  }))
   const move = (n) => setAnchor((a) => a.addMonths(n))
-  function onMove(e) {
-    const el = e.target && e.target.closest ? e.target.closest('[class*="mev-"]') : null
-    const m = el ? (el.className || '').toString().match(/mev-(\d+)/) : null
-    const b = m ? blockMap[m[1]] : null
-    if (b) setHover({ b, x: e.clientX, y: e.clientY }); else setHover(null)
-  }
   return (
     <div className="body">
       <div className="mc-head">
@@ -391,57 +376,19 @@ function MonthGlance({ go, user }) {
         <button className="cal-nav" onClick={() => move(1)}>›</button>
         <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendar')}>Open calendar →</button>
       </div>
-      <div onMouseMove={onMove} onMouseLeave={() => setHover(null)}>
-        <DayPilotMonth
-          startDate={anchor}
-          events={events}
-          eventMoveHandling="Disabled"
-          eventResizeHandling="Disabled"
-          timeRangeSelectedHandling="Disabled"
-          onBeforeEventRender={(args) => { const bk = args.data.block; const cl = bk?.color || '#48566a'; args.data.backColor = cl; args.data.barColor = cl; args.data.fontColor = '#fff'; if (bk) args.data.cssClass = 'mev-' + bk.id }}
-          onEventClick={() => go('calendar')}
-        />
-      </div>
-      {hover && <BlockHover b={hover.b} x={hover.x} y={hover.y} />}
+      <MonthView
+        anchor={anchor}
+        blocks={shown.filter((b) => b.start && b.end)}
+        colourFor={(b) => b.color || '#48566a'}
+        onOpen={() => go('calendar')}
+        onCreate={() => go('calendar')}
+        onDragCommit={() => {}}
+        readOnly
+      />
     </div>
   )
 }
 
-// Rich hover card (matches the calendar page) — course, roles, delegates.
-function BlockHover({ b, x, y }) {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1200
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 800
-  const left = Math.min(x + 14, vw - 376)
-  const top = Math.min(y + 14, vh - 240)
-  const ddmm = (iso) => (iso ? iso.slice(8, 10) + '/' + iso.slice(5, 7) : '')
-  return (
-    <div className="yc-hover" style={{ left, top }}>
-      <div className="yc-hover-head" style={{ borderLeft: `4px solid ${b.color || '#48566a'}` }}>
-        <strong>{b.course}</strong>
-        <span className="muted small">{b.scheme || '—'} · {b.start} – {b.end}</span>
-      </div>
-      <div className="yc-hover-roles small">
-        <span>Trainer: {b.trainer || '—'}</span>
-        <span>Assessor: {b.assessor || '—'}</span>
-        <span>Verifier: {b.verifier || '—'}</span>
-        <span className={b.ready ? 'ok' : 'warn'}>{b.ready ? '● Ready' : '● Incomplete'}</span>
-      </div>
-      <div className="yc-hover-delg small">
-        <strong>Delegates ({b.delegates.length})</strong>
-        {b.delegates.length === 0 && <div className="muted">None yet.</div>}
-        {b.delegates.map((d) => {
-          const full = !d.attendFrom && !d.attendTo
-          return (
-            <div key={d.bookingId} className="yc-hover-d">
-              <span>{d.name}{d.codes?.length ? <span className="muted"> · {d.codes.join(', ')}</span> : null}</span>
-              <span className={'att-tag ' + (full ? 'full' : 'part')}>{full ? 'Full' : 'Part ' + ddmm(d.attendFrom) + '–' + ddmm(d.attendTo)}</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
 
 function DashCard({ id, title, badge, count, open, onToggle, children }) {
   return (

@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { DayPilot, DayPilotMonth } from '@daypilot/daypilot-lite-react'
 import { listBlocks, listCourses, listStaff, listBookableCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 /* ----------------------------------------------------------------------------
- * SGAS Calendar — DayPilot Lite (Apache 2.0). Month / Week / Day / Year
+ * SGAS Calendar — Month / Week / Day / Year, all our own
  * views over the real course blocks (listBlocks). Drag to create a block,
  * drag-move / resize to change its dates, click to open the roster.
  * Reused as a standalone nav tab AND inside the Schedule screen's Calendar tab.
@@ -25,12 +24,40 @@ function savePrefs(p) {
   try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)) } catch { /* ignore */ }
 }
 
-const isoOf = (dp) => dp.toString('yyyy-MM-dd')
-// DayPilot end is exclusive (next-day midnight) after a whole-day drag — pull it
+// The calendar's anchor is a plain ISO date string. `cal` gives it the few
+// formatting and arithmetic helpers the views need — everything the calendar
+// library used to provide, without the library.
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+export function cal(isoStr) {
+  const d = new Date(isoStr + 'T00:00:00Z')
+  return {
+    iso: isoStr,
+    toString(fmtStr) {
+      const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate()
+      const p2 = (n) => String(n).padStart(2, '0')
+      if (fmtStr === 'yyyy') return String(y)
+      if (fmtStr === 'MM') return p2(m + 1)
+      if (fmtStr === 'yyyy-MM') return `${y}-${p2(m + 1)}`
+      if (fmtStr === 'yyyy-MM-dd') return isoStr
+      if (fmtStr === 'MMMM yyyy') return `${MONTH_NAMES[m]} ${y}`
+      if (fmtStr === 'd MMM yyyy') return `${day} ${MONTH_NAMES[m].slice(0, 3)} ${y}`
+      return isoStr
+    },
+    addDays: (n) => cal(addDaysISO(isoStr, n)),
+    addMonths(n) {
+      // Clamp to the end of the target month so 31 Jan + 1 month is 28/29 Feb.
+      const y = d.getUTCFullYear(), m = d.getUTCMonth(), day = d.getUTCDate()
+      const last = new Date(Date.UTC(y, m + n + 1, 0)).getUTCDate()
+      return cal(new Date(Date.UTC(y, m + n, Math.min(day, last))).toISOString().slice(0, 10))
+    },
+  }
+}
+// Kept for the week/day grid, which still hands back an exclusive end.
 // back to the last covered day so it maps to our inclusive end_date.
 function endIso(dp) {
   const s = dp.toString('yyyy-MM-ddTHH:mm:ss')
-  if (s.slice(11) === '00:00:00') return new DayPilot.Date(s.slice(0, 10)).addDays(-1).toString('yyyy-MM-dd')
+  if (s.slice(11) === '00:00:00') return addDaysISO(s.slice(0, 10), -1)
   return s.slice(0, 10)
 }
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -75,22 +102,19 @@ export default function Calendar({ go, isAdmin, user }) {
   const [colourBy, setColourBy] = useState(saved.colourBy || 'course') // course | scheme | status
   const [showFinished, setShowFinished] = useState(saved.showFinished ?? true)
   const [selStaff, setSelStaff] = useState(() => new Set(saved.staffIds || []))
-  const [anchor, setAnchor] = useState(new DayPilot.Date(todayISO()))
+  const [anchor, setAnchor] = useState(cal(todayISO()))
   const [numMonths, setNumMonths] = useState(saved.numMonths || 12)
 
   const [blocks, setBlocks] = useState(null)
   const [courses, setCourses] = useState([])
   const [staff, setStaff] = useState([])
   const [openBlock, setOpenBlock] = useState(null)
-  const [pendingBlock, setPendingBlock] = useState(null) // admin: choosing view vs edit
   const [panelMode, setPanelMode] = useState('view')
   const [creating, setCreating] = useState(null) // { from, to } while the create modal is open
   const [pool, setPool] = useState([])
   const [categories, setCategories] = useState([])
   const [holidays, setHolidays] = useState([])
-  const [nonce, setNonce] = useState(0)
 
-  const monthRef = useRef(null)
 
   async function refresh() {
     const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listBookableCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId)])
@@ -117,10 +141,12 @@ export default function Calendar({ go, isAdmin, user }) {
   useEffect(() => { refresh() }, [])
 
   // Admins get a Staff-view / Edit-view chooser; everyone else opens read-only.
+  // Open a course straight away. Admins get the edit controls inline; everyone
+  // else sees the same panel read-only. (There used to be a "view or edit?"
+  // question first — it was a step for no reason.)
   function openBlk(b) {
-    if (b.isHoliday || b.isEngagement) { setPanelMode('view'); setOpenBlock(b); return }
-    if (isAdmin) { setPendingBlock(b) }
-    else { setPanelMode('view'); setOpenBlock(b) }
+    setPanelMode(isAdmin && !b.isHoliday && !b.isEngagement ? 'edit' : 'view')
+    setOpenBlock(b)
   }
   useEffect(() => { savePrefs({ view, colourBy, showFinished, numMonths, schemes: [...selSchemes], staffIds: [...selStaff] }) }, [view, colourBy, showFinished, numMonths, selSchemes, selStaff])
 
@@ -152,34 +178,6 @@ export default function Calendar({ go, isAdmin, user }) {
   const toggleStaff = (id) => setSelStaff((x) => { const n = new Set(x); n.has(id) ? n.delete(id) : n.add(id); return n })
   const clearFilters = () => { setSelSchemes(new Set()); setSelStaff(new Set()) }
 
-  // Block -> DayPilot event. All-day blocks are shown across 09:00–17:00 so they
-  // read as a band in the time-grid (Week/Day) and as a bar in Month.
-  const events = useMemo(() => (filtered).map((b) => ({
-    id: b.id,
-    text: b.isHoliday ? b.course : `${b.course} · ${b.delegates.length}👤${b.ready ? '' : ' · ⚠'}`,
-    start: `${b.start}T09:00:00`,
-    end: `${b.end}T17:00:00`,
-    backColor: colourFor(b),
-    borderColor: 'darker',
-    fontColor: '#fff',
-    moveDisabled: b.isHoliday || b.isEngagement || !!(b.end && b.end < todayISO()),
-    resizeDisabled: b.isHoliday || b.isEngagement || !!(b.end && b.end < todayISO()),
-    resource: b.trainerId || 'none',
-    block: b,
-  })), [filtered, colourBy])
-
-  // DayPilot reads event colours via onBeforeEventRender on EVERY render, so a
-  // course-colour change (or a colour-by switch) always repaints. Setting
-  // backColor on the event data alone does NOT refresh on prop updates.
-  const renderEvent = (args) => {
-    const b = args.data.block
-    const c = b ? colourFor(b) : '#48566a'
-    args.data.backColor = c
-    args.data.barColor = c
-    args.data.borderColor = 'darker'
-    args.data.fontColor = '#fff'
-  }
-
   // Resource lanes = one column per trainer (+ an Unassigned lane), single day.
   function move(dir) {
     const map = { Month: 'months', Week: 'days', Day: 'days', Year: 'months' }
@@ -188,16 +186,6 @@ export default function Calendar({ go, isAdmin, user }) {
     setAnchor((a) => (unit === 'months' ? a.addMonths(dir) : a.addDays(dir * n)))
   }
 
-  async function doMoveResize(args) {
-    const e = args.e
-    const from = isoOf(args.newStart)
-    const to = endIso(args.newEnd)
-    try {
-      await updateBlock(e.data.id, { from, to })
-      toast(`Block moved to ${from} – ${to}`)
-      await refresh()
-    } catch (err) { toast(err.message); await refresh() }
-  }
 
   // Move/resize a timed engagement on the Week/Day grid.
   async function onEngCommit(ev, patch) {
@@ -250,20 +238,8 @@ export default function Calendar({ go, isAdmin, user }) {
       {blocks === null ? (
         <div className="loading">Loading calendar…</div>
       ) : view === 'Month' ? (
-        <DayPilotMonth
-          key={'mon' + nonce}
-          ref={monthRef}
-          startDate={anchor}
-          events={events}
-          eventMoveHandling="Update"
-          eventResizeHandling="Update"
-          timeRangeSelectedHandling="Enabled"
-          onTimeRangeSelected={(args) => { monthRef.current?.control.clearSelection(); setCreating({ from: isoOf(args.start), to: endIso(args.end) }) }}
-          onEventMoved={doMoveResize}
-          onEventResized={doMoveResize}
-          onBeforeEventRender={renderEvent}
-          onEventClick={(args) => openBlk(args.e.data.block)}
-        />
+        <MonthView anchor={anchor} blocks={filtered} colourFor={colourFor}
+          onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} onDragCommit={onDragCommit} />
       ) : view === 'Year' ? (
         <YearView blocks={filtered} colourFor={colourFor} numMonths={numMonths} anchor={anchor}
           showStripes={colourBy === 'attendance'} onOpen={openBlk} onCreate={(from, to) => setCreating({ from, to })} onDragCommit={onDragCommit} />
@@ -282,11 +258,6 @@ export default function Calendar({ go, isAdmin, user }) {
           onClose={() => setCreating(null)}
           onCreated={async () => { setCreating(null); await refresh() }}
         />
-      )}
-      {pendingBlock && (
-        <ViewChooser block={pendingBlock}
-          onPick={(m) => { setPanelMode(m); setOpenBlock(pendingBlock); setPendingBlock(null) }}
-          onClose={() => setPendingBlock(null)} />
       )}
       {openBlock && (openBlock.isHoliday
         ? <HolidayDrawer b={openBlock} onChanged={refreshKeepOpen} onClose={() => setOpenBlock(null)} />
@@ -309,7 +280,7 @@ function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, selScheme
       <div className="cal-toolbar">
         <div className="cal-nav-grp">
           <button className="cal-nav" onClick={() => move(-1)}>‹</button>
-          <button className="btn ghost sm" onClick={() => setAnchor(new DayPilot.Date(todayISO()))}>Today</button>
+          <button className="btn ghost sm" onClick={() => setAnchor(cal(todayISO()))}>Today</button>
           <button className="cal-nav" onClick={() => move(1)}>›</button>
           <span className="cal-label">{label}</span>
         </div>
@@ -480,11 +451,11 @@ function EngagementDrawer({ b, staff, user, onChanged, onClose }) {
     catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="cal-rpanel-wrap">
-      <div className="cal-rpanel-backdrop" />
-      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
-        <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #475569' }}>
-          <div className="cal-rpanel-title"><h3>🗒 Calendar entry</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+    <div className="cal-modal-wrap" onClick={onClose}>
+      
+      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-modal-head" style={{ borderLeft: '5px solid #475569' }}>
+          <div className="cal-modal-title"><h3>🗒 Calendar entry</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">Your personal calendar entry — edits save instantly.</span>
         </div>
         <div className="cal-edit">
@@ -508,7 +479,7 @@ function EngagementDrawer({ b, staff, user, onChanged, onClose }) {
             <div className="fld"><span className="muted small">With: {(b.members || []).map((m) => m.name).join(', ')}</span></div>
           )}
         </div>
-        <div className="cal-rpanel-foot">
+        <div className="cal-modal-foot">
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete</button>
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
@@ -525,18 +496,18 @@ function HolidayDrawer({ b, onChanged, onClose }) {
     catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="cal-rpanel-wrap">
-      <div className="cal-rpanel-backdrop" />
-      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
-        <div className="cal-rpanel-head" style={{ borderLeft: '5px solid #8a94a6' }}>
-          <div className="cal-rpanel-title"><h3>🏖 Holiday</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+    <div className="cal-modal-wrap" onClick={onClose}>
+      
+      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-modal-head" style={{ borderLeft: '5px solid #8a94a6' }}>
+          <div className="cal-modal-title"><h3>🏖 Holiday</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">{b.staffName} · {b.start} – {b.end}</span>
         </div>
         <div className="cal-sec">
           {b.note ? <div>{b.note}</div> : <div className="muted small">No note.</div>}
           <div className="muted small">{b.staffName} can't be assigned as a trainer on courses overlapping these dates.</div>
         </div>
-        <div className="cal-rpanel-foot">
+        <div className="cal-modal-foot">
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete holiday</button>
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
@@ -545,27 +516,6 @@ function HolidayDrawer({ b, onChanged, onClose }) {
   )
 }
 
-function ViewChooser({ block, onPick, onClose }) {
-  return (
-    <div className="modal-overlay">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>Open “{block.course}”</h3>
-        <p className="muted small">How do you want to open this block?</p>
-        <div className="chooser">
-          <button className="chooser-opt" onClick={() => onPick('view')}>
-            <span className="chooser-ic">👁</span><strong>Staff view</strong>
-            <span className="muted small">Read-only — exactly what staff see</span>
-          </button>
-          <button className="chooser-opt" onClick={() => onPick('edit')}>
-            <span className="chooser-ic">✏️</span><strong>Edit view</strong>
-            <span className="muted small">Change dates, trainer and delegates</span>
-          </button>
-        </div>
-        <div className="modal-foot"><button className="btn ghost" onClick={onClose}>Cancel</button></div>
-      </div>
-    </div>
-  )
-}
 
 function AttendanceEdit({ d, block, busy, onSave }) {
   const full0 = !d.attendFrom && !d.attendTo
@@ -652,11 +602,11 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
   const toggleCat = (k) => { const n = new Set(openSet); n.has(k) ? n.delete(k) : n.add(k); setOpenCats(n) }
 
   return (
-    <div className="cal-rpanel-wrap">
-      <div className="cal-rpanel-backdrop" />
-      <aside className="cal-rpanel" onClick={(e) => e.stopPropagation()}>
-        <div className="cal-rpanel-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
-          <div className="cal-rpanel-title"><h3>{b.course}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
+    <div className="cal-modal-wrap" onClick={onClose}>
+      
+      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="cal-modal-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
+          <div className="cal-modal-title"><h3>{b.course}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">{b.scheme || '—'} · {b.delegates.length} delegate(s)</span>
           {isAdmin && (
             <div className="cal-modeseg">
@@ -785,11 +735,168 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
           </div>
         )}
 
-        <div className="cal-rpanel-foot">
+        <div className="cal-modal-foot">
           {go && <button className="btn ghost sm" onClick={() => { onClose(); go('sched') }}>Full Schedule →</button>}
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
       </aside>
+    </div>
+  )
+}
+
+/* ============================ Month view ============================
+   Our own grid, built like the Year and Week views so the whole calendar
+   looks and behaves as one thing. Replaces the DayPilot widget, which could
+   not do touch on its free tier and never matched the app's styling.
+   Rows are weeks; a course spans its days as one bar, lane-packed so
+   overlapping courses stack instead of hiding each other. Everything is
+   pointer events, so it works with a mouse, a finger or a pen.
+==================================================================== */
+export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragCommit, readOnly = false }) {
+  const [hover, setHover] = useState(null)
+  const [sel, setSel] = useState(null)          // {from,to} while dragging out a new block
+  const gridRef = useRef(null)
+
+  const first = anchor.toString('yyyy-MM') + '-01'
+  const firstDow = (new Date(first + 'T00:00:00Z').getUTCDay() + 6) % 7   // Monday = 0
+  const gridStart = addDaysISO(first, -firstDow)
+  const weeks = 6
+  const days = Array.from({ length: weeks * 7 }, (_, i) => addDaysISO(gridStart, i))
+  const month = first.slice(0, 7)
+
+  // Which week row a date sits in, and its column.
+  const cellOf = (d) => {
+    const n = Math.round((Date.parse(d + 'T00:00:00Z') - Date.parse(gridStart + 'T00:00:00Z')) / 86400000)
+    return n < 0 || n >= weeks * 7 ? null : { row: Math.floor(n / 7), col: n % 7 }
+  }
+
+  // A block becomes one segment per week row it touches.
+  const segments = useMemo(() => {
+    const out = []
+    for (const b of blocks) {
+      let cur = b.start < gridStart ? gridStart : b.start
+      const last = b.end > days[days.length - 1] ? days[days.length - 1] : b.end
+      while (cur <= last) {
+        const c = cellOf(cur)
+        if (!c) break
+        const endCol = Math.min(6, c.col + Math.round((Date.parse(last + 'T00:00:00Z') - Date.parse(cur + 'T00:00:00Z')) / 86400000))
+        out.push({ b, row: c.row, col: c.col, span: endCol - c.col + 1, key: b.id + ':' + cur, startsHere: cur === b.start })
+        cur = addDaysISO(addDaysISO(cur, endCol - c.col), 1)
+      }
+    }
+    return out
+  }, [blocks, gridStart])
+
+  // Lane-pack each week row so overlapping courses stack.
+  const rows = useMemo(() => {
+    const byRow = new Map()
+    for (const sg of segments) {
+      if (!byRow.has(sg.row)) byRow.set(sg.row, [])
+      byRow.get(sg.row).push(sg)
+    }
+    for (const list of byRow.values()) {
+      list.sort((a, b) => a.col - b.col || b.span - a.span)
+      const lanes = []
+      for (const sg of list) {
+        let i = 0
+        while (i < lanes.length && lanes[i] > sg.col) i++
+        if (i === lanes.length) lanes.push(0)
+        lanes[i] = sg.col + sg.span
+        sg.lane = i
+      }
+    }
+    return byRow
+  }, [segments])
+
+  // Drag across empty cells to create a block.
+  function cellDown(d, e) {
+    if (readOnly || e.button === 2) return
+    setSel({ from: d, to: d })
+    const move = (ev) => {
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)
+      const cell = el && el.closest ? el.closest('.mv-cell') : null
+      if (cell?.dataset.d) setSel((sv) => sv && ({ from: d < cell.dataset.d ? d : cell.dataset.d, to: d < cell.dataset.d ? cell.dataset.d : d }))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      setSel((sv) => { if (sv) onCreate(sv.from, sv.to); return null })
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  // Drag a bar to move it, or its right edge to change the length.
+  function barDown(b, e, mode) {
+    e.preventDefault(); e.stopPropagation()
+    const cell = gridRef.current?.querySelector('.mv-cell')
+    const colW = cell ? cell.getBoundingClientRect().width : 100
+    const x0 = e.clientX
+    const el = e.currentTarget.closest('.mv-bar')
+    let delta = 0
+    const move = (ev) => {
+      delta = Math.round((ev.clientX - x0) / colW)
+      el.style.transform = mode === 'mv' ? `translateX(${delta * colW}px)` : ''
+      el.style.opacity = delta ? '.75' : ''
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      el.style.transform = ''; el.style.opacity = ''
+      if (delta) onDragCommit(b, mode, delta)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  const inSel = (d) => sel && d >= sel.from && d <= sel.to
+  const maxLane = (r) => Math.max(0, ...(rows.get(r) || []).map((x) => x.lane))
+
+  return (
+    <div className="mv" ref={gridRef}>
+      <div className="mv-head">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d) => <div key={d}>{d}</div>)}
+      </div>
+      {Array.from({ length: weeks }, (_, r) => (
+        <div className="mv-week" key={r} style={{ minHeight: 34 + (maxLane(r) + 1) * 24 }}>
+          {Array.from({ length: 7 }, (_, c) => {
+            const d = days[r * 7 + c]
+            const out = d.slice(0, 7) !== month
+            return (
+              <div
+                key={d} data-d={d}
+                className={'mv-cell' + (out ? ' out' : '') + (d === todayISO() ? ' today' : '') + (inSel(d) ? ' sel' : '')}
+                onPointerDown={(e) => cellDown(d, e)}
+                style={readOnly ? { cursor: 'default' } : undefined}
+              >
+                <span className="mv-num">{Number(d.slice(8, 10))}</span>
+              </div>
+            )
+          })}
+          {(rows.get(r) || []).map((sg) => (
+            <div
+              key={sg.key}
+              className={'mv-bar' + (sg.b.isHoliday ? ' hol' : '') + (sg.b.ready === false ? ' incomplete' : '')}
+              style={{
+                left: `calc(${(sg.col / 7) * 100}% + 3px)`,
+                width: `calc(${(sg.span / 7) * 100}% - 6px)`,
+                top: 30 + sg.lane * 24,
+                background: colourFor(sg.b),
+              }}
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={() => onOpen(sg.b)}
+              onMouseEnter={(e) => setHover({ b: sg.b, x: e.clientX, y: e.clientY })}
+              onMouseLeave={() => setHover(null)}
+              title={`${sg.b.course || sg.b.title} · ${sg.b.start} – ${sg.b.end}`}
+            >
+              {!readOnly && !sg.b.isHoliday && !sg.b.isEngagement && <span className="mv-grip l" onPointerDown={(e) => barDown(sg.b, e, 'mv')} />}
+              <span className="mv-bar-t">{sg.startsHere ? (sg.b.course || sg.b.title) : '↳'}</span>
+              {!readOnly && !sg.b.isHoliday && !sg.b.isEngagement && <span className="mv-grip r" onPointerDown={(e) => barDown(sg.b, e, 're')} />}
+            </div>
+          ))}
+        </div>
+      ))}
+      {hover && <HoverCard b={hover.b} x={hover.x} y={hover.y} />}
     </div>
   )
 }
