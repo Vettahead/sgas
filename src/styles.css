@@ -1074,10 +1074,22 @@ select,select option{color:#1d2733;background:#fff}
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;width:100%}
 .cx-bar-t em{margin-left:auto;font-style:normal;font-size:10.5px;font-weight:700;background:var(--c);color:#fff;
   border-radius:99px;padding:2px 7px;flex:none}
-.cx-dot{position:absolute;right:6px;top:6px;width:7px;height:7px;border-radius:99px;background:var(--cx-warn);
+.cx-dot{position:absolute;right:6px;top:6px;width:0;height:0;border-radius:0;background:none;
+  border-left:5px solid transparent;border-right:5px solid transparent;
+  border-bottom:9px solid var(--cx-warn);filter:drop-shadow(0 0 1px var(--cx-panel));
   box-shadow:0 0 0 2px var(--cx-panel)}
 .cx-grab{position:absolute;left:0;top:0;bottom:0;width:16px;cursor:grab;touch-action:none}
-.cx-bar:hover .cx-grab{background:linear-gradient(90deg,rgba(0,0,0,.08),transparent)}
+/* Round handles at each end on hover — you cannot discover an invisible
+   edge strip, and Calendars proves a dot reads instantly. */
+.cx-grab::after,.cx-resize::after{content:'';position:absolute;top:50%;width:9px;height:9px;
+  margin-top:-4.5px;border-radius:99px;background:var(--cx-panel);
+  box-shadow:0 0 0 2px var(--c),0 1px 3px rgba(15,23,42,.28);
+  opacity:0;transform:scale(.5);transition:opacity .13s ease,transform .13s cubic-bezier(.2,1.4,.4,1)}
+.cx-grab::after{left:3px}
+.cx-resize::after{right:3px}
+.cx-bar:hover .cx-grab::after,.cx-bar:hover .cx-resize::after,
+.cx-bar:focus-visible .cx-grab::after,.cx-bar:focus-visible .cx-resize::after{opacity:1;transform:scale(1)}
+body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;transform:scale(1)}
 
 /* skeleton */
 .cx-skel{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--cx-line)}
@@ -1151,9 +1163,7 @@ select,select option{color:#1d2733;background:#fff}
 
 /* resize handle, mirroring the move handle on the left */
 .cx-resize{position:absolute;right:0;top:0;bottom:0;width:16px;cursor:ew-resize;touch-action:none}
-.cx-bar:hover .cx-resize{background:linear-gradient(270deg,rgba(0,0,0,.10),transparent)}
-.cx-dark .cx-bar:hover .cx-resize{background:linear-gradient(270deg,rgba(255,255,255,.16),transparent)}
-.cx-dark .cx-bar:hover .cx-grab{background:linear-gradient(90deg,rgba(255,255,255,.16),transparent)}
+.cx-dark .cx-grab::after,.cx-dark .cx-resize::after{background:#0e1117}
 
 /* the delegate-mix stripe along the bottom of a bar */
 .cx-mix{position:absolute;left:0;right:0;bottom:0;height:3px;display:flex;gap:1px;pointer-events:none;
@@ -1168,7 +1178,9 @@ select,select option{color:#1d2733;background:#fff}
 .cx-legend i{width:10px;height:10px;border-radius:3px;flex:none}
 .cx-l-part{background:linear-gradient(90deg,var(--cx-mute) 50%,transparent 50%);
   border:1px solid var(--cx-mute)}
-.cx-l-warn{background:var(--cx-warn);border-radius:99px!important;width:8px!important;height:8px!important}
+.cx-l-warn{background:none!important;width:0!important;height:0!important;border-radius:0!important;
+  border-left:5px solid transparent!important;border-right:5px solid transparent!important;
+  border-bottom:9px solid var(--cx-warn)!important}
 .cx-legend b{font:700 10.5px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.04em}
 .cx-l-course{background:linear-gradient(90deg,#1f9d55,#2f6fd0,#7b2ff2)}
 .cx-l-sep{width:1px;height:14px;background:var(--cx-line)}
@@ -1194,6 +1206,14 @@ select,select option{color:#1d2733;background:#fff}
   box-shadow:inset 3px 0 0 var(--c),0 10px 26px -6px rgba(15,23,41,.4)}
 body.cx-dragging{user-select:none;cursor:grabbing}
 body.cx-dragging *{cursor:inherit!important}
+.cx-chip-len{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;
+  pointer-events:none;white-space:nowrap;background:var(--cx-ink);color:var(--cx-bg);
+  font:600 11px/1 inherit;padding:5px 9px;border-radius:99px;box-shadow:0 2px 8px rgba(15,23,42,.3);
+  animation:cx-pop .14s cubic-bezier(.2,1.4,.4,1)}
+.cx-dark .cx-chip-len{background:#e8ecf3;color:#0e1117}
+@keyframes cx-pop{from{opacity:0;transform:translate(-50%,-50%) scale(.86)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
+/* the bar must not clip its own chip while you drag */
+body.cx-dragging .cx-bar{overflow:visible}
 .cx-hint{position:fixed;z-index:200;pointer-events:none;background:var(--cx-ink);color:var(--cx-bg);
   font:600 12px/1 inherit;padding:7px 11px;border-radius:8px;white-space:nowrap;
   box-shadow:0 6px 18px rgba(15,23,41,.35)}
@@ -1276,6 +1296,8 @@ button.cx-title:hover i{opacity:1}
 .cx-ev span{font-size:11px;color:var(--cx-mute)}
 .cx-now{position:absolute;left:0;right:0;height:2px;background:#e5484d;z-index:6;pointer-events:none}
 .cx-now i{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:99px;background:#e5484d}
+.cx-now b{position:absolute;left:4px;top:-9px;background:#e5484d;color:#fff;
+  font:700 10.5px/1 inherit;padding:4px 6px;border-radius:5px;white-space:nowrap}
 .cx-days.one .cx-dhead{text-align:left;padding-left:14px}
 
 /* ── Calendar (new look): Year ───────────────────────────────────────────── */
@@ -1307,3 +1329,151 @@ button.cx-title:hover i{opacity:1}
   .cx-ylabel{flex:0 0 38px;padding-left:8px;font-size:10px}
   .cx-ybar .cx-bar-t{font-size:9px}
 }
+
+/* ── Anchored course popover ────────────────────────────────────────────────
+   Opens beside the bar you clicked instead of dimming the calendar. The
+   calendar behind it is the context you need while you look at a course. */
+.cx-pop{position:fixed;z-index:220;width:376px;max-width:calc(100vw - 24px);
+  max-height:min(78vh,660px);overflow:auto;background:var(--cx-panel);
+  border:1px solid var(--cx-line);border-radius:16px;
+  box-shadow:0 18px 48px rgba(15,23,42,.20),0 3px 10px rgba(15,23,42,.08);
+  animation:cx-pop-in .16s cubic-bezier(.2,.9,.3,1)}
+.cx-pop:focus{outline:none}
+.cx-dark .cx-pop{box-shadow:0 18px 48px rgba(0,0,0,.55)}
+@keyframes cx-pop-in{from{opacity:0;transform:translateY(-4px) scale(.975)}to{opacity:1;transform:none}}
+.cx-pop.left{transform-origin:right center}
+.cx-pop.right{transform-origin:left center}
+.cx-pop.bottom{transform-origin:top center}
+.cx-pop.top{transform-origin:bottom center}
+@media (prefers-reduced-motion:reduce){.cx-pop{animation:none}}
+
+/* Under 720px "beside it" means nothing — it becomes a sheet off the bottom. */
+.cx-pop-scrim{position:fixed;inset:0;z-index:210;background:rgba(15,23,42,.34);
+  animation:cx-fade .16s ease}
+@keyframes cx-fade{from{opacity:0}to{opacity:1}}
+.cx-pop.sheet{left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;
+  border-radius:18px 18px 0 0;max-height:86vh;animation:cx-sheet-in .2s cubic-bezier(.2,.9,.3,1)}
+@keyframes cx-sheet-in{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+
+.cx-pop-head{display:flex;align-items:center;gap:9px;padding:13px 12px 11px 14px;
+  border-bottom:1px solid var(--cx-line);position:sticky;top:0;background:var(--cx-panel);z-index:2}
+.cx-pop-dot{width:11px;height:11px;border-radius:99px;background:var(--c);flex:0 0 11px}
+.cx-pop-title{flex:1;min-width:0;margin:0;font:700 19px/1.25 inherit;color:var(--cx-ink);
+  border:1px solid transparent;background:none;border-radius:9px;padding:3px 6px;
+  cursor:pointer;appearance:none;text-overflow:ellipsis;
+  transition:background .12s ease,border-color .12s ease}
+select.cx-pop-title:hover{background:var(--cx-soft);border-color:var(--cx-line)}
+select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border-color:var(--cx-brand);
+  box-shadow:0 0 0 3px var(--cx-brand-soft)}
+
+/* The dates read across as a range, the way Calendars does it. */
+.cx-when{display:flex;align-items:stretch;margin:12px 14px;border:1px solid var(--cx-line);
+  border-radius:12px;overflow:hidden;background:var(--cx-panel)}
+.cx-when-b{position:relative;flex:1;min-width:0;border:0;padding:8px 11px;cursor:pointer;
+  transition:background .12s ease}
+.cx-when-b:hover{background:var(--cx-soft)}
+.cx-when-b:focus-within{background:var(--cx-brand-soft);box-shadow:inset 0 0 0 2px var(--cx-brand)}
+.cx-when-b small{display:block;font:600 10px/1 inherit;color:var(--cx-mute);
+  text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.cx-when-b b{display:block;font:700 14px/1.2 inherit;color:var(--cx-ink)}
+/* the real input sits over the block, invisible, so the whole block is the hit area */
+.cx-when-b input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
+.cx-when-b input:disabled{cursor:default}
+.cx-when-arrow{color:var(--cx-mute);font-size:18px;line-height:1;flex:0 0 auto;
+  align-self:center;padding:0 2px}
+.cx-when-len{flex:0 0 auto;align-self:center;font:600 11px/1 inherit;color:var(--cx-mute);
+  padding:0 12px;border-left:1px solid var(--cx-line);align-content:center}
+
+/* Quiet rows you fill in as you need them, not a form showing every field. */
+.cx-rows{padding:6px 6px 10px}
+.cx-row2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:11px;
+  transition:background .12s ease}
+.cx-row2.top{align-items:flex-start}
+.cx-row2:hover{background:var(--cx-soft)}
+.cx-ricon{flex:0 0 22px;text-align:center;font-size:14px;opacity:.75;line-height:22px}
+.cx-row2.empty .cx-ricon{opacity:.4}
+.cx-row2 select{flex:1;min-width:0;border:1px solid transparent;background:none;border-radius:8px;
+  padding:5px 6px;font:500 13px/1.3 inherit;color:var(--cx-ink);appearance:none;cursor:pointer}
+.cx-row2 select:hover{border-color:var(--cx-line);background:var(--cx-panel)}
+.cx-row2 select:focus{outline:none;border-color:var(--cx-brand);box-shadow:0 0 0 3px var(--cx-brand-soft)}
+.cx-row2.empty select{color:var(--cx-mute)}
+.cx-rtext{flex:1;min-width:0;font:500 13px/1.4 inherit;color:var(--cx-ink);padding:5px 6px}
+.cx-row2.empty .cx-rtext{color:var(--cx-mute)}
+.cx-rfill{flex:1;min-width:0;padding-top:3px}
+.cx-course-pop .cx-delg{margin:0;padding:0}
+.cx-add{margin-top:7px}
+.cx-add summary{display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;
+  font:600 12px/1 inherit;color:var(--cx-brand);padding:6px 4px;border-radius:8px}
+.cx-add summary::-webkit-details-marker{display:none}
+.cx-add summary::before{content:'＋';font-size:13px;line-height:1}
+.cx-add summary:hover{background:var(--cx-brand-soft)}
+.cx-add summary span{margin-left:auto;font-weight:700;color:var(--cx-mute);
+  background:var(--cx-soft);border-radius:99px;padding:2px 7px;font-size:10.5px}
+.cx-add[open] summary::before{content:'−'}
+.cx-add .cx-chips{margin-top:6px}
+
+/* The caret tethers the popover to the bar you clicked. */
+.cx-pop-caret{position:fixed;z-index:221;width:13px;height:13px;background:var(--cx-panel);
+  border:1px solid var(--cx-line);transform:rotate(45deg);pointer-events:none;
+  animation:cx-pop-in .16s cubic-bezier(.2,.9,.3,1)}
+.cx-pop-caret.bottom{margin:-6.5px 0 0 -6.5px;border-right:0;border-bottom:0}
+.cx-pop-caret.top{margin:-6.5px 0 0 -6.5px;border-left:0;border-top:0}
+.cx-pop-caret.right{margin:-6.5px 0 0 -6.5px;border-right:0;border-top:0}
+.cx-pop-caret.left{margin:-6.5px 0 0 -6.5px;border-left:0;border-bottom:0}
+
+/* Every row says what it is — an icon on its own is a guess. */
+.cx-row2{position:relative}
+.cx-rlabel{position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  font:600 10px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em;
+  opacity:0;transition:opacity .12s ease;pointer-events:none}
+.cx-rlabel.top{position:static;transform:none;display:block;opacity:1;margin:0 0 5px 6px}
+.cx-row2:hover .cx-rlabel,.cx-row2:focus-within .cx-rlabel{opacity:1}
+.cx-row2.empty .cx-rlabel{opacity:1}
+
+/* No Save button, so say so. */
+.cx-pop-foot{display:flex;align-items:center;gap:7px;padding:9px 14px;
+  border-top:1px solid var(--cx-line);font:500 11.5px/1 inherit;color:var(--cx-mute);
+  position:sticky;bottom:0;background:var(--cx-panel)}
+.cx-spin{width:11px;height:11px;border-radius:99px;border:2px solid var(--cx-line);
+  border-top-color:var(--cx-brand);animation:cx-spin .7s linear infinite}
+@keyframes cx-spin{to{transform:rotate(360deg)}}
+
+/* The app's shared .cx select/input chrome gives every control a box. The
+   popover's title is a heading you can change, not a form field, and its rows
+   are lines of text — so they opt out. */
+.cx .cx-pop{text-align:left}
+.cx .cx-pop select.cx-pop-title{border-color:transparent;background:none;padding:3px 6px;
+  font:700 19px/1.25 inherit;height:auto}
+.cx .cx-pop select.cx-pop-title:hover{border-color:var(--cx-line);background:var(--cx-soft)}
+.cx .cx-pop .cx-row2 select{border-color:transparent;background:none;font:500 13px/1.4 inherit;
+  padding:5px 6px;height:auto}
+.cx .cx-pop .cx-row2:hover select{border-color:var(--cx-line);background:var(--cx-panel)}
+.cx .cx-pop .cx-rtext,.cx .cx-pop .cx-rlabel{text-align:left}
+
+/* The handles sit over the ends of the bar, so the name starts clear of them. */
+.cx-bar:has(.cx-grab) .cx-bar-t{padding-left:17px}
+.cx-bar:has(.cx-resize) .cx-bar-t{padding-right:16px}
+
+/* The title is the heading; the dates support it. */
+.cx .cx-pop select.cx-pop-title,.cx .cx-pop h3.cx-pop-title{font:700 18px/1.25 inherit}
+.cx-when-b b{font:600 14.5px/1.2 inherit}
+.cx-pop-head .cx-icon{border-color:transparent;background:none;color:var(--cx-mute)}
+.cx-pop-head .cx-icon:hover{border-color:var(--cx-line);background:var(--cx-soft);color:var(--cx-ink)}
+
+/* Every row names itself, always — not only on hover. */
+.cx-rlabel{position:static;transform:none;display:block;opacity:1;margin:0 0 3px 6px;
+  font:600 10px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em}
+.cx-row2{align-items:flex-start}
+.cx-row2 .cx-ricon{margin-top:14px}
+.cx-rwrap{flex:1;min-width:0;display:block}
+.cx-rwrap .cx-rtext{display:block;flex:none;padding:0 6px}
+.cx-rwrap select{width:100%}
+
+/* A phone sheet has to dim the drawer behind it, which is nearly black already. */
+.cx-pop-scrim{background:rgba(6,11,20,.6)}
+.cx-pop.sheet{padding-bottom:env(safe-area-inset-bottom,0px)}
+
+/* "remove" is destructive and there is no undo — give it a real target. */
+.cx-delg .cx-x{padding:5px 8px;border-radius:7px;font-size:11.5px;min-height:28px}
+.cx-delg .cx-x:hover{background:var(--cx-soft)}
+.cx-delg .cx-x.danger:hover{background:var(--cx-warn-soft);color:var(--cx-warn)}

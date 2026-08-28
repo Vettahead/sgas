@@ -14,6 +14,23 @@
 
 export const RELEASES = [
   {
+    v: '1.11.0', build: 120, date: '28 Aug 2026',
+    title: 'Calendar (new look): a lighter way to open a course',
+    notes: [
+      'Clicking a course now opens a panel beside it rather than a window over the middle of the screen \u2014 the calendar stays visible behind it, and a small arrow points back at the course you opened.',
+      'It never covers the course you clicked, and it flips to whichever side has room.',
+      'No more Save button. Change the trainer, the dates, who is on it, and it saves as you go \u2014 the panel says so along the bottom.',
+      'The dates read as one thing: starts, ends, and how many days, in a single block you can click either half of.',
+      'Every line is labelled \u2014 Trainer, On this course, Scheme \u2014 instead of an icon you have to guess at.',
+      'On a phone it slides up from the bottom instead of trying to be a small panel.',
+      'While you stretch a course, a chip on the bar itself tells you how long it now runs and between which dates.',
+      'Round handles appear at each end of a course when you point at it, so it is obvious you can drag it.',
+      'The red \u201cnow\u201d line in Day and Week view carries the time.',
+      '\u201cNeeds a trainer\u201d is now a small triangle, not an amber dot \u2014 an amber dot looked the same as a course whose own colour is amber.',
+      'Taking somebody off a course asks first, and the buttons are big enough to hit on a tablet.',
+    ],
+  },
+  {
     v: '1.10.0', build: 119, date: '28 Aug 2026',
     title: 'Calendar (new look): Week, Day and Year',
     notes: [

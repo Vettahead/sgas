@@ -60,3 +60,29 @@ Uses `listBookableCategories()` since 27 Aug — see [[sgas-staff-accreditations
 assertions against a production build. Rebuild there and rerun it after touching
 this file. A passing `vite build` proves nothing; both of the bugs fixed here
 built clean.
+
+## The anchored course popover (28 Aug 2026)
+
+`src/components/Popover.jsx`. Chris pointed at Calendars by Readdle; this is
+that shape, not a centred modal.
+
+- **Anchor to the click, not the element.** `openAt(b, e)` builds a 20px-wide
+  rect around `e.clientX` spanning the bar's height. A course bar can be most
+  of a week wide — anchoring to its rect pushed the panel across the grid and
+  hid the course being edited.
+- **Placement order is below → above → right → left**, then clamped to the
+  viewport. The point is that the thing you opened stays visible.
+- **The caret is a sibling of the panel, positioned in viewport coordinates.**
+  The panel is `overflow:auto`, so a caret inside it gets clipped.
+- **Focus the panel, not the first control.** A popover is read, not filled in;
+  focusing a `<select>` puts a focus ring on it the moment it opens.
+- **Under 720px it is a bottom sheet** with a scrim. The scrim is
+  `rgba(6,11,20,.6)` because the app's nav drawer is nearly black and a lighter
+  scrim did not visibly dim it.
+- **No Save button anywhere.** Every control commits on change and the footer
+  states it. If you add a control here, it must commit on change too.
+- The app's shared `.cx select, .cx input` chrome gives every control a box, so
+  the popover's title and rows explicitly opt out (`.cx .cx-pop select…`).
+
+Colour: "needs a trainer or delegates" is a **triangle**, not an amber dot —
+some courses are amber themselves and the two were indistinguishable.

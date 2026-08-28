@@ -1268,7 +1268,7 @@ export async function listBlocks() {
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
-      course: s.course?.name, scheme: s.course?.scheme, color: s.course?.color,
+      courseId: s.course?.course_id, course: s.course?.name, scheme: s.course?.scheme, color: s.course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
       delegates: (s.booking || []).map((b) => ({
@@ -1286,7 +1286,7 @@ export async function listBlocks() {
     const bks = D.bookings.filter((b) => b.session_id === s.session_id)
     return block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: course?.teamup_designator,
-      course: course?.name, scheme: course?.scheme, color: course?.color,
+      courseId: s.course_id, course: course?.name, scheme: course?.scheme, color: course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
       delegates: bks.map((b) => ({

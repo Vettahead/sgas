@@ -4,6 +4,58 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): the Calendars-style popover
+
+Review: Chris sent Calendars by Readdle — *"the popout/modal window looks super
+clean and nice"* — and asked for the anchored popover, editing in place, the
+side-by-side date blocks, the quiet icon rows, the duration chip on the bar,
+round grab handles, the now-line time chip, and for the whole thing to feel
+fluid.
+
+### Added
+- **`src/components/Popover.jsx`** — a popover anchored to what you clicked.
+  Keeps everything `Modal` earned (Escape, focus trap, focus restored,
+  confirm-before-discard while dirty) and adds placement that prefers
+  below → above → beside, clamping inside the viewport, re-placing on scroll
+  and resize, a caret that points back at the anchor wherever clamping pushed
+  it, and a bottom sheet under 720px.
+  - It anchors to **where you clicked on the bar**, not the bar's rect: a course
+    can be most of a week wide, and anchoring to the whole thing pushed the
+    panel across the grid and hid the course you were editing.
+  - The caret renders **outside** the panel — the panel scrolls, and anything
+    hanging off a scrolling box is clipped.
+  - It focuses the panel, not its first control: a popover is something you
+    read, and stealing focus into a `<select>` puts a loud ring on open.
+- **Editing in place.** No edit mode and no Save button: the course, the dates,
+  the trainer and the roster all commit on change, and the footer says so.
+- **One date object** — starts, ends and the day count in a single bordered
+  block, not two boxes and a detached pill.
+- **Labelled rows** — Trainer / On this course / Scheme. An icon on its own is
+  a guess.
+- **The duration chip rides the bar** you are dragging instead of trailing the
+  cursor, and the bar stops clipping it (`body.cx-dragging .cx-bar`).
+- **Round handles** at each end on hover, and the bar title now starts clear of
+  them.
+- **The now-line carries the time**, at the left of today's column.
+
+### Changed
+- `listBlocks` returns `courseId`, so the popover can change which course a
+  block is.
+- "Needs a trainer or delegates" is a triangle, not an amber dot — it was
+  indistinguishable from a course whose own colour is amber (OFTEC).
+- "split" → "only some days"; "remove" → "take off", with a confirm and a
+  28px-high target. It saves instantly and there is no undo.
+- The waiting list is behind a disclosure; eight name chips permanently on show
+  made the panel twice as tall as it needed to be.
+
+### Verified
+57 Playwright assertions against a production build: the popover anchors beside
+the bar and never covers it, carries a caret, is fully on screen, flips at the
+edge, closes on Escape and on an outside click, saves a trainer change without
+closing, becomes a sheet with a scrim at 390px; the drag chip appears on the
+bar, says the length, and goes on release without opening the course. No
+console errors.
+
 ## 2026-08-28 — Calendar (new look): Week, Day and Year
 
 Review: *"the resizer still doesn't work properly, it opens the event after

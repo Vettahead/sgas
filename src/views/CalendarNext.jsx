@@ -7,6 +7,7 @@ import {
 import { todayISO, fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 import Modal from '../components/Modal.jsx'
+import Popover from '../components/Popover.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CALENDAR (NEW) — a visual revamp, on its own tab. Nothing existing is touched.
@@ -66,7 +67,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [flash, setFlash] = useState(null)
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
-  const [hint, setHint] = useState(null)           // live dates while dragging
+  const [hint, setHint] = useState(null)  // the chip that rides the bar you drag
   // While a course is being dragged its dates live here, and the whole grid
   // lays out from them. Nudging inline width/transform could not reflow a
   // course across a week boundary, so shrinking a two-row course looked stuck.
@@ -74,6 +75,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // A drag ends with a click. Without this the click opened the course you had
   // just finished dragging.
   const justDragged = useRef(false)
+  const [at, setAt] = useState(null)   // the bar the popover is anchored to
   const [jump, setJump] = useState(false)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
@@ -103,6 +105,27 @@ export default function CalendarNext({ isAdmin, user, go }) {
     })
   }
   const goToday = () => { setDir(0); setAnchor(todayISO()) }
+  // Open a course beside the bar you clicked, not over the middle of the screen.
+  const openAt = (b, e) => {
+    if (justDragged.current) return
+    const r = e.currentTarget.getBoundingClientRect()
+    // A course bar can be most of a week wide; anchoring to the whole thing
+    // pushed the popover across the grid and hid the bar you were editing.
+    const x = e.clientX ?? (r.left + r.width / 2)
+    setAt({ left: x - 10, right: x + 10, width: 20, top: r.top, bottom: r.bottom, height: r.height })
+    setOpen(b)
+  }
+  // Dragging the dates from inside the popover, the same commit path the
+  // drag-on-the-grid uses.
+  const saveDates = async (from, to) => {
+    const next = { from: from || open.start, to: to || open.end }
+    if (next.to < next.from) next.to = next.from
+    setBusy(true)
+    try {
+      await updateBlock(open.id, next)
+      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Dates changed')
+    } catch (err) { toast(err.message) } finally { setBusy(false) }
+  }
   useEffect(() => { setJumpY(Number(month.slice(0, 4))) }, [month])
   useEffect(() => {
     if (!jump) return
@@ -251,8 +274,8 @@ export default function CalendarNext({ isAdmin, user, go }) {
         setPreview({ id: b.id, start: from, end: to })
       }
       const { from, to } = dates(delta)
-      setHint({ x: ev.clientX, y: ev.clientY,
-        text: `${fmt(from)} – ${fmt(to)} · ${between(from, to) + 1} day${between(from, to) === 0 ? '' : 's'}` })
+      const n = between(from, to) + 1
+      setHint(`${n} day${n === 1 ? '' : 's'} · ${fmt(from)} – ${fmt(to)}`)
     }
 
     const finish = async (commit) => {
@@ -362,11 +385,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {blocks === null ? (
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
           ) : view === 'Year' ? (
-            <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={(b) => { if (!justDragged.current) setOpen(b) }} isAdmin={isAdmin}
-              onBarDown={barDown} flash={flash} />
+            <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
+              onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null} />
           ) : view !== 'Month' ? (
-            <DaysGrid days={viewDays} blocks={shown} onOpen={(b) => { if (!justDragged.current) setOpen(b) }} isAdmin={isAdmin}
-              onBarDown={barDown} flash={flash} single={view === 'Day'} />
+            <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
+              onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null} />
           ) : (
             <div className={'cx-grid ' + (dir < 0 ? 'from-left' : dir > 0 ? 'from-right' : 'fade')} key={month}>
               {Array.from({ length: grid.rows }, (_, r) => (
@@ -396,7 +419,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         if (e.target.classList.contains('cx-grab')) barDown(s.b, e, 'move')
                         else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
                       }}
-                      onClick={() => { if (!justDragged.current) setOpen(s.b) }}>
+                      onClick={(e) => openAt(s.b, e)}>
                       {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
                       <span className="cx-bar-t">
                         {s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}
@@ -414,6 +437,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                       )}
                       {s.head && !s.b.ready && !s.b.isHoliday && <span className="cx-dot" title="Needs a trainer or delegates" />}
                       {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" title="Drag to change how many days it runs" />}
+                      {hint && preview?.id === s.b.id && s.head && <span className="cx-chip-len">{hint}</span>}
                     </button>
                   ))}
                 </div>
@@ -428,7 +452,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <div className="cx-card cx-warn">
               <h3>Needs attention <span>{needsWork.length}</span></h3>
               {needsWork.slice(0, 4).map((b) => (
-                <button key={b.id} className="cx-row" onClick={() => setOpen(b)}>
+                <button key={b.id} className="cx-row" onClick={(e) => openAt(b, e)}>
                   <i style={{ background: b.color || '#5b6b80' }} />
                   <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : 'no delegates'} · {fmt(b.start)}</small></span>
                 </button>
@@ -439,7 +463,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <h3>In {monthLabel} <span>{thisMonth.length}</span></h3>
             {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
             {thisMonth.slice(0, 7).map((b) => (
-              <button key={b.id} className="cx-row" onClick={() => setOpen(b)}>
+              <button key={b.id} className="cx-row" onClick={(e) => openAt(b, e)}>
                 <i style={{ background: b.color || '#5b6b80' }} />
                 <span>
                   <b>{b.course}</b>
@@ -461,7 +485,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </aside>
       </div>
 
-      {hint && <div className="cx-hint" style={{ left: hint.x + 14, top: hint.y + 16 }}>{hint.text}</div>}
+
 
       {creating && (
         <Modal onClose={() => setCreating(null)} label="New course" className="cx-modal" dirty={!!creating.courseId}>
@@ -492,7 +516,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                   const f = await load()
                   const made = f.find((x) => String(x.id) === String(id))
                   setFlash(String(id)); setTimeout(() => setFlash(null), 900)
-                  if (made) setOpen(made)
+                  if (made) { setAt(null); setOpen(made) }
                   toast('Course created — add a trainer and delegates')
                 } catch (err) { toast(err.message) } finally { setBusy(false) }
               }}>{busy ? 'Creating…' : 'Create it'}</button>
@@ -502,66 +526,123 @@ export default function CalendarNext({ isAdmin, user, go }) {
       )}
 
       {open && (
-        <Modal onClose={() => setOpen(null)} label={open.course} className="cx-modal">
-          <div className="cx-mhead" style={{ '--c': open.color || '#5b6b80' }}>
-            <div>
-              <h3>{open.course}</h3>
-              <p>{fmt(open.start)} – {fmt(open.end)} · {open.scheme || 'no scheme'}</p>
-            </div>
+        <Popover at={at} onClose={() => setOpen(null)} label={open.course} className="cx-course-pop">
+          {/* No edit mode. You type into it and it saves — the way Calendars
+              does it — instead of asking you to unlock the thing first. */}
+          <header className="cx-pop-head" style={{ '--c': open.color || '#5b6b80' }}>
+            <span className="cx-pop-dot" />
+            {isAdmin ? (
+              <select className="cx-pop-title" value={open.courseId || ''} disabled={busy}
+                onChange={async (e) => {
+                  setBusy(true)
+                  try {
+                    await updateBlock(open.id, { courseId: Number(e.target.value) })
+                    const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Course changed')
+                  } catch (err) { toast(err.message) } finally { setBusy(false) }
+                }}>
+                {!courses.some((c) => String(c.course_id) === String(open.courseId)) &&
+                  <option value={open.courseId || ''}>{open.course}</option>}
+                {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+              </select>
+            ) : <h3 className="cx-pop-title">{open.course}</h3>}
             <button className="cx-icon" onClick={() => setOpen(null)} aria-label="Close">✕</button>
+          </header>
+
+          {/* The dates as two blocks you can read across, not two small inputs. */}
+          {/* One object, read across — two separate boxes and a floating pill
+              made three things out of one fact. */}
+          <div className="cx-when">
+            <label className="cx-when-b">
+              <small>Starts</small>
+              <input type="date" value={open.start} disabled={!isAdmin || busy}
+                onChange={(e) => saveDates(e.target.value, null)} />
+              <b>{fmt(open.start)}</b>
+            </label>
+            <span className="cx-when-arrow" aria-hidden="true">›</span>
+            <label className="cx-when-b">
+              <small>Ends</small>
+              <input type="date" value={open.end} min={open.start} disabled={!isAdmin || busy}
+                onChange={(e) => saveDates(null, e.target.value)} />
+              <b>{fmt(open.end)}</b>
+            </label>
+            <span className="cx-when-len">{between(open.start, open.end) + 1} days</span>
           </div>
-          <div className="cx-mbody">
-            <div className="cx-field">
-              <label>Trainer</label>
+
+          <div className="cx-rows">
+            {/* Quiet rows you fill in as you need them, rather than a form
+                showing every field at once. */}
+            <div className={'cx-row2' + (open.trainerId ? '' : ' empty')}>
+              <span className="cx-ricon" aria-hidden="true">👤</span>
+              <span className="cx-rwrap">
+              <span className="cx-rlabel">Trainer</span>
               {isAdmin ? (
-                <select value={open.trainerId || ''} disabled={busy} onChange={async (e) => {
+                <select value={open.trainerId || ''} disabled={busy} aria-label="Trainer" onChange={async (e) => {
                   setBusy(true)
                   try {
                     await assignBlockRole(open.id, 'trainer', Number(e.target.value))
                     const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Trainer set')
                   } catch (err) { toast(err.message) } finally { setBusy(false) }
                 }}>
-                  <option value="">— none yet —</option>
+                  <option value="">Add a trainer</option>
                   {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>
                     {s.name}{staffOnHoliday(holidays, s.staff_id, open.start, open.end) ? ' (on holiday)' : ''}
                   </option>)}
                 </select>
-              ) : <p>{open.trainer || '—'}</p>}
+              ) : <span className="cx-rtext">{open.trainer || 'No trainer'}</span>}
+              </span>
             </div>
-            <div className="cx-field">
-              <label>On this course <span className="cx-count">{open.delegates.length}</span></label>
-              {open.delegates.length === 0
-                ? <p className="cx-empty">Nobody yet.</p>
-                : <ul className="cx-delg">{open.delegates.map((d) => (
-                    <Delegate key={d.bookingId} d={d} block={open} isAdmin={isAdmin} busy={busy}
-                      onSplit={async (f, t) => {
-                        setBusy(true)
-                        try { await setBookingAttendance(d.bookingId, f, t); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(f || t ? 'Part attendance set' : 'Back to the full course') }
-                        catch (err) { toast(err.message) } finally { setBusy(false) }
-                      }}
-                      onRemove={async () => {
-                        setBusy(true)
-                        try { await returnToPool(d.bookingId); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null) }
-                        catch (err) { toast(err.message) } finally { setBusy(false) }
-                      }} />))}
-                  </ul>}
-            </div>
-            {isAdmin && pool.length > 0 && (
-              <div className="cx-field">
-                <label>Add from the waiting list</label>
-                <div className="cx-chips">
-                  {pool.slice(0, 8).map((p) => (
-                    <button key={p.id} className="cx-chip" disabled={busy} onClick={async () => {
-                      setBusy(true)
-                      try { await addDelegatesToBlock(open.id, [p.id]); const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast(`${p.name} added`) }
-                      catch (err) { toast(err.message) } finally { setBusy(false) }
-                    }}>＋ {p.name}</button>
-                  ))}
-                </div>
+
+            <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
+              <span className="cx-ricon" aria-hidden="true">👥</span>
+              <div className="cx-rfill">
+                <span className="cx-rlabel">On this course{open.delegates.length ? ` · ${open.delegates.length}` : ''}</span>
+                {open.delegates.length === 0
+                  ? <span className="cx-rtext">Nobody booked on yet</span>
+                  : <ul className="cx-delg">{open.delegates.map((d) => (
+                      <Delegate key={d.bookingId} d={d} block={open} isAdmin={isAdmin} busy={busy}
+                        onSplit={async (f, t) => {
+                          setBusy(true)
+                          try { await setBookingAttendance(d.bookingId, f, t); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(f || t ? 'Part attendance set' : 'Back to the full course') }
+                          catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
+                        onRemove={async () => {
+                          setBusy(true)
+                          try { await returnToPool(d.bookingId); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null) }
+                          catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }} />))}
+                    </ul>}
+                {/* Quiet until you want it — eight name chips permanently on
+                    show made the popover twice as tall as it needed to be. */}
+                {isAdmin && pool.length > 0 && (
+                  <details className="cx-add">
+                    <summary>Add someone from the waiting list<span>{pool.length}</span></summary>
+                    <div className="cx-chips">
+                      {pool.slice(0, 10).map((p) => (
+                        <button key={p.id} className="cx-chip" disabled={busy} onClick={async () => {
+                          setBusy(true)
+                          try { await addDelegatesToBlock(open.id, [p.id]); const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast(`${p.name} added`) }
+                          catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}>＋ {p.name}</button>
+                      ))}
+                    </div>
+                  </details>
+                )}
               </div>
-            )}
+            </div>
+
+            <div className="cx-row2 empty">
+              <span className="cx-ricon" aria-hidden="true">🏷</span>
+              <span className="cx-rwrap">
+                <span className="cx-rlabel">Scheme</span>
+                <span className="cx-rtext">{open.scheme || 'No scheme'}</span>
+              </span>
+            </div>
           </div>
-        </Modal>
+          {/* There is no Save button, so the popover has to say so. */}
+          <footer className="cx-pop-foot">
+            {busy ? <><span className="cx-spin" />Saving…</> : <>✓ Changes save as you make them</>}
+          </footer>
+        </Popover>
       )}
     </div>
   )
@@ -586,8 +667,13 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
           {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
         </small>
       </span>
-      {isAdmin && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change' : 'split'}</button>}
-      {isAdmin && !edit && <button className="cx-x" disabled={busy} onClick={onRemove}>remove</button>}
+      {isAdmin && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
+      {isAdmin && !edit && (
+        <button className="cx-x danger" disabled={busy}
+          onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
+          take off
+        </button>
+      )}
       {edit && (
         <span className="cx-split">
           <input type="date" value={f} min={block.start} max={block.end} onChange={(e) => setF(e.target.value)} />
@@ -606,7 +692,7 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
    main event, not an afterthought above a time grid. Below it sits the hour
    grid for timed entries, with a line showing where we are now. */
 const H0 = 7, H1 = 20, HPX = 46
-function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
+function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip }) {
   const [hours, setHours] = useState(false)
   const first = days[0], last = days[days.length - 1]
   const allDay = useMemo(() => {
@@ -661,7 +747,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
                 if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
                 else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
               }}
-              onClick={() => onOpen(b)}>
+              onClick={(e) => onOpen(b, e)}>
               {isAdmin && !b.isHoliday && b.start >= first && <span className="cx-grab" title="Drag to move" />}
               <span className="cx-bar-t">
                 {b.course || b.title}
@@ -673,6 +759,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
                   <i key={d.bookingId} style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />))}</span>
               )}
               {isAdmin && !b.isHoliday && b.end <= last && <span className="cx-resize" title="Drag to change the length" />}
+              {chip && String(chip.id) === String(b.id) && <span className="cx-chip-len">{chip.text}</span>}
             </button>
           ))}
         </div>
@@ -688,7 +775,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
           {allDay.map(({ b }) => (
             <article key={b.id} className="cx-rcard" style={{ '--c': b.color || '#5b6b80' }}>
               <header>
-                <button type="button" className="cx-rname" onClick={() => onOpen(b)}>{b.course || b.title}</button>
+                <button type="button" className="cx-rname" onClick={(e) => onOpen(b, e)}>{b.course || b.title}</button>
                 <span className="cx-rdate">{fmt(b.start)} – {fmt(b.end)}</span>
               </header>
               <p className={'cx-rtrainer' + (b.trainerId ? '' : ' none')}>
@@ -734,14 +821,16 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
             <div key={d} className={'cx-col' + (isWknd(d) ? ' wknd' : '')} style={{ height: (H1 - H0) * HPX }}>
               {Array.from({ length: H1 - H0 }, (_, i) => <div key={i} className="cx-hline" style={{ top: i * HPX }} />)}
               {timed.filter((t) => t.start === d).map((t) => (
-                <button key={t.id} className="cx-ev" onClick={() => onOpen(t)}
+                <button key={t.id} className="cx-ev" onClick={(e) => onOpen(t, e)}
                   style={{ top: ((mins(t.startTime) - H0 * 60) / 60) * HPX,
                     height: Math.max(22, ((mins(t.endTime) - mins(t.startTime)) / 60) * HPX - 2) }}>
                   <b>{t.title || t.course}</b><span>{String(t.startTime).slice(0, 5)}</span>
                 </button>
               ))}
               {showNow && d === todayISO() && (
-                <div className="cx-now" style={{ top: ((nowMin - H0 * 60) / 60) * HPX }}><i /></div>
+                <div className="cx-now" style={{ top: ((nowMin - H0 * 60) / 60) * HPX }}>
+                  <i /><b>{String(now.getHours()).padStart(2, '0')}:{String(now.getMinutes()).padStart(2, '0')}</b>
+                </div>
               )}
             </div>
           ))}
@@ -755,7 +844,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
 /* ── Year ──────────────────────────────────────────────────────────────────
    Months as rows, the whole year in one screen. This is the view Teamup did
    well and the one Simon reads the shape of the business from. */
-function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash }) {
+function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip }) {
   const y = Number(year)
   const TICKS = [1, 5, 10, 15, 20, 25, 31]
   return (
@@ -817,7 +906,7 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash }) {
                     if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
                     else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
                   }}
-                  onClick={() => onOpen(b)}>
+                  onClick={(e) => onOpen(b, e)}>
                   {isAdmin && !b.isHoliday && <span className="cx-grab" />}
                   {/* A two-day course must not be padded out to fit its name —
                       the length of the bar has to stay honest. */}
@@ -825,6 +914,7 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash }) {
                   {isAdmin && !b.isHoliday && <span className="cx-resize" />}
                   {/* A two-day course is too narrow to hold its own name, and a
                       nameless coloured pill is unreadable. Put it alongside. */}
+                  {chip && String(chip.id) === String(b.id) && <span className="cx-chip-len">{chip.text}</span>}
                   {span < 5 && gap >= 3 && (
                     <span className="cx-yout" style={{ maxWidth: `calc(${(gap / 31) * 100}vw * 0 + ${(gap / span) * 100}% - 12px)` }}>
                       {b.course || b.title}
