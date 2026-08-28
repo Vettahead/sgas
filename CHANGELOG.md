@@ -4,6 +4,16 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — The runtime tests live in the repo now
+
+They had been in `/tmp` on the cloud container, which is discarded when a session
+ends — so the most reusable thing built all day would have died with it.
+
+`tests/` now holds all four suites (213 assertions) plus a README covering how to
+rebuild the harness, and the two rules that make them worth having: assert on the
+DATA changing rather than the gesture completing, and look at the screenshots —
+four defects this session passed every assertion and were caught by eye.
+
 ## 2026-08-28 — Calendar (new look): nothing paints outside a course's own dates
 
 Review: *"on the year view some text of courses is appearing outside the allotted

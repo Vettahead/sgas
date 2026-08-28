@@ -95,3 +95,11 @@ Supabase. To let one person book and another schedule later (the decoupling the
 brief wants), `booking.session_id` needs to become nullable (or a small `draft`
 table added) so drafts persist server-side. One-line schema change; flagged for
 your call before real data goes in.
+
+## Tests
+
+`tests/` holds the runtime suites for the new-look calendar — 213 assertions
+driving a real headless Chromium against a production build, at desktop, tablet
+and phone sizes. **A passing `vite build` proves almost nothing**; that is what
+let the `setNonce` crash reach the live site. See `tests/README.md` for how to
+run them and the two rules that make them worth having.
