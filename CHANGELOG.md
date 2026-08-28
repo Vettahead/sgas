@@ -4,6 +4,39 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): the rail cards fold
+
+Review: *"collapsable right hand items in the sidepanel i think as its too long
+now."* Four cards ran off the bottom of the screen.
+
+### Added
+- **`RailCard`** — every card in the rail folds from its heading. State per card
+  in `sgas_cx_cards`; Trainers starts folded, being the one you reach for least.
+  Rail height 1014px → 273px with all four folded.
+- **The count stays on a folded header.** Folding "Needs attention" away must
+  never hide that there are courses without a trainer.
+- **Spring-loaded.** Hovering the folded waiting list mid-drag opens it, and so
+  does picking anybody up, so folding it away never costs you a drop target.
+- Folding removes the contents rather than hiding them (`{open && …}`), so
+  nothing inside a folded card is still tabbable.
+
+### Fixed
+- **Every rail card was the same height on a phone, folded or not.**
+  `.cx-card{flex:1 1 260px}` was written for the ≤1000px row layout, but the
+  ≤640px rule flips the rail back to `flex-direction:column`, where that
+  flex-basis is a HEIGHT — so all four cards were 260px tall and shrunk to their
+  own text width. `flex:0 0 auto;width:100%` in the column rule. Pre-existing;
+  folding is what made it obvious.
+- The ≤1000px row layout stretched every card to the tallest one in its line —
+  `align-items` and `align-content: flex-start`, or folding a card saved nothing.
+
+### Verified
+26 assertions at desktop and phone sizes: every header is a real toggle with
+`aria-expanded`, they all fold, the rail gets much shorter (1014→273 desktop,
+994→273 phone), folded cards still show their counts and hold no rows, the state
+survives a reload, and a folded waiting list springs open when you pick a
+delegate up. The existing 101 + 68 still pass.
+
 ## 2026-08-28 — Calendar (new look): drag people onto the calendar
 
 Review: *"the sidebar with waiting to be placed etc should be able to be dragged

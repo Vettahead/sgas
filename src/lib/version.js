@@ -14,6 +14,17 @@
 
 export const RELEASES = [
   {
+    v: '1.15.0', build: 125, date: '28 Aug 2026',
+    title: 'Calendar (new look): the side panel folds up',
+    notes: [
+      'Every card in the side panel folds \u2014 Needs attention, the month, the waiting list, Trainers. Click the heading to fold or open it, and it remembers what you left open.',
+      'Trainers starts folded, since it is the one you reach for least.',
+      'A folded card still shows its count, so folding \u201cNeeds attention\u201d away can never hide that courses are short of a trainer.',
+      'Pick somebody up and a folded waiting list opens itself, so you always have somewhere to drop them.',
+      'Fixed a fault on phones where every card in the panel was forced to the same height whether it had anything in it or not.',
+    ],
+  },
+  {
     v: '1.14.0', build: 124, date: '28 Aug 2026',
     title: 'Calendar (new look): drag people straight onto the calendar',
     notes: [

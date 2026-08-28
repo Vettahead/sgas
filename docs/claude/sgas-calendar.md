@@ -175,3 +175,24 @@ Gotchas that cost time:
 
 `/tmp/sgastest/dnd.mjs` runs the whole thing at desktop, tablet and phone sizes
 and asserts on the DATA changing, not on the gesture completing.
+
+## The rail cards fold (28 Aug 2026)
+
+`RailCard({id, title, count, shut, onToggle, className})` wraps every card in the
+rail. State lives in `sgas_cx_cards` keyed by id; `trainers` defaults to folded.
+
+- A folded card still renders its **count** — folding "Needs attention" away must
+  never hide unstaffed courses.
+- Folding removes the body (`{open && <div className="cx-cardbody">}`) rather
+  than hiding it, so nothing inside stays tabbable.
+- The waiting list is **spring-loaded**: an effect opens it when a drag is over
+  it or a delegate is picked up, so folding it never removes a drop target. Keep
+  that effect below the `placing` declaration — it reads it, and a `useState`
+  referenced above its declaration is a TDZ crash.
+
+CSS trap worth remembering: `.cx-card{flex:1 1 260px}` is for the ≤1000px ROW
+layout. The ≤640px rule flips the rail to `flex-direction:column`, where that
+basis becomes a HEIGHT — every card came out 260px tall and only as wide as its
+text. The column rule now resets `flex:0 0 auto;width:100%`. In row mode both
+`align-items` and `align-content` must be `flex-start`, or the lines stretch and
+folding saves nothing.

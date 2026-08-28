@@ -1138,7 +1138,15 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
   padding:8px 13px;font:600 12.5px/1 inherit;cursor:pointer;transition:.14s}
 .cx-chip:hover{border-style:solid;border-color:var(--cx-brand);background:var(--cx-brand-soft)}
 
-@media (max-width:1000px){ .cx-body{grid-template-columns:1fr} .cx-rail{flex-direction:row;flex-wrap:wrap} .cx-card{flex:1 1 260px} }
+@media (max-width:1000px){
+  .cx-body{grid-template-columns:1fr}
+  /* flex-start, not the default stretch: in row mode every card was pulled to
+     the height of the tallest one, so folding a card saved nothing. */
+  /* align-CONTENT too: with wrap, the default stretches the LINES to fill the
+     rail's height, which pulled a folded card back up to 260px. */
+  .cx-rail{flex-direction:row;flex-wrap:wrap;align-items:flex-start;align-content:flex-start}
+  .cx-card{flex:1 1 260px}
+}
 @media (max-width:640px){
   .cx{margin:-14px -12px;padding:14px 12px}
   .cx-title{font-size:21px}
@@ -1147,7 +1155,11 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
   .cx-cell{padding:4px 5px}
   .cx{--rowmin:74px;--numh:22px;--barh:20px}
   .cx-bar-t{font-size:10.5px;padding:0 6px 0 8px}
+  /* Back to a column — and .cx-card's flex:1 1 260px must be undone, because
+     in a column that 260px is a HEIGHT: every card, folded or not, was 260px
+     tall and shrunk to its own text width. */
   .cx-rail{flex-direction:column}
+  .cx-card{flex:0 0 auto;width:100%}
 }
 @media (prefers-reduced-motion:reduce){ .cx-grid,.cx-bar,.cx-skel div{animation:none!important;transition:none} }
 
@@ -1589,3 +1601,21 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-body.placing .cx-bar.drop-ok,.cx-body.placing .cx-cell.drop-ok,
 .cx-body.placing .cx-ycell.drop-ok,.cx-body.placing .cx-band-cell.drop-ok{cursor:copy}
 .cx-body.placing .cx-droppool{border-style:dashed;border-color:var(--cx-brand)}
+
+/* ── Folding rail cards ────────────────────────────────────────────────── */
+.cx-card h3{display:flex;align-items:center;gap:8px}
+.cx-cardtoggle{flex:1;min-width:0;display:flex;align-items:center;gap:7px;
+  border:0;background:none;padding:2px 0;margin:0;cursor:pointer;text-align:left;
+  font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}
+.cx-cardtoggle:hover{color:var(--cx-ink)}
+.cx-cardtoggle:focus-visible{outline:2px solid var(--cx-brand);outline-offset:3px;border-radius:6px}
+.cx-chev{width:0;height:0;flex:0 0 auto;border:4.5px solid transparent;
+  border-top-color:currentColor;margin-top:3px;opacity:.65;
+  transition:transform .14s ease}
+.cx-card.shut .cx-chev{transform:rotate(-90deg);margin-top:0}
+.cx-card.shut h3{margin-bottom:0}
+.cx-cardbody{animation:cx-unfold .16s ease}
+@keyframes cx-unfold{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.cx-cardbody{animation:none}}
+/* a folded card is still somewhere to drop — it springs open when you arrive */
+.cx-card.shut.cx-droppool.armed{border-style:dashed;border-color:var(--cx-brand)}

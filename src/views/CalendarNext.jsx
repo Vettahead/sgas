@@ -64,6 +64,7 @@ export function schemeColour(name) {
 }
 
 const RAIL_KEY = 'sgas_cx_rail'
+const CARDS_KEY = 'sgas_cx_cards'
 const VIEW_KEY = 'sgas_cx_view'
 const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
@@ -109,6 +110,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
     const v = readLS(RAIL_KEY, null)
     return v === null ? window.innerWidth >= 1280 : v === '1'
   })
+  // With four cards the rail runs off the bottom of the screen, so each one
+  // folds. Trainers starts folded: it is the one you reach for least.
+  const [shut, setShut] = useState(() => {
+    try { return JSON.parse(readLS(CARDS_KEY, '') || '{"trainers":1}') } catch { return { trainers: 1 } }
+  })
+  const toggleCard = (id) => setShut((c) => ({ ...c, [id]: c[id] ? 0 : 1 }))
   const [jump, setJump] = useState(false)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
@@ -122,6 +129,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   useEffect(() => { try { localStorage.setItem(THEME_KEY, theme) } catch { /* private */ } }, [theme])
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
   useEffect(() => { try { localStorage.setItem(RAIL_KEY, rail ? '1' : '0') } catch { /* private */ } }, [rail])
+  useEffect(() => { try { localStorage.setItem(CARDS_KEY, JSON.stringify(shut)) } catch { /* private */ } }, [shut])
   useEffect(() => { try { localStorage.setItem(DENSE_KEY, dense ? '1' : '0') } catch { /* private */ } }, [dense])
 
   const step = (n) => {
@@ -326,6 +334,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // well it is built. So picking up is also a TAP: tap somebody, then tap where
   // they go. Same verdicts, same drops, no dragging at all.
   const [placing, setPlacing] = useState(null)   // { kind, item, label, colour }
+  // Spring-loaded: hovering a folded card mid-drag opens it, and picking anybody
+  // up opens the waiting list, so folding it away never costs you a drop target.
+  useEffect(() => {
+    if (!shut.pool) return
+    if (drag?.over?.type === 'pool' || placing?.kind === 'delegate') setShut((c) => ({ ...c, pool: 0 }))
+  }, [drag?.over?.type, placing, shut.pool])
   useEffect(() => {
     if (!placing) return
     const esc = (e) => { if (e.key === 'Escape') { e.stopPropagation(); setPlacing(null) } }
@@ -757,18 +771,19 @@ export default function CalendarNext({ isAdmin, user, go }) {
         {/* ── Agenda rail ─────────────────────────────────────────────── */}
         <aside className="cx-rail" hidden={!rail}>
           {needsWork.length > 0 && (
-            <div className="cx-card cx-warn">
-              <h3>Needs attention <span>{needsWork.length}</span></h3>
+            <RailCard id="needs" title="Needs attention" count={needsWork.length}
+              shut={shut} onToggle={toggleCard} className="cx-warn">
               {needsWork.slice(0, 4).map((b) => (
                 <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
                   <i style={{ background: b.color || '#5b6b80' }} />
                   <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : 'no delegates'} · {fmt(b.start)}</small></span>
                 </button>
               ))}
-            </div>
+            </RailCard>
           )}
-          <div className="cx-card">
-            <h3>In {monthLabel} <span>{thisMonth.length}</span></h3>
+
+          <RailCard id="month" title={`In ${monthLabel}`} count={thisMonth.length}
+            shut={shut} onToggle={toggleCard}>
             {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
             {thisMonth.slice(0, 7).map((b) => (
               <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
@@ -779,10 +794,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
                 </span>
               </button>
             ))}
-          </div>
-          <div className={'cx-card cx-droppool' + (drag?.kind === 'delegate' ? ' armed' : '')
-            + (drag?.over?.type === 'pool' ? ' on' : '')}>
-            <h3>Waiting to be placed <span>{pool.length}</span></h3>
+          </RailCard>
+
+          <RailCard id="pool" title="Waiting to be placed" count={pool.length}
+            shut={shut} onToggle={toggleCard}
+            className={'cx-droppool' + (drag?.kind === 'delegate' || placing?.kind === 'delegate' ? ' armed' : '')
+              + (drag?.over?.type === 'pool' ? ' on' : '')}>
             {isAdmin && <p className="cx-hintline">Drag anybody onto a course, or onto empty days to book one. Tapping picks them up too.</p>}
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
             {pool.slice(0, 6).map((p) => (
@@ -792,12 +809,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
               </div>
             ))}
-            {drag?.kind === 'delegate' && <p className="cx-dropnote">Drop here to take them off the course</p>}
-          </div>
+            {(drag?.kind === 'delegate' || placing?.kind === 'delegate') &&
+              <p className="cx-dropnote">{drag ? 'Drop here' : 'Tap here'} to take them off the course</p>}
+          </RailCard>
 
           {isAdmin && staff.length > 0 && (
-            <div className="cx-card">
-              <h3>Trainers <span>{staff.length}</span></h3>
+            <RailCard id="trainers" title="Trainers" count={staff.length} shut={shut} onToggle={toggleCard}>
               <p className="cx-hintline">Drag or tap one, then put them on a course.</p>
               {staff.slice(0, 8).map((t) => (
                 <div key={t.staff_id} className="cx-row grabby"
@@ -806,7 +823,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                   <span><b>{t.name}</b><small>{teaching(t.staff_id)}</small></span>
                 </div>
               ))}
-            </div>
+            </RailCard>
           )}
         </aside>
       </div>
@@ -1039,6 +1056,27 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </Popover>
       )}
     </div>
+  )
+}
+
+/* ── A rail card ───────────────────────────────────────────────────────────
+   Four of these ran off the bottom of the screen, so each one folds. The count
+   stays on the header when it is folded — folding "Needs attention" away must
+   never hide that there are twelve courses without a trainer. */
+function RailCard({ id, title, count, shut, onToggle, className = '', children }) {
+  const open = !shut[id]
+  return (
+    <section className={'cx-card' + (open ? '' : ' shut') + (className ? ' ' + className : '')}>
+      <h3>
+        <button type="button" className="cx-cardtoggle" aria-expanded={open}
+          onClick={() => onToggle(id)}>
+          <i className="cx-chev" aria-hidden="true" />
+          {title}
+        </button>
+        <span>{count}</span>
+      </h3>
+      {open && <div className="cx-cardbody">{children}</div>}
+    </section>
   )
 }
 
