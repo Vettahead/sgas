@@ -15,10 +15,10 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 .brand b{color:#fff;font-size:16px;letter-spacing:.3px}
 .brand span{display:block;color:#7d8ca5;font-size:11px;margin-top:8px}
 .nav{padding:10px 0;flex:1}
-.nav a{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#c9d4e3;text-decoration:none;font-size:13.5px;cursor:pointer;border-left:3px solid transparent}
-.nav a:hover{background:#13243b}
-.nav a.active{background:#13243b;border-left-color:var(--brand);color:#fff}
-.nav a .ic{width:18px;text-align:center;opacity:.9}
+.nav a,.nav button{display:flex;align-items:center;gap:10px;padding:10px 20px;color:#c9d4e3;text-decoration:none;font-size:13.5px;cursor:pointer;border-left:3px solid transparent;width:100%;background:none;border-top:none;border-right:none;border-bottom:none;font-family:inherit;text-align:left}
+.nav a:hover,.nav button:hover{background:#13243b}
+.nav a.active,.nav button.active{background:#13243b;border-left-color:var(--brand);color:#fff}
+.nav a .ic,.nav button .ic{width:18px;text-align:center;opacity:.9}
 .nav .grp{padding:14px 20px 6px;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:#5d6f8a}
 .nav a.soon{opacity:.45;cursor:not-allowed}
 .nav a.soon small{margin-left:auto;font-size:9px;background:#22344f;padding:1px 6px;border-radius:10px}
@@ -934,3 +934,63 @@ select,select option{color:#1d2733;background:#fff}
 .wz-picked{font-size:13.5px}
 .wz-manual summary{cursor:pointer;list-style:revert}
 .wz-manual{min-width:280px}
+.cal-modal-sm{width:min(460px,100%)}
+.cal-modal:focus{outline:none}
+
+/* ── Touch targets and focus. Handles were 7-8px and invisible until hover,
+   which on a touch device means they do not exist. The bar keeps its slim
+   look; the grab area is padded out beyond it. ─────────────────────────── */
+.yc-grip,.mv-grip,.wt-ev-grip{position:relative}
+.yc-grip::after,.mv-grip::after,.wt-ev-grip::after{
+  content:'';position:absolute;top:-8px;bottom:-8px;left:-8px;right:-8px}
+.mv-grip{width:14px}
+.yc-grip{width:12px}
+.wt-ev-grip{height:12px}
+/* Show the handles without needing hover — a finger cannot hover. */
+@media (hover:none){
+  .mv-bar .mv-grip,.yc-bar .yc-grip{background:rgba(255,255,255,.3)}
+  .mv-bar,.yc-bar{min-height:28px}
+  .cal-mini,.addq-btn,.ret-btn,.drawer-x,.cal-nav{min-width:40px;min-height:40px}
+}
+/* Every control gets a visible focus ring. Only inputs had one, and outline
+   was being used as a "selected" style elsewhere, so focus was invisible. */
+.btn:focus-visible,.linkbtn:focus-visible,.cal-nav:focus-visible,.cal-mini:focus-visible,
+.wz-pick:focus-visible,.wz-steps button:focus-visible,.seg button:focus-visible,
+.cal-fchip:focus-visible,.dn-link:focus-visible,.nav a:focus-visible,
+.mv-bar:focus-visible,.yc-bar:focus-visible,.cal-x:focus-visible{
+  outline:3px solid var(--brand);outline-offset:2px;border-radius:6px}
+.nav a:focus-visible{outline-offset:-3px}
+
+/* ── Small screens. The Schedule board needed 824px in a plain flex row with
+   no media query at all, so it pushed a phone sideways. ─────────────────── */
+@media (max-width:900px){
+  .drag-shell{flex-direction:column}
+  .palette,.block-drawer{width:100%;flex:1 1 auto}
+  .block-drawer{position:static;max-height:none}
+}
+@media (max-width:640px){
+  .content{padding:14px 12px}
+  .top{padding:10px 12px;gap:10px;flex-wrap:wrap}
+  .top .right{gap:8px;font-size:11.5px}
+  .twocol{grid-template-columns:1fr}
+  .cal-toolbar,.cal-filters,.cal-chipbar{flex-wrap:wrap}
+  .block-grid{grid-template-columns:1fr}
+  /* Let a finger scroll the page. Every day cell had touch-action:none, so on
+     a phone the month grid swallowed the gesture and started a drag instead. */
+  .mv-cell{touch-action:pan-y}
+  .yc-cell{touch-action:pan-y}
+}
+
+/* On a phone the sidebar is 230px of a 375px screen, and opening it pushed the
+   whole page sideways. It now slides over the content instead, with a backdrop
+   to tap away, and closes itself when you pick something. */
+@media (max-width:760px){
+  .app .side{position:fixed;top:0;bottom:0;left:0;z-index:70;width:264px;flex-basis:264px;
+    transform:translateX(-100%);transition:transform .22s cubic-bezier(.22,1,.36,1);
+    box-shadow:6px 0 28px rgba(13,27,46,.34)}
+  .app:not(.nav-collapsed) .side{transform:none}
+  .app:not(.nav-collapsed)::before{content:'';position:fixed;inset:0;z-index:69;
+    background:rgba(13,27,46,.45)}
+  .main{width:100%}
+}
+@media (prefers-reduced-motion:reduce){ .app .side{transition:none} }

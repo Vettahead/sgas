@@ -116,6 +116,9 @@ export default function App() {
     setOpenDelegate(v === 'delegates' ? param : null)
     setBookPrefill(v === 'book' ? param : null)
     setView(v)
+    // On a phone the menu overlays the page, so leaving it open would hide
+    // whatever you just picked.
+    if (typeof window !== 'undefined' && window.innerWidth <= 760) setNavOpen(false)
   }
   // Guard: any view the current role can't see falls back to its default view.
   const activeView = allowed.includes(view) ? view : defaultView(user.role)
@@ -124,7 +127,14 @@ export default function App() {
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
 
   return (
-    <div className={'app' + (navOpen ? '' : ' nav-collapsed')}>
+    <div
+      className={'app' + (navOpen ? '' : ' nav-collapsed')}
+      onClick={(e) => {
+        // The backdrop is the ::before of this element, so a click that lands
+        // on the container itself on a small screen means "close the menu".
+        if (navOpen && e.target === e.currentTarget && window.innerWidth <= 760) setNavOpen(false)
+      }}
+    >
       <aside className="side">
         <div className="brand"><img className="brand-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" /><span>Training Management</span></div>
         <nav className="nav">
@@ -134,9 +144,15 @@ export default function App() {
             ) : item.soon ? (
               <a className="soon" key={'s' + i}><span className="ic">{item.ic}</span> {item.label} <small>later</small></a>
             ) : (
-              <a key={item.v} className={activeView === item.v ? 'active' : ''} onClick={() => go(item.v)}>
-                <span className="ic">{item.ic}</span> {item.label}
-              </a>
+              <button
+                key={item.v}
+                type="button"
+                className={activeView === item.v ? 'active' : ''}
+                aria-current={activeView === item.v ? 'page' : undefined}
+                onClick={() => go(item.v)}
+              >
+                <span className="ic" aria-hidden="true">{item.ic}</span> {item.label}
+              </button>
             )
           )}
         </nav>

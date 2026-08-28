@@ -4,6 +4,71 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar correctness pass
+
+Driven by an adversarial audit against Google Calendar. Verified in a real
+headless browser (Playwright + Chromium) at 375px and 1440px, not just by
+`vite build` — the `setNonce` crash proved a passing build means very little.
+
+### Fixed — losing work
+- **New shared `src/components/Modal.jsx`.** Every modal now: closes on
+  Escape, traps Tab, is `role="dialog"` with an accessible name, focuses its
+  first control on open, restores focus on close, locks background scroll, and
+  **asks before discarding** when there is unsaved input. Previously none of
+  the four modals did any of this, and the backdrop silently binned typed input.
+- **`CreateModal` was a trap** — its overlay had a `stopPropagation` guarding a
+  handler that did not exist, so neither backdrop nor Escape closed it.
+- **The wizard no longer loses five steps to a stray sidebar click.** The draft
+  is kept in `localStorage` (`sgas_setup_draft`), restored on return with a
+  "Picked up where you left off / Start again" notice, and cleared once the
+  course is created.
+- **A single tap no longer opens the New Block form.** `MonthView.cellDown`
+  fired `onCreate` even when start === end, so looking at a day meant
+  dismissing a dialog. Only a genuine multi-day drag creates now.
+- **Date fields commit on blur, not on change.** A native date input fires
+  `change` per edited component, so typing a date issued an `updateBlock` per
+  keystroke, mostly for nonsense intermediate dates.
+
+### Fixed — touch
+- **Every remaining mouse-only drag is now pointer-driven.** Year-view bar
+  move/resize and the entire Week/Day view used `mousedown`/`mousemove`, which
+  never fire for a touch drag — rescheduling a course by dragging was
+  impossible on a tablet. `e.button` guards now tolerate a missing button.
+- `pointercancel` is handled and listeners are removed on every path. Without
+  it a cancelled touch drag left listeners attached, and the *next* tap
+  anywhere opened a New Block modal for a range nobody chose.
+- **Drag handles were 7–8px and invisible until `:hover`** — which does not
+  exist on touch. The visual stays slim; the grab area is padded out via
+  `::after`, handles are always visible under `@media (hover:none)`, and touch
+  targets there go to 40px.
+- The month and year grids had `touch-action:none` on every cell, so on a phone
+  the grid swallowed scrolling and every attempt started a drag. Now `pan-y`
+  below 640px.
+
+### Fixed — keyboard
+- **The whole sidebar was unreachable by keyboard** — `<a>` with no `href` is
+  not in the tab order. Now `<button>` with `aria-current`.
+- Visible `:focus-visible` rings across buttons, chips, nav, bars and links.
+  Only inputs had focus styling, and `outline` was being used as a *selected*
+  state elsewhere.
+
+### Fixed — small screens
+- **The sidebar pushed the page sideways on a phone** (375 → 463px document
+  width). It now slides over the content with a backdrop and closes itself when
+  you pick something.
+- The Schedule board needed 824px in a plain flex row with no media query; it
+  stacks below 900px. Two-column form grids collapse below 640px.
+
+### Fixed — correctness
+- **A drag on a month bar also opened the course** — `MonthView.barDown` had no
+  moved-guard, unlike its Year and Week equivalents.
+- **Filtering by staff hid every course with no trainer** — `String(null)` is
+  `'null'`, never in the set, so the blocks an admin is hunting for vanished.
+- The legend filled with staff holiday names.
+- "Colour by scheme" did nothing (fell through to the course colour); it now
+  uses the scheme colour. "Colour by attendance" only ever worked in the Year
+  view and is now only offered there.
+
 ## 2026-08-28 — Critical fixes
 
 ### Fixed

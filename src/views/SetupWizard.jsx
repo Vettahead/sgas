@@ -21,6 +21,14 @@ import { toast } from '../lib/toast.js'
 
 const STEPS = ['Course', 'Dates', 'Trainer', 'Delegates', 'Check']
 
+// Clicking any sidebar item unmounts this screen, which used to bin everything
+// entered. The draft is kept in the browser so leaving and coming back is safe.
+const DRAFT_KEY = 'sgas_setup_draft'
+const loadDraft = () => {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY)) || {} } catch { return {} }
+}
+const clearDraft = () => { try { localStorage.removeItem(DRAFT_KEY) } catch { /* private browsing */ } }
+
 // Courses run Monday to Friday; nudge a weekend pick onto the working week.
 function snapWeekday(d, dir) {
   const day = new Date(d + 'T00:00:00Z').getUTCDay()
@@ -32,7 +40,9 @@ function snapWeekday(d, dir) {
 const addDaysISO = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
 
 export default function SetupWizard({ go }) {
-  const [step, setStep] = useState(0)
+  const draft = loadDraft()
+  const [step, setStep] = useState(draft.step || 0)
+  const [resumed, setResumed] = useState(!!draft.courseId)
   const [courses, setCourses] = useState([])
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
@@ -45,11 +55,11 @@ export default function SetupWizard({ go }) {
   const [done, setDone] = useState(null)
 
   // What the wizard is building up.
-  const [courseId, setCourseId] = useState('')
-  const [from, setFrom] = useState('')
-  const [to, setTo] = useState('')
-  const [trainerId, setTrainerId] = useState('')
-  const [picked, setPicked] = useState(() => new Set())
+  const [courseId, setCourseId] = useState(draft.courseId || '')
+  const [from, setFrom] = useState(draft.from || '')
+  const [to, setTo] = useState(draft.to || '')
+  const [trainerId, setTrainerId] = useState(draft.trainerId || '')
+  const [picked, setPicked] = useState(() => new Set(draft.picked || []))
   const [search, setSearch] = useState('')
 
   useEffect(() => {
@@ -61,6 +71,14 @@ export default function SetupWizard({ go }) {
       setLoading(false)
     })()
   }, [])
+
+  // Save the draft whenever anything meaningful changes.
+  useEffect(() => {
+    if (!courseId && !from && !trainerId && !picked.size) return
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify({ step, courseId, from, to, trainerId, picked: [...picked] }))
+    } catch { /* private browsing */ }
+  }, [step, courseId, from, to, trainerId, picked])
 
   const course = useMemo(() => courses.find((c) => String(c.course_id) === String(courseId)), [courses, courseId])
 
@@ -127,11 +145,13 @@ export default function SetupWizard({ go }) {
       const id = await createBlock({ courseId: Number(courseId), from, to })
       if (trainerId) await assignBlockRole(id, 'trainer', Number(trainerId))
       if (picked.size) await addDelegatesToBlock(id, [...picked])
+      clearDraft()
       setDone({ id, course: course?.name, from, to, trainer: trainer?.name, n: picked.size })
     } catch (e) { toast(e.message || 'Could not set that up') } finally { setSaving(false) }
   }
 
   function reset() {
+    clearDraft(); setResumed(false)
     setDone(null); setStep(0); setCourseId(''); setFrom(''); setTo('')
     setTrainerId(''); setPicked(new Set()); setSearch('')
   }
@@ -169,6 +189,13 @@ export default function SetupWizard({ go }) {
           </li>
         ))}
       </ol>
+
+      {resumed && (
+        <div className="banner" style={{ marginBottom: 12 }}>
+          Picked up where you left off.{' '}
+          <button className="linkbtn" onClick={reset}>Start again</button>
+        </div>
+      )}
 
       <div className="card">
         <div className="body wz-body">

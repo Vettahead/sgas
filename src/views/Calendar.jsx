@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { listBlocks, listCourses, listStaff, listBookableCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
+import Modal from '../components/Modal.jsx'
 
 /* ----------------------------------------------------------------------------
  * SGAS Calendar — Month / Week / Day / Year, all our own
@@ -156,7 +157,12 @@ export default function Calendar({ go, isAdmin, user }) {
   const filtered = useMemo(() => {
     let list = blocks || []
     if (selSchemes.size) list = list.filter((b) => b.isHoliday || b.isEngagement || selSchemes.has(b.scheme))
-    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true : (b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId))))
+    // A course with no trainer must survive a staff filter — those are exactly
+    // the ones an admin is hunting for. String(null) is 'null', never in the
+    // set, so unassigned blocks used to vanish the moment you filtered.
+    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true
+      : b.isHoliday ? selStaff.has(String(b.staffId))
+      : (b.trainerId == null || selStaff.has(String(b.trainerId))))
     if (!showFinished) list = list.filter((b) => !b.end || b.end >= todayISO())
     return list
   }, [blocks, selSchemes, selStaff, showFinished])
@@ -165,13 +171,16 @@ export default function Calendar({ go, isAdmin, user }) {
     if (showFinished) return 0
     let list = blocks || []
     if (selSchemes.size) list = list.filter((b) => b.isHoliday || b.isEngagement || selSchemes.has(b.scheme))
-    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true : (b.isHoliday ? selStaff.has(String(b.staffId)) : selStaff.has(String(b.trainerId))))
+    if (selStaff.size) list = list.filter((b) => b.isEngagement ? true
+      : b.isHoliday ? selStaff.has(String(b.staffId))
+      : (b.trainerId == null || selStaff.has(String(b.trainerId))))
     return list.filter((b) => b.end && b.end < todayISO()).length
   }, [blocks, selSchemes, selStaff, showFinished])
 
   function colourFor(b) {
     if (colourBy === 'status') return b.ready ? '#1f9d55' : '#b7791f'
-    return b.color || '#48566a' // course colour is the default; scheme falls back to it too
+    if (colourBy === 'scheme') return schemeColor(b.scheme)
+    return b.color || '#48566a'
   }
   const schemeColor = (sc) => (courses || []).find((c) => c.scheme === sc)?.color || '#9aa7b8'
   const toggleScheme = (sc) => setSelSchemes((x) => { const n = new Set(x); n.has(sc) ? n.delete(sc) : n.add(sc); return n })
@@ -301,7 +310,7 @@ function CalToolbar({ view, setView, move, anchor, setAnchor, schemes, selScheme
             <option value="course">Colour: course</option>
             <option value="scheme">Colour: scheme</option>
             <option value="status">Colour: status</option>
-            <option value="attendance">Colour: attendance</option>
+            {view === 'Year' && <option value="attendance">Colour: part-attendance</option>}
           </select>
           <label className="cal-check"><input type="checkbox" checked={showFinished} onChange={(e) => setShowFinished(e.target.checked)} /> Finished</label>
         </div>
@@ -331,7 +340,8 @@ function Legend({ blocks, colourBy }) {
   if (colourBy === 'status') {
     return <div className="leg"><span><i style={{ background: '#1f9d55' }}></i>Ready</span><span><i style={{ background: '#b7791f' }}></i>Incomplete</span></div>
   }
-  const pairs = [...new Map(blocks.map((b) => [b.course, b.color])).entries()]
+  const pairs = [...new Map(blocks.filter((b) => !b.isHoliday && !b.isEngagement)
+    .map((b) => [b.course, b.color])).entries()]
   return (
     <div className="leg">
       {pairs.map(([course, color]) => <span key={course}><i style={{ background: color || '#48566a' }}></i>{course}</span>)}
@@ -373,9 +383,8 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
     } catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="modal-overlay">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <h3>{isHoliday ? 'New holiday' : isEngagement ? 'New calendar entry' : 'New block'}</h3>
+    <Modal onClose={onClose} dirty={!!courseId || !!title || !!staffId} label="New entry" className="cal-modal-sm">
+        <h3 style={{ margin: '0 0 4px', padding: 0, border: 0 }}>{isHoliday ? 'New holiday' : isEngagement ? 'New calendar entry' : 'New block'}</h3>
         <p className="muted small">{isEngagement ? 'A personal entry on your calendar.' : `Drag created ${from} → ${to}.`}</p>
         <label className="fld">Type
           <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
@@ -423,8 +432,7 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
           <button className="btn ghost" onClick={onClose}>Cancel</button>
           <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? 'Add holiday' : isEngagement ? 'Add to calendar' : 'Create block')}</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }
 
@@ -451,9 +459,7 @@ function EngagementDrawer({ b, staff, user, onChanged, onClose }) {
     catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="cal-modal-wrap" onClick={onClose}>
-      
-      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} label="Calendar entry">
         <div className="cal-modal-head" style={{ borderLeft: '5px solid #475569' }}>
           <div className="cal-modal-title"><h3>🗒 Calendar entry</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">Your personal calendar entry — edits save instantly.</span>
@@ -483,8 +489,7 @@ function EngagementDrawer({ b, staff, user, onChanged, onClose }) {
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete</button>
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
-      </aside>
-    </div>
+    </Modal>
   )
 }
 
@@ -496,9 +501,7 @@ function HolidayDrawer({ b, onChanged, onClose }) {
     catch (e) { toast(e.message); setBusy(false) }
   }
   return (
-    <div className="cal-modal-wrap" onClick={onClose}>
-      
-      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} label="Holiday">
         <div className="cal-modal-head" style={{ borderLeft: '5px solid #8a94a6' }}>
           <div className="cal-modal-title"><h3>🏖 Holiday</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">{b.staffName} · {b.start} – {b.end}</span>
@@ -511,8 +514,7 @@ function HolidayDrawer({ b, onChanged, onClose }) {
           <button className="btn sm danger" onClick={del} disabled={busy}>Delete holiday</button>
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
-      </aside>
-    </div>
+    </Modal>
   )
 }
 
@@ -602,9 +604,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
   const toggleCat = (k) => { const n = new Set(openSet); n.has(k) ? n.delete(k) : n.add(k); setOpenCats(n) }
 
   return (
-    <div className="cal-modal-wrap" onClick={onClose}>
-      
-      <aside className="cal-modal" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} label={b.course}>
         <div className="cal-modal-head" style={{ borderLeft: `5px solid ${b.color || '#48566a'}` }}>
           <div className="cal-modal-title"><h3>{b.course}</h3><button className="cal-x" onClick={onClose}>✕</button></div>
           <span className="muted small">{b.scheme || '—'} · {b.delegates.length} delegate(s)</span>
@@ -624,8 +624,16 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
               </select>
             </label>
             <div className="cal-dates">
-              <label className="fld">Start<input type="date" value={from} onChange={(e) => { const v = e.target.value; setFrom(v); commit(v, to, courseId) }} /></label>
-              <label className="fld">End<input type="date" value={to} onChange={(e) => { const v = e.target.value; setTo(v); commit(from, v, courseId) }} /></label>
+              {/* Committed on blur, not on change. A native date input fires
+                  change for each edited component, so typing a date used to
+                  issue an updateBlock per keystroke, mostly for nonsense
+                  intermediate dates. */}
+              <label className="fld">Start<input type="date" value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                onBlur={() => { if (from !== b.start) commit(from, to, courseId) }} /></label>
+              <label className="fld">End<input type="date" value={to}
+                onChange={(e) => setTo(e.target.value)}
+                onBlur={() => { if (to !== b.end) commit(from, to, courseId) }} /></label>
             </div>
             <div className="cal-editbtns">
               {confirmDel
@@ -739,8 +747,7 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
           {go && <button className="btn ghost sm" onClick={() => { onClose(); go('sched') }}>Full Schedule →</button>}
           <button className="btn sm" onClick={onClose}>Done</button>
         </div>
-      </aside>
-    </div>
+    </Modal>
   )
 }
 
@@ -754,6 +761,9 @@ function BlockDrawer({ b, courses, staff, pool, categories, holidays, mode, isAd
 ==================================================================== */
 export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragCommit, readOnly = false, selection = null }) {
   const [hover, setHover] = useState(null)
+  // Set while a bar is genuinely dragged, so the click that follows a drag
+  // does not also open the course.
+  const movedRef = useRef(false)
   const [sel, setSel] = useState(null)          // {from,to} while dragging out a new block
   const gridRef = useRef(null)
 
@@ -820,15 +830,26 @@ export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragC
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
-      setSel((sv) => { if (sv) onCreate(sv.from, sv.to); return null })
+      window.removeEventListener('pointercancel', cancel)
+      // Only a real drag creates. A single tap used to open the New Block
+      // form, so simply looking at a day meant dismissing a dialog.
+      setSel((sv) => { if (sv && sv.from !== sv.to) onCreate(sv.from, sv.to); return null })
+    }
+    const cancel = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      setSel(null)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
   }
 
   // Drag a bar to move it, or its right edge to change the length.
   function barDown(b, e, mode) {
     e.preventDefault(); e.stopPropagation()
+    movedRef.current = false
     const cell = gridRef.current?.querySelector('.mv-cell')
     const colW = cell ? cell.getBoundingClientRect().width : 100
     const x0 = e.clientX
@@ -836,17 +857,21 @@ export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragC
     let delta = 0
     const move = (ev) => {
       delta = Math.round((ev.clientX - x0) / colW)
+      if (Math.abs(ev.clientX - x0) > 4) movedRef.current = true
       el.style.transform = mode === 'mv' ? `translateX(${delta * colW}px)` : ''
       el.style.opacity = delta ? '.75' : ''
     }
     const up = () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
       el.style.transform = ''; el.style.opacity = ''
       if (delta) onDragCommit(b, mode, delta)
+      setTimeout(() => { movedRef.current = false }, 0)
     }
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
   }
 
   // Highlighted while dragging, and afterwards if a range has been committed.
@@ -886,7 +911,7 @@ export function MonthView({ anchor, blocks, colourFor, onOpen, onCreate, onDragC
                 background: colourFor(sg.b),
               }}
               onPointerDown={(e) => e.stopPropagation()}
-              onClick={() => onOpen(sg.b)}
+              onClick={() => { if (movedRef.current) return; onOpen(sg.b) }}
               onMouseEnter={(e) => setHover({ b: sg.b, x: e.clientX, y: e.clientY })}
               onMouseLeave={() => setHover(null)}
               title={`${sg.b.course || sg.b.title} · ${sg.b.start} – ${sg.b.end}`}
@@ -1032,7 +1057,7 @@ function HoverCard({ b, x, y }) {
 
 function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHoverEnd, onDragCommit, movedRef, lo, hi, onCellDown, onCellEnter, selection }) {
   function startBarDrag(b, e, mode) {
-    if (e.button !== 0) return
+    if (e.button != null && e.button !== 0) return
     e.stopPropagation(); e.preventDefault()
     const barEl = e.currentTarget.classList.contains('yc-bar') ? e.currentTarget : e.currentTarget.closest('.yc-bar')
     const track = barEl.closest('.yc-track')
@@ -1051,15 +1076,17 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
       else { barEl.style.marginLeft = dx + 'px'; barEl.style.width = Math.max(colW * 0.5, ow - dx) + 'px' }
     }
     const onUp = () => {
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
+      document.removeEventListener('pointermove', onMove)
+      document.removeEventListener('pointerup', onUp)
+      document.removeEventListener('pointercancel', onUp)
       barEl.style.transform = ''; barEl.style.width = ''; barEl.style.marginLeft = ''
       barEl.classList.remove('dragging')
       if (delta !== 0 && onDragCommit) onDragCommit(b, mode, delta)
       setTimeout(() => { if (movedRef) movedRef.current = false }, 0)
     }
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
+    document.addEventListener('pointermove', onMove)
+    document.addEventListener('pointerup', onUp)
+    document.addEventListener('pointercancel', onUp)
   }
   const dim = new Date(y, m + 1, 0).getDate()
   const offset = (new Date(y, m, 1).getDay() + 6) % 7
@@ -1130,7 +1157,7 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
           if (!b.isEngagement) { let w = null; for (let c = startCol; c <= endCol; c++) { const we = (c % 7) >= 5; if (we) { if (w === null) w = c } else if (w !== null) { wknd.push([w, c - 1]); w = null } } if (w !== null) wknd.push([w, endCol]) }
           return (
             <button key={b.id} className="yc-bar"
-              onMouseDown={(e) => startBarDrag(b, e, 'mv')}
+              onPointerDown={(e) => startBarDrag(b, e, 'mv')}
               onMouseEnter={(e) => onHover(b, e)}
               onMouseMove={(e) => onHover(b, e)}
               onMouseLeave={onHoverEnd}
@@ -1139,8 +1166,8 @@ function YMonthRow({ y, m, blocks, colourFor, showStripes, onOpen, onHover, onHo
               {stripes.map((st, i) => <span key={i} className="yc-stripe" style={{ left: st.left + '%', width: st.width + '%' }} />)}
               {wknd.map(([w0, w1], i) => <span key={'w' + i} className="yc-wknd-cut" style={{ left: ((w0 - startCol) / span) * 100 + '%', width: ((w1 - w0 + 1) / span) * 100 + '%' }} />)}
               <span className="yc-bar-t">{b.course} {b.delegates.length ? `· ${b.delegates.length}` : ''}</span>
-              {!b.isEngagement && <span className="yc-grip yc-grip-l" onMouseDown={(e) => startBarDrag(b, e, 'rs')} />}
-              {!b.isEngagement && <span className="yc-grip yc-grip-r" onMouseDown={(e) => startBarDrag(b, e, 're')} />}
+              {!b.isEngagement && <span className="yc-grip yc-grip-l" onPointerDown={(e) => startBarDrag(b, e, 'rs')} />}
+              {!b.isEngagement && <span className="yc-grip yc-grip-r" onPointerDown={(e) => startBarDrag(b, e, 're')} />}
             </button>
           )
         })}
@@ -1174,17 +1201,17 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCrea
     setCreate({ ds, a, b })
     const mv = (ev) => { b = snap(H0 * 60 + ((ev.clientY - rect.top) / HPX) * 60); setCreate({ ds, a, b }) }
     const up = () => {
-      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up)
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up)
       let lo = Math.min(a, b), hi = Math.max(a, b)
       if (hi - lo < SNAP) hi = lo + 60
       lo = Math.max(H0 * 60, lo); hi = Math.min(H1 * 60, hi)
       setCreate(null); onCreateTimed(ds, mtime(lo), mtime(hi))
     }
-    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up)
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up)
   }
 
   function evDrag(ev, ds, e, mode) {
-    if (e.button !== 0) return
+    if (e.button != null && e.button !== 0) return
     e.stopPropagation(); e.preventDefault()
     const evEl = e.currentTarget.closest('.wt-ev')
     const colEl = evEl.closest('.wt-col'); const colW = colEl.offsetWidth
@@ -1204,14 +1231,14 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCrea
       } else { ne = snap(Math.max(s0 + SNAP, s0 + dur + dy)); evEl.style.height = ((ne - s0) * HPX / 60) + 'px' }
     }
     const up = () => {
-      document.removeEventListener('mousemove', mv); document.removeEventListener('mouseup', up)
+      document.removeEventListener('pointermove', mv); document.removeEventListener('pointerup', up); document.removeEventListener('pointercancel', up)
       evEl.style.transform = ''; evEl.style.height = ''
       ns = Math.max(H0 * 60, Math.min(H1 * 60 - SNAP, ns)); ne = Math.min(H1 * 60, Math.max(ns + SNAP, ne))
       const ndate = (mode === 'mv' && view === 'Week' && dcol !== 0) ? addDaysISO(ds, dcol) : ds
       if (movedRef.current && onEngCommit) onEngCommit(ev, { date: ndate, startTime: mtime(ns), endTime: mtime(ne) })
       setTimeout(() => { movedRef.current = false }, 0)
     }
-    document.addEventListener('mousemove', mv); document.addEventListener('mouseup', up)
+    document.addEventListener('pointermove', mv); document.addEventListener('pointerup', up); document.addEventListener('pointercancel', up)
   }
 
   const hours = []; for (let h = H0; h < H1; h++) hours.push(h)
@@ -1248,7 +1275,7 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCrea
           {days.map((d) => { const ds = iso(d); return <div key={ds} className={'wt-head' + (ds === today ? ' today' : '')}>{d.toLocaleDateString('en-GB', { weekday: 'short' })}<span className="wd-dn">{d.getDate()}</span></div> })}
         </div>
         <div className="wt-band" style={{ height: bandH }}>
-          <div className="wt-band-cells">{days.map((d) => { const ds = iso(d); return <div key={ds} className="wt-band-cell" onMouseDown={() => onCreate(ds, ds)} /> })}</div>
+          <div className="wt-band-cells">{days.map((d) => { const ds = iso(d); return <div key={ds} className="wt-band-cell" onClick={() => onCreate(ds, ds)} /> })}</div>
           {adItems.map((it) => {
             const b = it.b, span = it.ec - it.sc + 1
             return (
@@ -1267,18 +1294,18 @@ function WeekDayView({ view, anchor, blocks, colourFor, onOpen, onCreate, onCrea
             const timed = blocks.filter((b) => b.isEngagement && b.start === ds && b.startTime)
             return (
               <div key={ds} className={'wt-col' + (ds === today ? ' today' : '')}>
-                <div className="wt-grid" style={{ height: GRIDH, backgroundImage: gridBg }} onMouseDown={(e) => gridDown(ds, e)}>
+                <div className="wt-grid" style={{ height: GRIDH, backgroundImage: gridBg }} onPointerDown={(e) => gridDown(ds, e)}>
                   {timed.map((b) => {
                     const s = tmin(b.startTime); const en = b.endTime ? tmin(b.endTime) : s + 60
                     const top = (s - H0 * 60) * HPX / 60; const h = Math.max(20, (en - s) * HPX / 60)
                     return (
                       <div key={b.id} className="wt-ev" style={{ top, height: h, background: colourFor(b) }}
-                        onMouseDown={(e) => evDrag(b, ds, e, 'mv')}
+                        onPointerDown={(e) => evDrag(b, ds, e, 'mv')}
                         onMouseEnter={onHov(b)} onMouseMove={onHov(b)} onMouseLeave={() => setHover(null)}
                         onClick={(e) => { e.stopPropagation(); if (movedRef.current) return; onOpen(b) }}>
                         <span className="wt-ev-t">{b.title}</span>
                         <span className="wt-ev-time">{mtime(s)}–{mtime(en)}</span>
-                        <span className="wt-ev-grip" onMouseDown={(e) => evDrag(b, ds, e, 're')} />
+                        <span className="wt-ev-grip" onPointerDown={(e) => evDrag(b, ds, e, 're')} />
                       </div>
                     )
                   })}
