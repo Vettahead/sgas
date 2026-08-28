@@ -1184,3 +1184,17 @@ select,select option{color:#1d2733;background:#fff}
 .cx-ghost{background:none;border:1px solid var(--cx-line);color:var(--cx-mute);border-radius:10px;
   padding:10px 14px;font:600 12.5px/1 inherit;cursor:pointer}
 .cx-ghost:hover{color:var(--cx-ink);border-color:var(--cx-brand)}
+
+/* Dragging a course. The transition has to go while the pointer is down or the
+   bar rubber-bands a frame behind it; text selection has to go or the whole
+   grid highlights blue as you drag. */
+.cx-bar.dragging{transition:none;opacity:.92;z-index:20;
+  box-shadow:inset 3px 0 0 var(--c),0 10px 26px -6px rgba(15,23,41,.4)}
+body.cx-dragging{user-select:none;cursor:grabbing}
+body.cx-dragging *{cursor:inherit!important}
+.cx-hint{position:fixed;z-index:200;pointer-events:none;background:var(--cx-ink);color:var(--cx-bg);
+  font:600 12px/1 inherit;padding:7px 11px;border-radius:8px;white-space:nowrap;
+  box-shadow:0 6px 18px rgba(15,23,41,.35)}
+.cx-dark .cx-hint{background:#e8ecf3;color:#0e1117}
+/* A wider, more findable grab area now that only the ends carry one. */
+.cx-grab,.cx-resize{width:18px}

@@ -4,6 +4,43 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): stretching a course
+
+Review: "stretch to new days is hella janky." It was. Three separate faults.
+
+### Fixed
+- **The resize never followed the pointer.** `barDown` set
+  `el.style.width = Math.max(w * 0.6, el.offsetWidth)` — reading the element's
+  own width back each frame, so it wrote the same value repeatedly and only
+  jumped on release. The starting width is now measured **once** and the bar is
+  sized to `startW + delta * colWidth`.
+- **The bar rubber-banded a frame behind the cursor.** `.cx-bar` carries a
+  140ms transition on `transform`; a `.dragging` class now removes it, and
+  `body.cx-dragging` kills text selection so the grid stops highlighting blue
+  mid-drag.
+- **After release the bar collapsed to the width of its own text.** The inline
+  styles were cleared in a `finally` that ran *after* `await load()` — by which
+  point React had already written the correct `width`, so clearing it wiped
+  React's value and the bar fell back to `width:auto`. Inline styles are now
+  dropped synchronously before any await, and the block is **updated
+  optimistically in state** so it stays where it was dropped instead of
+  snapping back while the save is in flight. A failed save reloads to revert.
+
+### Changed
+- Drags **snap to whole days** as you go, rather than following pixels and
+  snapping at the end.
+- A **live label follows the pointer** with the dates the drag will produce
+  ("06 Jul 2026 – 12 Jul 2026 · 7 days"), so it is not guesswork.
+- A course can no longer be dragged shorter than one day.
+- The move handle is only on a course's **first** segment and the resize handle
+  only on its **last**. Both used to appear on every week a course crossed, so a
+  middle segment offered a resize that made no sense.
+- Grab areas widened to 18px.
+
+Measured in headless Chromium frame by frame: at +1/+2/+3/+4 days the bar was
+762 / 890 / 1018 / 1147px against 762 / 890 / 1018 / 1147 expected, and after
+release a 5-day course correctly became 9 days across two week rows.
+
 ## 2026-08-28 — Calendar (new look), round two
 
 Review feedback: white modal in dark mode, no resize, no create, missing the

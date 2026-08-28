@@ -61,6 +61,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [flash, setFlash] = useState(null)
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
+  const [hint, setHint] = useState(null)           // live dates while dragging
 
   async function load() {
     const [b, s, h, cs] = await Promise.all([listBlocks(), listStaff(), listHolidays(), listCourses()])
@@ -99,7 +100,8 @@ export default function CalendarNext({ isAdmin, user, go }) {
         const i = between(grid.start, cur)
         const col = i % 7, row = Math.floor(i / 7)
         const span = Math.min(7 - col, between(cur, fin) + 1)
-        out.push({ b, row, col, span, key: b.id + ':' + cur, head: cur === b.start })
+        out.push({ b, row, col, span, key: b.id + ':' + cur, head: cur === b.start,
+          tail: addDays(cur, span - 1) >= fin })
         cur = addDays(cur, span)
       }
     }
@@ -150,41 +152,85 @@ export default function CalendarNext({ isAdmin, user, go }) {
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cx)
   }
+  // Dragging a course. Three things make this feel right and all three were
+  // missing: the bar has to follow in WHOLE DAY steps (pixel-following then
+  // snapping on release feels mushy), its CSS transition has to be off while
+  // you drag (or it rubber-bands a frame behind the pointer), and the resize
+  // has to measure its starting width ONCE — reading offsetWidth each frame
+  // just fed the bar its own value back, so it never moved at all.
   function barDown(b, e, mode) {
     if (!isAdmin) return
     e.preventDefault(); e.stopPropagation()
-    const cell = document.querySelector('.cx-cell')
-    const w = cell ? cell.getBoundingClientRect().width : 100
-    const x0 = e.clientX, el = e.currentTarget.closest('.cx-bar')
+    const el = e.currentTarget.closest('.cx-bar')
+    const week = el.closest('.cx-week')
+    if (!week) return
+    const colW = week.getBoundingClientRect().width / 7
+    const startW = el.getBoundingClientRect().width
+    const x0 = e.clientX
+    const spanDays = between(b.start, b.end) + 1
+    el.setPointerCapture?.(e.pointerId)
+    el.classList.add('dragging')
+    document.body.classList.add('cx-dragging')
     dragRef.current = { moved: false, delta: 0 }
+
     const move = (ev) => {
       const dx = ev.clientX - x0
-      dragRef.current.delta = Math.round(dx / w)
-      if (Math.abs(dx) > 4) dragRef.current.moved = true
-      if (mode === 'move') el.style.transform = `translateX(${dx}px)`
-      else el.style.width = Math.max(w * 0.6, el.offsetWidth) + 'px'
-      el.style.zIndex = 9; el.style.opacity = '.9'
+      if (Math.abs(dx) > 3) dragRef.current.moved = true
+      let d = Math.round(dx / colW)
+      // A course can never be dragged shorter than a single day.
+      if (mode === 'resize') d = Math.max(d, -(spanDays - 1))
+      dragRef.current.delta = d
+      if (mode === 'move') el.style.transform = `translateX(${d * colW}px)`
+      else el.style.width = Math.max(colW * 0.6, startW + d * colW) + 'px'
+      // Say what the drag will actually do, so it is not guesswork.
+      setHint(d === 0 ? null : {
+        x: ev.clientX, y: ev.clientY,
+        text: mode === 'move'
+          ? `${fmt(addDays(b.start, d))} – ${fmt(addDays(b.end, d))}`
+          : `${fmt(b.start)} – ${fmt(addDays(b.end, d))} · ${spanDays + d} day${spanDays + d === 1 ? '' : 's'}`,
+      })
     }
-    const up = async () => {
+
+    const finish = async (commit) => {
       window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', up)
-      el.style.transform = ''; el.style.width = ''; el.style.zIndex = ''; el.style.opacity = ''
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', cancel)
+      el.classList.remove('dragging')
+      document.body.classList.remove('cx-dragging')
+      setHint(null)
       const { delta, moved } = dragRef.current || {}
       dragRef.current = null
-      if (!moved || !delta) return
-      // Moving shifts both ends; resizing only moves the end, and never past
-      // the start.
+      if (!commit || !moved || !delta) {
+        el.style.transform = ''; el.style.width = ''
+        return
+      }
       const from = mode === 'move' ? addDays(b.start, delta) : b.start
       let to = addDays(b.end, delta)
       if (to < from) to = from
+
+      // Drop the inline styles NOW, before anything async. Clearing them after
+      // the reload wiped the width React had just written, and the bar
+      // collapsed to the width of its own text.
+      el.style.transform = ''; el.style.width = ''
+      // Move it locally straight away so it lands where you dropped it instead
+      // of snapping back while the save is in flight.
+      setBlocks((bs) => (bs || []).map((x) => (x.id === b.id ? { ...x, start: from, end: to } : x)))
+      setFlash(String(b.id)); setTimeout(() => setFlash(null), 800)
+
       setBusy(true)
       try {
         await updateBlock(b.id, { from, to })
-        await load(); setFlash(String(b.id)); setTimeout(() => setFlash(null), 800)
-      } catch (err) { toast(err.message) } finally { setBusy(false) }
+        await load()
+      } catch (err) {
+        toast(err.message)
+        await load()          // put it back where the server says it is
+      } finally { setBusy(false) }
     }
+    const up = () => finish(true)
+    const cancel = () => finish(false)
     window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up)
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', cancel)
   }
 
   const inSel = (d) => sel && d >= sel.from && d <= sel.to
@@ -261,7 +307,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
                       }}
                       onClick={() => { if (!dragRef.current?.moved) setOpen(s.b) }}>
-                      {isAdmin && !s.b.isHoliday && <span className="cx-grab" aria-hidden="true" title="Drag to move" />}
+                      {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
                       <span className="cx-bar-t">
                         {s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}
                         {s.head && s.b.delegates?.some(isPart) && <span className="cx-part" title="Somebody is doing only part of this course">◧</span>}
@@ -277,7 +323,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         </span>
                       )}
                       {s.head && !s.b.ready && !s.b.isHoliday && <span className="cx-dot" title="Needs a trainer or delegates" />}
-                      {isAdmin && !s.b.isHoliday && <span className="cx-resize" aria-hidden="true" title="Drag to change the length" />}
+                      {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" title="Drag to change how many days it runs" />}
                     </button>
                   ))}
                 </div>
@@ -324,6 +370,8 @@ export default function CalendarNext({ isAdmin, user, go }) {
           </div>
         </aside>
       </div>
+
+      {hint && <div className="cx-hint" style={{ left: hint.x + 14, top: hint.y + 16 }}>{hint.text}</div>}
 
       {creating && (
         <Modal onClose={() => setCreating(null)} label="New course" className="cx-modal" dirty={!!creating.courseId}>
