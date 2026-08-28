@@ -4,6 +4,64 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Email plumbing, and an Admin screen to set it up
+
+Chris has the SGAS mailbox details and asked for somewhere in Admin to enter
+them, with the password box left blank once stored. That last instinct is right
+and has a name — a write-only secret — and it is what the whole design is built
+around.
+
+### Where the passwords live
+NOT in a column. They go into **Supabase Vault**, which encrypts them with a key
+held outside the database. `smtp_mailbox` keeps only the secret's id. The only
+component that ever decrypts one is the `send-email` Edge Function, using the
+service-role key, and it scrubs the value out of any error it returns — SMTP
+libraries have a habit of quoting failed credentials back at you.
+
+Hashing was floated and would have been wrong: a hash is one-way, and an SMTP
+password has to be *replayed* to the mail server on every send. Hash it and
+nothing ever sends again.
+
+### Why not an env var
+The obvious answer, and better in isolation, but Chris wants to manage this from
+Admin rather than a dashboard. Vault plus the RPC gate gets most of the way
+there and keeps it editable.
+
+### Locked down
+`smtp_setting`, `smtp_mailbox` and `email_log` have RLS on with **no policies**,
+and the table grants are **revoked** from `anon`/`authenticated` outright — two
+independent locks, so a future "add a permissive policy" mistake still cannot
+expose them. This matters more here than usual: every other table in this
+database carries `p_anon_all` (ALL, `qual: true`), so the public anon key in the
+JS bundle is effectively a full read/write key to everything else. Verified as
+the anon role: SELECT, UPDATE and INSERT on all three tables are refused,
+`vault.decrypted_secrets` is refused, and `app_smtp_get` with a wrong password
+is rejected.
+
+### The screen
+`src/views/EmailSettings.jsx`, in Admin. Server and the three mailboxes come
+pre-filled with SGAS's own settings, so the only thing anyone ever types is a
+password. The password boxes start empty, **return to empty after a save**, and
+nothing the server sends back can fill them — `app_smtp_get` returns
+`password_set: true/false` and never the value. Empty therefore means "keep the
+stored one"; `__CLEAR__` removes one. There is a test-send button that reports
+what the mail server actually said, and a log of every attempt, because "did
+Simon get the expiry warning?" has to be answerable.
+
+Uses only existing classes (`.card`, `.body`, `.field`, `.fl`, `.inrow`,
+`.twocol`, `.btn`, `.b`, `.tag`) — no new CSS.
+
+### Verified
+26 assertions at desktop and phone: the card renders, the server is pre-filled,
+every box starts empty, a typed password saves, **the box is blank again
+afterwards**, only that mailbox flips to "Stored", the count moves, and the
+typed value appears nowhere in the page HTML, any input, localStorage or
+sessionStorage. No console errors.
+
+### Not done yet
+The four actual emails — trainer-assigned, expiry alerts, renewal chase, booking
+confirmation. This is the plumbing they all sit on.
+
 ## 2026-08-28 — The runtime tests live in the repo now
 
 They had been in `/tmp` on the cloud container, which is discarded when a session

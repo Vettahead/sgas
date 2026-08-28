@@ -17,6 +17,18 @@
 
 export const RELEASES = [
   {
+    v: '1.16.0', build: 130, date: '28 Aug 2026',
+    title: 'Email settings, ready for the mailboxes',
+    notes: [
+      'New Email settings panel in Admin. The server and all three mailboxes are already filled in \u2014 the only thing you need to type is each password.',
+      'A password box is empty before you type one and empty again the moment it is saved. It is never shown back to you or to anyone else, and it cannot be read out of the page.',
+      'Leave a box empty to keep the password already stored. There is a Remove button if you ever need to take one out.',
+      'A Send test email button that tells you exactly what the mail server said if it refuses, rather than just failing.',
+      'A record of every email the system sends \u2014 who it went to, which address it came from, and whether it arrived.',
+      'Nothing sends yet: this is the groundwork the trainer, expiry, chase and booking emails all sit on.',
+    ],
+  },
+  {
     v: '1.15.1', build: 127, date: '28 Aug 2026',
     title: 'Calendar (new look): course names no longer run past their dates',
     notes: [

@@ -1619,3 +1619,101 @@ export async function setCategoryStaffFlags(categoryId, { staffOnly, requirement
   const c = D.categories.find((x) => x.category_id === id)
   if (c) Object.assign(c, patch)
 }
+
+// =============================================================================
+// EMAIL SETTINGS + SENDING
+// The SMTP passwords are NOT kept in a column and never come back to the
+// browser. app_smtp_get returns `password_set: true/false` and nothing more,
+// which is what lets the Admin field sit blank after the first save. The
+// password itself lives in Supabase Vault and is only ever decrypted inside the
+// send-email Edge Function using the service-role key.
+//
+// Sending goes through that Edge Function too, so the credentials never reach
+// the client at all. Admin credentials are re-confirmed on every call, exactly
+// as the user-admin actions already do.
+// =============================================================================
+
+const DEMO_SMTP = {
+  host: 'smtp.sgas.co.uk', port: 465, secure: true, updated_at: null,
+  mailboxes: [
+    { key: 'bookings', address: 'bookings@sgas.co.uk', username: 'bookings@sgas.co.uk', from_name: 'SGAS Bookings', password_set: false },
+    { key: 'crm', address: 'crm@sgas.co.uk', username: 'crm@sgas.co.uk', from_name: 'SGAS', password_set: false },
+    { key: 'holidays', address: 'holidays@sgas.co.uk', username: 'holidays@sgas.co.uk', from_name: 'SGAS Holidays', password_set: false },
+  ],
+}
+
+export async function getSmtpSettings(adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_smtp_get', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  if (!store.smtp) store.smtp = JSON.parse(JSON.stringify(DEMO_SMTP))
+  return JSON.parse(JSON.stringify(store.smtp))
+}
+
+// A blank password means "leave the stored one alone" — that is the whole point
+// of the empty box. '__CLEAR__' removes one.
+export async function saveSmtpSettings({ host, port, secure, mailboxes }, adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_smtp_save', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_host: host, p_port: Number(port) || 465, p_secure: !!secure,
+      p_mailboxes: mailboxes,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  if (!store.smtp) store.smtp = JSON.parse(JSON.stringify(DEMO_SMTP))
+  const s = store.smtp
+  s.host = host || s.host; s.port = Number(port) || s.port; s.secure = !!secure
+  for (const m of mailboxes || []) {
+    const row = s.mailboxes.find((x) => x.key === m.key)
+    if (!row) continue
+    if (m.address) row.address = m.address
+    if (m.username) row.username = m.username
+    if (m.from_name) row.from_name = m.from_name
+    if (m.password === '__CLEAR__') row.password_set = false
+    else if (m.password) row.password_set = true
+  }
+  s.updated_at = new Date().toISOString()
+  return JSON.parse(JSON.stringify(s))
+}
+
+// Proves the whole path without anyone reading the password back: the function
+// reports what the mail server actually said.
+export async function sendTestEmail({ mailbox, to }, adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        admin: adminAuth.username, admin_pw: adminAuth.password,
+        mailbox, to, kind: 'test',
+        subject: 'SGAS test email',
+        text: 'This is a test from the SGAS Training Management system.\n\n'
+          + 'If you are reading it, the mail settings are working.',
+      },
+    })
+    if (error) throw new Error(error.message || 'The send failed')
+    if (!data || !data.ok) throw new Error((data && data.error) || 'The send failed')
+    return data
+  }
+  const s = store.smtp || DEMO_SMTP
+  const row = s.mailboxes.find((x) => x.key === mailbox)
+  if (!row || !row.password_set) throw new Error(`No password stored for ${(row && row.address) || mailbox}`)
+  if (!store.emailLog) store.emailLog = []
+  store.emailLog.unshift({ sent_at: new Date().toISOString(), mailbox, to_address: to, subject: 'SGAS test email', kind: 'test', ok: true, error: null })
+  return { ok: true, from: row.address, demo: true }
+}
+
+export async function listEmailLog(adminAuth, limit = 50) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_email_log', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_limit: limit,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data || []
+  }
+  return (store.emailLog || []).slice(0, limit)
+}

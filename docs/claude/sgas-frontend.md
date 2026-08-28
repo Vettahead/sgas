@@ -134,3 +134,42 @@ SCHEDULE FILTERS + COLLAPSE BUILT (10 Jun 2026, partial §4.3 non-Teamup polish,
 COMPANIES & DELEGATE HISTORY BUILT (10 Jun 2026, §4.9 — SIXTH roadmap increment, build passes: vite 92 modules OK). Migration `Sgas project/sgas_company_history.sql` (RUN after sgas_mlp_igas.sql; also appended to sgas_ALL_new_migrations.sql): company += send_to_employer BOOLEAN NOT NULL DEFAULT TRUE (per-company "send certs/results to employer" flag, from meeting note). api.js: listCompanies now returns sendToEmployer (=send_to_employer!==false); NEW getCompany(id) → {company, delegates:[{...client, bookings:count, lastBooking:latest session start}]} (live: client query + booking/session join tally; demo: filter+map); NEW setSendToEmployer(id,bool). demo.js: companies seeded send_to_employer (co3 J.Hartley=false to show the "No" state). Companies.jsx REBUILT: searchbar + "To employer" SendBadge toggle column (green Send / red No, .b pass/fail button, stopPropagation), clickable rows → CompanyDetail (company fields incl Address + send-to-employer toggle w/ explanatory text + "Who works here" roster table: name/NI/mobile/email/bookings/lastBooking, rows click through to delegate via go('delegates', clientId)). App.jsx: <Companies go={go} /> (go already supports (view, delegateId)). Delegates.jsx: NEW renewalSummary(bookings) helper rolls PASSED booking_categories into one row per qual (latest achieved kept), cross-refs daysUntil → status active/soon(≤90d)/expired/none; NEW "🎓 Qualifications & renewals" card above accreditation history (badge counts of expired + due-within-90d, table qual/from-course/achieved/expires/renewal-badge, expired rows red via .noshow-row). RENEWAL_BADGE map (pass/due/fail/scheme). styles.css: +.renew-alert. Files for GitHub: src/lib/api.js, src/lib/demo.js, src/views/Companies.jsx, src/views/Delegates.jsx, src/App.jsx, src/styles.css. ACTION FOR CHRIS: run sgas_company_history.sql in Supabase (vyabbdxsatvcmwkuircm), then GitHub Desktop commit+push (Vercel auto-deploys). DEFERRED §4.9: none material — could add company edit form + per-delegate "due for renewal" filter later. MOUNT GOTCHA HIT AGAIN this session (all 5 Edit/Write'd JS files showed truncated on the bash mount while Read/Windows were correct) — fixed by heredoc-writing true content into a fresh /tmp/sgasv3, npm install, vite build. See [[sgas-mount-write-gotcha]].
 
 ROLES & PERMISSIONS BUILT (8 Jun 2026, §4.6 — FIRST roadmap increment, build passes): added `src/lib/roles.js` (single source of truth) — ROLES = ADMIN/STANDARD/SCHEDULER/ASSESSOR/ACCOUNTS, ROLE_LABELS, ROLE_VIEWS map, viewsForRole/canAccess/defaultView/roleLabel. App.jsx: NAV_GROUPS + buildNav(role) filters sidebar to allowed views (drops empty groups), activeView guard falls back to defaultView(role), lands on role's first view at login, header shows roleLabel. Views per role: ADMIN=all+admin; STANDARD=dash,book,delegates,companies; SCHEDULER=dash,book,sched; ASSESSOR=assess only; ACCOUNTS=pay only. Admin.jsx: new-user + per-row role now a 5-role <select> (replaced binary admin/standard toggle; can't change own role). demo.js: added scheduler/assessor/accounts demo users (all password 'demo', reuse reception salt/hash), seq.user=5. Login.jsx hint lists all 5 demo logins. SQL migration `Sgas project/sgas_roles_expansion.sql` widens app_user.role check to the 5 roles — RUN in Supabase after sgas_secure_auth.sql. NOT YET COMMITTED/redeployed by Chris. NOTE: per-user dashboards + Assessor "claim" to-dos (§4.4) still TODO; data-table RLS still permissive (role gating is client-side only so far).
+
+## Email: where the SMTP passwords live (28 Aug 2026)
+
+Set up in Admin → Email settings. The rules, because getting any of them wrong
+leaks a live mailbox password:
+
+- **A password is never returned to the browser.** `app_smtp_get` reports
+  `password_set: true/false` and nothing else. That is what makes the Admin box
+  safe to leave blank — blank means "keep the stored one", and the only way to
+  change one is to type a new one. If you ever find yourself adding a field that
+  returns the password so the form can be "pre-filled", stop.
+- **Not hashed.** A hash is one-way; SMTP replays the password on every send.
+  They live in **Supabase Vault**, decrypted only inside the `send-email` Edge
+  Function using the service-role key.
+- **Two locks on the tables.** `smtp_setting`, `smtp_mailbox` and `email_log`
+  have RLS on with no policies AND their grants revoked from
+  `anon`/`authenticated`. Belt and braces is warranted here: every other table
+  carries `p_anon_all` (ALL, `qual: true`), so the anon key in the JS bundle is
+  effectively a full read/write key to the rest of the schema. One accidental
+  permissive policy on these three and the mail passwords go with it.
+- **`verify_jwt` is off on `send-email` deliberately.** This app has its own
+  `app_user` table and does not use Supabase Auth, so a JWT proves nothing —
+  everyone shares the anon key. The `app_is_admin()` check inside the function
+  is the real gate, matching how `app_list_users` and friends already work.
+- **Errors are scrubbed.** SMTP libraries quote failed credentials back at you.
+
+The SQL is now in `supabase/migrations/` and the function in
+`supabase/functions/`; see `supabase/README.md` for the anon-role checks that
+prove the lock still holds. `tests/` has 26 assertions covering the screen,
+including that a typed password appears nowhere in the page or in browser
+storage after saving.
+
+Still to build: the four actual emails (trainer assigned, accreditation expiry,
+renewal chase, booking confirmation). This is only the plumbing.
+
+### Worth raising separately
+`p_anon_all` on every data table means the public anon key can read and write
+every delegate, company, booking and staff record. That is a personal-data
+exposure independent of anything to do with email, and it is on the board.

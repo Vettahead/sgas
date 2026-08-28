@@ -4,6 +4,7 @@ import { listUsers, createUser, updateUser, setUserPassword, listStaff, createSt
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
 import StaffAccreditations from '../components/StaffAccreditations.jsx'
+import EmailSettings from './EmailSettings.jsx'
 import { toast } from '../lib/toast.js'
 
 // Roll a person's accreditation rows up into the counts shown on the closed row.
@@ -308,6 +309,10 @@ export default function Admin({ currentUser }) {
           </table>
         )}
       </div>
+
+      {/* Email settings sit outside the orphan-accounts block on purpose: they
+          are always relevant, whether or not there are stray logins. */}
+      <EmailSettings adminAuth={adminAuth} />
 
       {orphanAccounts.length > 0 && (
         <div className="card" style={{ marginTop: 18 }}>
