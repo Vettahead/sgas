@@ -12,10 +12,16 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 // restored on close, confirm-before-discard while dirty — and adds:
 //   • flipping to the other side, or above/below, when there is no room
 //   • clamping inside the viewport so it can never open off-screen
-//   • following the anchor on scroll and resize
+//   • MOVING WITH ITS ANCHOR as the page scrolls, and closing once the anchor
+//     has scrolled out of sight
 //   • becoming a bottom sheet under 720px, where "beside it" means nothing
 //
-//   at      — the anchor's DOMRect, in viewport coordinates
+//   at      — { sel, fx }: a CSS selector for the anchor element and how far
+//             along it (0–1) you clicked. NOT a DOMRect: a rect captured on
+//             click is frozen, so the panel stayed nailed to the screen while
+//             the calendar scrolled away underneath it. A selector is also
+//             re-resolved after React replaces the node on a re-render.
+//             Pass null to centre the panel with no anchor.
 //   dirty   — true while there is unsaved input
 //   onClose — called only once closing is actually agreed
 // ─────────────────────────────────────────────────────────────────────────────
@@ -25,11 +31,29 @@ const GAP = 10        // breathing room between the anchor and the panel
 const EDGE = 12       // never come closer than this to the viewport edge
 const SHEET_AT = 720  // below this width, a popover is the wrong shape
 
+// Where is the anchor right now? Measured every time, never cached.
+function anchorRect(at) {
+  if (!at?.sel) return null
+  const el = document.querySelector(at.sel)
+  if (!el) return null
+  const r = el.getBoundingClientRect()
+  if (!r.width && !r.height) return null
+  // A course bar can be most of a week wide, so we anchor to the point along it
+  // you actually clicked rather than to the whole thing.
+  const x = r.left + Math.min(Math.max(at.fx ?? 0.5, 0), 1) * r.width
+  return { left: x - 10, right: x + 10, width: 20, top: r.top, bottom: r.bottom, height: r.height }
+}
+
 export default function Popover({ at, onClose, dirty = false, label, className = '', children }) {
   const panelRef = useRef(null)
   const returnTo = useRef(null)
+  const posRef = useRef(null)
   const [pos, setPos] = useState(null)
   const [sheet, setSheet] = useState(() => window.innerWidth < SHEET_AT)
+  // Closing has to be reachable from the scroll handler without making `place`
+  // depend on it, or every keystroke would tear down the scroll listener.
+  const closeRef = useRef(onClose)
+  closeRef.current = onClose
 
   const tryClose = useCallback(() => {
     if (dirty && !window.confirm('Close without saving? What you have typed will be lost.')) return
@@ -37,49 +61,86 @@ export default function Popover({ at, onClose, dirty = false, label, className =
   }, [dirty, onClose])
 
   // Where does it go? Below the anchor first, then above, then beside — the
-  // point is that you can still SEE the thing you opened. A course bar can be
-  // most of a week wide, so the caller anchors to where you clicked on it, not
-  // to the whole bar.
+  // point is that you can still SEE the thing you opened.
   const place = useCallback(() => {
     const panel = panelRef.current
     if (!panel) return
     const narrow = window.innerWidth < SHEET_AT
-    setSheet(narrow)
-    if (narrow) { setPos({ sheet: true }); return }
-    const w = panel.offsetWidth, h = panel.offsetHeight
     const vw = window.innerWidth, vh = window.innerHeight
-    // No anchor (e.g. a course we just created): centre it.
-    if (!at) { setPos({ left: (vw - w) / 2, top: Math.max(EDGE, (vh - h) / 2), side: 'centre' }); return }
-    const roomB = vh - at.bottom - GAP - EDGE
-    const roomT = at.top - GAP - EDGE
-    const roomR = vw - at.right - GAP - EDGE
-    const roomL = at.left - GAP - EDGE
+    // Only re-render when something actually moved. place() runs after every
+    // render and on every scroll frame; a fresh object each time re-rendered
+    // the whole panel for nothing — and, in the sheet case where left/top are
+    // undefined, looped forever.
+    const near = (x, y) => (x == null && y == null) || Math.round(x) === Math.round(y)
+    const commit = (next) => {
+      const a = posRef.current
+      if (a && next && !!a.sheet === !!next.sheet && a.side === next.side
+        && near(a.left, next.left) && near(a.top, next.top)
+        && near(a.cx, next.cx) && near(a.cy, next.cy)
+        && near(a.w, next.w) && near(a.h, next.h)) return
+      posRef.current = next
+      setPos(next)
+    }
+    if (narrow !== sheet) setSheet(narrow)
+    if (narrow) { commit({ sheet: true }); return }
+
+    const w = panel.offsetWidth, h = panel.offsetHeight
+    const rect = anchorRect(at)
+    // No anchor at all (nothing to point at): centre it.
+    if (!at?.sel) { commit({ left: (vw - w) / 2, top: Math.max(EDGE, (vh - h) / 2), side: 'centre', w, h }); return }
+    // The anchor has gone, or scrolled out of sight. A panel pointing at
+    // nothing is worse than no panel.
+    if (!rect || rect.bottom < 0 || rect.top > vh || rect.right < 0 || rect.left > vw) {
+      closeRef.current?.()
+      return
+    }
+
+    const roomB = vh - rect.bottom - GAP - EDGE
+    const roomT = rect.top - GAP - EDGE
+    const roomR = vw - rect.right - GAP - EDGE
+    const roomL = rect.left - GAP - EDGE
     let left, top, side
-    if (roomB >= h) { side = 'bottom' } else if (roomT >= h) { side = 'top' }
-    else if (roomR >= w) { side = 'right' } else if (roomL >= w) { side = 'left' }
-    else { side = roomB >= roomT ? 'bottom' : 'top' }   // squeezed: pick the taller half
+    if (roomB >= h) side = 'bottom'
+    else if (roomT >= h) side = 'top'
+    else if (roomR >= w) side = 'right'
+    else if (roomL >= w) side = 'left'
+    else side = roomB >= roomT ? 'bottom' : 'top'   // squeezed: pick the taller half
     if (side === 'bottom' || side === 'top') {
-      left = at.left + at.width / 2 - w / 2
-      top = side === 'bottom' ? at.bottom + GAP : at.top - GAP - h
+      left = rect.left + rect.width / 2 - w / 2
+      top = side === 'bottom' ? rect.bottom + GAP : rect.top - GAP - h
     } else {
-      left = side === 'right' ? at.right + GAP : at.left - GAP - w
-      top = at.top + at.height / 2 - h / 2
+      left = side === 'right' ? rect.right + GAP : rect.left - GAP - w
+      top = rect.top + rect.height / 2 - h / 2
     }
     // Whatever we chose, it stays on screen.
     left = Math.min(Math.max(left, EDGE), Math.max(EDGE, vw - w - EDGE))
     top = Math.min(Math.max(top, EDGE), Math.max(EDGE, vh - h - EDGE))
-    // The caret points back at the anchor, wherever clamping pushed us.
-    const cx = Math.min(Math.max(at.left + at.width / 2 - left, 18), w - 18)
-    const cy = Math.min(Math.max(at.top + at.height / 2 - top, 18), h - 18)
-    setPos({ left, top, side, cx, cy })
-  }, [at])
+    // The caret points back at the anchor, wherever clamping pushed us. h and w
+    // are carried so the caret can be positioned from the same measurement the
+    // panel was placed with, rather than reading the DOM again mid-render.
+    const cx = Math.min(Math.max(rect.left + rect.width / 2 - left, 18), Math.max(18, w - 18))
+    const cy = Math.min(Math.max(rect.top + rect.height / 2 - top, 18), Math.max(18, h - 18))
+    commit({ left, top, side, cx, cy, w, h })
+  }, [at, sheet])
 
-  useLayoutEffect(() => { place() }, [place, children])
+  useLayoutEffect(() => { place() })
+
+  // Follow the anchor. Scroll fires on every frame, so this is throttled to one
+  // measurement per animation frame — the panel used to be re-rendered dozens
+  // of times a scroll and painted in pieces.
   useEffect(() => {
-    const on = () => place()
+    let raf = 0
+    const on = () => {
+      if (raf) return
+      raf = requestAnimationFrame(() => { raf = 0; place() })
+    }
     window.addEventListener('resize', on)
-    window.addEventListener('scroll', on, true)
-    return () => { window.removeEventListener('resize', on); window.removeEventListener('scroll', on, true) }
+    window.addEventListener('scroll', on, true)   // capture: any scroller, not just the page
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      window.removeEventListener('resize', on)
+      window.removeEventListener('scroll', on, true)
+    }
   }, [place])
 
   useEffect(() => {
@@ -124,8 +185,8 @@ export default function Popover({ at, onClose, dirty = false, label, className =
       {!sheet && pos && !pos.sheet && pos.side !== 'centre' && (
         <span className={'cx-pop-caret ' + pos.side} aria-hidden="true"
           style={pos.side === 'bottom' || pos.side === 'top'
-            ? { left: pos.left + pos.cx, top: pos.side === 'bottom' ? pos.top : pos.top + (panelRef.current?.offsetHeight || 0) }
-            : { top: pos.top + pos.cy, left: pos.side === 'right' ? pos.left : pos.left + (panelRef.current?.offsetWidth || 0) }} />
+            ? { left: pos.left + pos.cx, top: pos.side === 'bottom' ? pos.top : pos.top + pos.h }
+            : { top: pos.top + pos.cy, left: pos.side === 'right' ? pos.left : pos.left + pos.w }} />
       )}
     </>
   )

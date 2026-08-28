@@ -137,11 +137,19 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // Open a course beside the bar you clicked, not over the middle of the screen.
   const openAt = (b, e) => {
     if (justDragged.current) return
-    const r = e.currentTarget.getBoundingClientRect()
-    // A course bar can be most of a week wide; anchoring to the whole thing
-    // pushed the popover across the grid and hid the bar you were editing.
-    const x = e.clientX ?? (r.left + r.width / 2)
-    setAt({ left: x - 10, right: x + 10, width: 20, top: r.top, bottom: r.bottom, height: r.height })
+    const el = e.currentTarget
+    const r = el.getBoundingClientRect()
+    // Anchor by selector and by how far along the bar you clicked — not by the
+    // rect, which is frozen the moment you click. A frozen rect left the panel
+    // nailed to the screen while the calendar scrolled away underneath it.
+    const fx = r.width ? ((e.clientX ?? (r.left + r.width / 2)) - r.left) / r.width : 0.5
+    // Point the selector at the same KIND of element that was clicked. A rail
+    // row must not resolve to the calendar bar for that course — the course may
+    // not even be in the month you are looking at.
+    const sel = el.dataset.d ? `[data-d="${el.dataset.d}"]`
+      : el.dataset.bid ? `${el.classList.contains('cx-row') ? '.cx-row' : '.cx-bar'}[data-bid="${el.dataset.bid}"]`
+        : null
+    setAt(sel ? { sel, fx } : null)
     setOpen(b)
   }
   // Dragging the dates from inside the popover, the same commit path the
@@ -273,8 +281,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
       // course could never be booked by dragging.
       setSel((sl) => {
         if (ok && sl && moved) {
-          const r = document.querySelector(`[data-d="${sl.to}"]`)?.getBoundingClientRect()
-          setAt(r ? { left: r.left, right: r.right, width: r.width, top: r.top, bottom: r.bottom, height: r.height } : null)
+          setAt({ sel: `[data-d="${sl.to}"]`, fx: 0.5 })
           setCreating({ from: sl.from, to: sl.to })
         }
         return null
@@ -515,7 +522,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <div className="cx-card cx-warn">
               <h3>Needs attention <span>{needsWork.length}</span></h3>
               {needsWork.slice(0, 4).map((b) => (
-                <button key={b.id} className="cx-row" onClick={(e) => openAt(b, e)}>
+                <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
                   <i style={{ background: b.color || '#5b6b80' }} />
                   <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : 'no delegates'} · {fmt(b.start)}</small></span>
                 </button>
@@ -526,7 +533,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <h3>In {monthLabel} <span>{thisMonth.length}</span></h3>
             {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
             {thisMonth.slice(0, 7).map((b) => (
-              <button key={b.id} className="cx-row" onClick={(e) => openAt(b, e)}>
+              <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
                 <i style={{ background: b.color || '#5b6b80' }} />
                 <span>
                   <b>{b.course}</b>

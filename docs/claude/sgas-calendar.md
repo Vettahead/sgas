@@ -119,3 +119,24 @@ pass `onCellDown` and `inSel` down to it — nothing else is needed.
   selection has no bar to ride. The bar-drag chip is the same class without
   `.float` and sits on the bar.
 - Both panels are `Popover` now; `CalendarNext` no longer imports `Modal`.
+
+## Popover anchoring — do not pass a rect (28 Aug 2026)
+
+`Popover`'s `at` prop is `{ sel, fx }`, never a `DOMRect`. A rect captured on
+click is frozen: the panel stays nailed to the screen while the page scrolls
+away underneath it, which is exactly the bug reported on 28 Aug. The selector is
+re-resolved and re-measured on every placement, which also survives React
+replacing the node on a re-render. `fx` is the fraction along the anchor's width
+that was clicked, so it stays right through scrolls and resizes.
+
+- Placement runs on `scroll` (capture, so any scroller) and `resize`, throttled
+  to one measurement per animation frame, and `commit()` skips the state update
+  when nothing actually moved.
+- `commit()`'s comparison must be null-safe. It once used `Math.round(undefined)`
+  on both sides; `NaN !== NaN`, so the sheet branch committed a new object every
+  pass and looped forever.
+- The caret is positioned from the `w`/`h` carried in `pos`, not from a live
+  `offsetHeight` read during render, which returns the previous layout's value.
+- If the anchor cannot be resolved or is fully out of the viewport, the popover
+  closes itself. Anything opening a popover must therefore anchor to something
+  that is actually on screen.

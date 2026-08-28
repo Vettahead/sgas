@@ -14,6 +14,14 @@
 
 export const RELEASES = [
   {
+    v: '1.13.1', build: 123, date: '28 Aug 2026',
+    title: 'Calendar (new look): fixed the panel coming unstuck when you scroll',
+    notes: [
+      'With a course open, scrolling the page left the panel stuck to the screen while the calendar moved away underneath it, and it ended up drawn over the wrong part of the page. It now moves with the course it belongs to and the arrow stays on it.',
+      'If the course you have open disappears \u2014 you page to another month, say \u2014 the panel closes with it, instead of sitting there pointing at nothing.',
+    ],
+  },
+  {
     v: '1.13.0', build: 122, date: '28 Aug 2026',
     title: 'Calendar (new look): book a course from any view',
     notes: [

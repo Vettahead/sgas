@@ -4,6 +4,45 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): the popover came unstuck on scroll
+
+Reported with a screenshot: with a course open, scrolling left the panel nailed
+to the screen while the calendar moved away underneath it, and the page repainted
+into a mess — content shoved sideways, the caret stranded mid-page.
+
+### Fixed
+- **The anchor was a frozen `DOMRect`.** `openAt` captured
+  `getBoundingClientRect()` at click time and `place()` recomputed from that same
+  stale rect forever, so scrolling could never move the panel. `at` is now
+  `{ sel, fx }` — a CSS selector for the anchor plus how far along it you clicked
+  — and the rect is measured fresh on every placement. Reproduced first: page
+  scrolled 320px, panel stayed at y=160.
+  - A selector also survives React replacing the node on a re-render, which a
+    captured element reference would not.
+  - `fx` is a fraction of the bar's width rather than a viewport x, so it stays
+    correct through scrolls and resizes.
+- **Scroll handling was unthrottled and re-rendered on every frame.** It is now
+  one measurement per animation frame, and `commit()` skips the state update
+  when nothing moved — that churn is the likeliest cause of the broken paint.
+- **The sheet branch looped forever.** `commit()` compared `Math.round(undefined)`
+  against itself; `NaN !== NaN`, so every pass committed a new object and
+  re-rendered. It cost the phone sheet entirely. Comparison is now null-safe.
+- **The caret read `panelRef.current.offsetHeight` during render**, a value from
+  the previous layout. The measured `w`/`h` are carried in `pos` instead.
+
+### Changed
+- When the anchored course leaves — scrolled fully out of view, or removed
+  because you paged to another month — the popover closes. A panel pointing at
+  nothing is worse than no panel.
+- Rail rows carry `data-bid` and anchor to themselves, not to the calendar bar
+  for that course, which may not be in the month you are looking at.
+
+### Verified
+101 Playwright assertions. New: with a course open and the page scrolled 260px
+the panel moves with it, the caret stays within 24px of the bar it points at
+(0px before, 10px after), nothing overflows sideways, it stays on screen; and
+paging to another month closes it along with its caret.
+
 ## 2026-08-28 — Calendar (new look): book a course from any view
 
 Review: *"need to create in year view too."*
