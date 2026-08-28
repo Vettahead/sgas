@@ -1326,11 +1326,8 @@ button.cx-title:hover i{opacity:1}
 .cx-ycell{position:absolute;top:0;bottom:0;border-right:1px solid var(--cx-line)}
 .cx-ycell.wknd{background:var(--cx-soft)}
 .cx-ycell.today{background:var(--cx-brand-soft);box-shadow:inset 0 0 0 1px var(--cx-brand)}
-.cx-ybar{border-radius:5px;overflow:visible}
+.cx-ybar{border-radius:5px;overflow:hidden}
 .cx-ybar .cx-bar-t{font-size:10.5px;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cx-yout{position:absolute;left:calc(100% + 6px);top:50%;transform:translateY(-50%);
-  white-space:nowrap;font:600 10.5px/1 inherit;color:var(--cx-mute);pointer-events:none;
-  overflow:hidden;text-overflow:ellipsis}
 .cx-ydead{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,
   var(--cx-soft) 0 4px,transparent 4px 8px);border-left:1px solid var(--cx-line);pointer-events:none}
 .cx-ybar .cx-grab,.cx-ybar .cx-resize{width:10px}
@@ -1463,8 +1460,11 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx .cx-pop .cx-rtext,.cx .cx-pop .cx-rlabel{text-align:left}
 
 /* The handles sit over the ends of the bar, so the name starts clear of them. */
-.cx-bar:has(.cx-grab) .cx-bar-t{padding-left:17px}
-.cx-bar:has(.cx-resize) .cx-bar-t{padding-right:16px}
+/* Clearance for the round handles — month and week bars only. A YEAR bar can
+   be 27px wide, and 33px of handle padding inside it was what pushed the label
+   out past the course's own dates. */
+.cx-bar:not(.cx-ybar):has(.cx-grab) .cx-bar-t{padding-left:17px}
+.cx-bar:not(.cx-ybar):has(.cx-resize) .cx-bar-t{padding-right:16px}
 
 /* The title is the heading; the dates support it. */
 .cx .cx-pop select.cx-pop-title,.cx .cx-pop h3.cx-pop-title{font:700 18px/1.25 inherit}
@@ -1619,3 +1619,21 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 @media (prefers-reduced-motion:reduce){.cx-cardbody{animation:none}}
 /* a folded card is still somewhere to drop — it springs open when you arrive */
 .cx-card.shut.cx-droppool.armed{border-style:dashed;border-color:var(--cx-brand)}
+
+/* ── Nothing may paint outside its own course bar ──────────────────────────
+   The bar's width IS the course's dates, so anything spilling past it says the
+   course runs on days it does not. The NAME is what shrinks; the delegate
+   count and the split-colour strip keep their size and stay inside. A bare
+   text node cannot take a min-width, which is why the name is wrapped. */
+.cx-bar-t{min-width:0;max-width:100%;box-sizing:border-box}
+.cx-bar-n{min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-bar-t > em,.cx-bar-t > .cx-part,.cx-bar .cx-mix{flex:0 0 auto}
+@media (max-width:640px){
+  /* at a phone's scale a year bar can be 27px wide — the padding alone was
+     half of it */
+  .cx-ybar .cx-bar-t{padding:0 3px}
+}
+/* A year bar can be 27px wide. Pinning its label to the bar's own box is the
+   only way the LAYOUT (not just the paint) can never exceed the date span.
+   pointer-events:none so the label does not cover the drag handles under it. */
+.cx-ybar .cx-bar-t{position:absolute;inset:0;padding:0 4px;pointer-events:none}

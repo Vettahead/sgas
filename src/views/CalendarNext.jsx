@@ -744,7 +744,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                       onClick={(e) => openAt(s.b, e)}>
                       {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
                       <span className="cx-bar-t">
-                        {s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}
+                        <span className="cx-bar-n">{s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}</span>
                         {s.head && s.b.delegates?.some(isPart) && <span className="cx-part" title="Somebody is doing only part of this course">◧</span>}
                         {s.head && s.b.delegates?.length > 0 && <em>{s.b.delegates.length}</em>}
                       </span>
@@ -1187,7 +1187,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
               onClick={(e) => onOpen(b, e)}>
               {isAdmin && !b.isHoliday && b.start >= first && <span className="cx-grab" title="Drag to move" />}
               <span className="cx-bar-t">
-                {b.course || b.title}
+                <span className="cx-bar-n">{b.course || b.title}</span>
                 {b.delegates?.some(isPart) && <span className="cx-part">◧</span>}
                 {b.delegates?.length > 0 && <em>{b.delegates.length}</em>}
               </span>
@@ -1347,18 +1347,14 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCel
                   }}
                   onClick={(e) => onOpen(b, e)}>
                   {isAdmin && !b.isHoliday && <span className="cx-grab" />}
-                  {/* A two-day course must not be padded out to fit its name —
-                      the length of the bar has to stay honest. */}
-                  {span >= 5 && <span className="cx-bar-t">{b.course || b.title}</span>}
+                  {/* The name lives INSIDE the bar, always, clipped to it. It
+                      used to spill out to the right when the bar was too narrow
+                      to hold it, which on a date-scaled row reads as the course
+                      running on days it does not. A bar too small for any of
+                      its name shows none: the colour, the tooltip and the rail
+                      carry it, and the bar's length stays honest either way. */}
+                  {span >= 3 && <span className="cx-bar-t"><span className="cx-bar-n">{b.course || b.title}</span></span>}
                   {isAdmin && !b.isHoliday && <span className="cx-resize" />}
-                  {/* A two-day course is too narrow to hold its own name, and a
-                      nameless coloured pill is unreadable. Put it alongside. */}
-                  {chip && String(chip.id) === String(b.id) && <span className="cx-chip-len">{chip.text}</span>}
-                  {span < 5 && gap >= 3 && (
-                    <span className="cx-yout" style={{ maxWidth: `calc(${(gap / 31) * 100}vw * 0 + ${(gap / span) * 100}% - 12px)` }}>
-                      {b.course || b.title}
-                    </span>
-                  )}
                 </button>
               ))}
             </div>

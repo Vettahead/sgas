@@ -14,6 +14,14 @@
 
 export const RELEASES = [
   {
+    v: '1.15.1', build: 126, date: '28 Aug 2026',
+    title: 'Calendar (new look): course names no longer run past their dates',
+    notes: [
+      'In the Year view a short course put its name out to the side of its bar, over days it was not running on. The name now sits inside the bar and is shortened to fit; a course too short to hold any of it shows just its colour, and hovering still names it.',
+      'Same fault found and fixed on a phone: a long course name pushed the number of people booked on outside the bar.',
+    ],
+  },
+  {
     v: '1.15.0', build: 125, date: '28 Aug 2026',
     title: 'Calendar (new look): the side panel folds up',
     notes: [

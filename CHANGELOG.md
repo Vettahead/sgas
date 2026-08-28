@@ -4,6 +4,40 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): nothing paints outside a course's own dates
+
+Review: *"on the year view some text of courses is appearing outside the allotted
+time?"* Correct, and it was a deliberate decision of mine that was wrong. An
+earlier critic pass complained that short year bars were anonymous, so I added
+`.cx-yout` — the name rendered at `left: calc(100% + 6px)`, outside the bar. On a
+date-scaled row that is a lie: it says the course runs on days it does not.
+
+### Fixed
+- **`.cx-yout` is gone.** A year label lives inside its bar, clipped with an
+  ellipsis. A bar under three days shows no text at all — the colour, the
+  `title` tooltip and the rail carry it, and the bar's length stays honest.
+- **The name is now the thing that shrinks.** A bare text node cannot take a
+  `min-width`, so on a phone a long course name pushed the delegate-count `<em>`
+  clean outside a Month bar. The name is wrapped in `.cx-bar-n`
+  (`min-width:0; flex:0 1 auto; ellipsis`) and the badge, part-attendance mark
+  and split-colour strip are `flex:0 0 auto`.
+- **Handle clearance was applying to year bars.** `.cx-bar:has(.cx-grab)
+  .cx-bar-t{padding-left:17px}` beat `.cx-ybar .cx-bar-t` on specificity, so a
+  27px year bar carried 33px of padding for handles — that was the last 6px of
+  overflow. Scoped to `:not(.cx-ybar)`.
+
+### Added
+- **`overflowcheck.mjs`** — a general guard, not a fix for one case: for every
+  bar in every view at desktop, tablet and phone, no descendant may lay out more
+  than 2px beyond the bar's own box. It found the two phone faults above, which
+  had not been reported.
+
+### Changed
+- The old assertion "Year: every bar is named, however short" encoded the
+  behaviour just rejected. Replaced with: no label reaches past its own bar,
+  every bar names its course in a tooltip labelled or not, and bars wide enough
+  still show a name.
+
 ## 2026-08-28 — Calendar (new look): the rail cards fold
 
 Review: *"collapsable right hand items in the sidepanel i think as its too long

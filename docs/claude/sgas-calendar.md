@@ -196,3 +196,31 @@ basis becomes a HEIGHT — every card came out 260px tall and only as wide as it
 text. The column rule now resets `flex:0 0 auto;width:100%`. In row mode both
 `align-items` and `align-content` must be `flex-start`, or the lines stretch and
 folding saves nothing.
+
+## A bar's width IS its dates (28 Aug 2026)
+
+The one rule the calendar cannot break: **nothing may paint outside a course
+bar**, because the bar's width is the course's date span. Ink past the edge says
+the course runs on days it does not.
+
+This was broken deliberately and had to be undone. A critic pass complained that
+short year bars were anonymous, so `.cx-yout` drew the name at
+`left: calc(100% + 6px)`. Chris spotted it immediately. A label that will not fit
+is **dropped**, never spilled — the colour, the `title` tooltip and the rail
+carry the name instead.
+
+Three things to know when touching bar contents:
+
+- The **name** must be the flex item that shrinks (`.cx-bar-n`:
+  `min-width:0; flex:0 1 auto; ellipsis`). A bare text node cannot take a
+  min-width, which is how a long name pushed the delegate-count `<em>` outside a
+  Month bar on a phone. Badges and the split-colour strip are `flex:0 0 auto`.
+- **Handle-clearance padding is month/week only.** `.cx-bar:has(.cx-grab)`
+  outranks `.cx-ybar .cx-bar-t` on specificity, and 33px of padding inside a
+  27px year bar is what pushed the label out. It is scoped `:not(.cx-ybar)`.
+- `overflow:hidden` clips the PAINT but not the layout box, so a test measuring
+  `getBoundingClientRect()` still sees the overflow. Fix the layout, not the clip.
+
+`/tmp/sgastest/overflowcheck.mjs` asserts this across all four views at desktop,
+tablet and phone. Run it after any change to what sits inside a bar — it found
+two phone faults nobody had reported.
