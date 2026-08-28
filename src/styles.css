@@ -1506,3 +1506,17 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-course-pop .cx-delg li{border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;padding-left:10px}
 .cx-pchip.already{opacity:.55}
 .cx-pchip.already small{color:var(--cx-warn);font-weight:600}
+
+/* Drag across days to book a course — in every grid, not just the month. */
+.cx-band-cell.sel,.cx-ycell.sel{background:var(--cx-brand-soft);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--cx-brand) 45%,transparent)}
+.cx-band-cell,.cx-ycell{touch-action:none}
+.cx-band{cursor:cell}
+.cx-ytrack{cursor:cell}
+
+/* The create panel is the same popover, so it needs the action row. */
+.cx-pop-foot.actions{gap:8px;justify-content:flex-end;padding:11px 14px}
+.cx-pop-foot.actions .cx-ghost{margin-right:auto}
+.cx-chip-len.float{position:fixed;transform:translate(-50%,-100%);z-index:200}
+@keyframes cx-pop-f{from{opacity:0}to{opacity:1}}
+.cx-chip-len.float{animation:cx-pop-f .12s ease}

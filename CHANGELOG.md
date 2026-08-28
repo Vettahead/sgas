@@ -4,6 +4,41 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): book a course from any view
+
+Review: *"need to create in year view too."*
+
+### Added
+- **Drag across days to book a course in every grid.** `cellDown` was bound to
+  `.cx-cell` in the month grid; it now looks for `[data-d]`, and the year rows
+  (`.cx-ycell`) and the week/day all-day band (`.cx-band-cell`) carry `data-d`
+  plus the same `onPointerDown`. One handler, four views.
+  - In Year view a drag can cross a month boundary — the rows are months, the
+    dates compare as ISO strings, so 30 Mar to 02 Apr books a four-day course
+    spanning both rows.
+- **A chip follows the pointer while you select**, saying how many days and
+  which dates. The bar-drag chip rides the bar; a selection has no bar to ride,
+  so this one tracks the cursor (`.cx-chip-len.float`).
+- **The booking panel is the same `Popover`**, anchored to the last day you
+  dragged over — the create flow no longer opens a centred modal while the
+  course flow opens beside the bar. Its dates are editable before booking, so a
+  drag that landed a day out is fixed in place rather than redone.
+
+### Changed
+- A drag now books, and a **click never does**, judged on whether the pointer
+  moved rather than on whether the dates differ — the old test meant a one-day
+  course could not be booked by dragging at all.
+- Empty year rows have a 40px minimum height, so a month with nothing in it is
+  still a comfortable drag target.
+- `Modal` is no longer imported by `CalendarNext` — both panels are popovers.
+
+### Verified
+90 Playwright assertions. The new ones: in Year, Month and Week a drag across
+three free days highlights them, shows the length, and opens a booking panel
+pre-filled with those dates and a course picker; booking one in Year actually
+adds a bar and opens the new course; a drag from March into April spans both
+months; and a plain click books nothing.
+
 ## 2026-08-28 — Calendar (new look): a collapsible rail, and colour by scheme
 
 Review: *"can we have the right bar collapsable/comes in when needed, and on the

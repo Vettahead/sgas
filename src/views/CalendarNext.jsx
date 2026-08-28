@@ -6,7 +6,6 @@ import {
 } from '../lib/api.js'
 import { todayISO, fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
-import Modal from '../components/Modal.jsx'
 import Popover from '../components/Popover.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -88,7 +87,9 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [flash, setFlash] = useState(null)
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
-  const [hint, setHint] = useState(null)  // the chip that rides the bar you drag
+  const [hint, setHint] = useState(null)     // the chip that rides the bar you drag
+  // Selecting empty days has no bar to ride, so its chip follows the pointer.
+  const [selHint, setSelHint] = useState(null)
   // While a course is being dragged its dates live here, and the whole grid
   // lays out from them. Nudging inline width/transform could not reflow a
   // course across a week boundary, so shrinking a two-row course looked stuck.
@@ -242,18 +243,42 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
   // ── Drag to create, drag a bar to move ───────────────────────────────────
   const [sel, setSel] = useState(null)
+  // Drag across days to book a course. Every grid that can be dragged on marks
+  // its day cells with data-d, so this one handler serves the month grid, the
+  // week and day all-day band, and the year rows.
   function cellDown(d, e) {
     if (!isAdmin || (e.button != null && e.button !== 0)) return
     setSel({ from: d, to: d })
+    const x0 = e.clientX, y0 = e.clientY
+    let moved = false
+    let last = { from: d, to: d }
     const move = (ev) => {
+      if (Math.abs(ev.clientX - x0) > 3 || Math.abs(ev.clientY - y0) > 3) moved = true
       const el = document.elementFromPoint(ev.clientX, ev.clientY)
-      const c = el?.closest?.('.cx-cell')
-      if (c?.dataset.d) setSel({ from: d < c.dataset.d ? d : c.dataset.d, to: d < c.dataset.d ? c.dataset.d : d })
+      const c = el?.closest?.('[data-d]')
+      if (c?.dataset.d) {
+        last = { from: d < c.dataset.d ? d : c.dataset.d, to: d < c.dataset.d ? c.dataset.d : d }
+        setSel(last)
+      }
+      const n = between(last.from, last.to) + 1
+      setSelHint({ x: ev.clientX, y: ev.clientY,
+        text: `${n} day${n === 1 ? '' : 's'} · ${fmt(last.from)} – ${fmt(last.to)}` })
     }
     const end = (ok) => () => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cx)
-      setSel((s) => { if (ok && s && s.from !== s.to) setCreating({ from: s.from, to: s.to }); return null })
+      setSelHint(null)
+      // A drag books a course; a plain click does not. Judged on whether the
+      // pointer moved, not on whether the dates differ — otherwise a one-day
+      // course could never be booked by dragging.
+      setSel((sl) => {
+        if (ok && sl && moved) {
+          const r = document.querySelector(`[data-d="${sl.to}"]`)?.getBoundingClientRect()
+          setAt(r ? { left: r.left, right: r.right, width: r.width, top: r.top, bottom: r.bottom, height: r.height } : null)
+          setCreating({ from: sl.from, to: sl.to })
+        }
+        return null
+      })
     }
     const up = end(true), cx = end(false)
     window.addEventListener('pointermove', move)
@@ -410,6 +435,9 @@ export default function CalendarNext({ isAdmin, user, go }) {
         <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
       </div>
 
+      {selHint && (
+        <div className="cx-chip-len float" style={{ left: selHint.x, top: selHint.y - 26 }}>{selHint.text}</div>
+      )}
       <div className={'cx-body' + (rail ? '' : ' no-rail')}>
         {/* ── Month grid ──────────────────────────────────────────────── */}
         <section className="cx-cal" aria-label={'Courses — ' + title}>
@@ -419,10 +447,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
           ) : view === 'Year' ? (
             <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
-              onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null} />
+              onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null}
+              onCellDown={cellDown} inSel={inSel} isAdmin={isAdmin} />
           ) : view !== 'Month' ? (
             <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
-              onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null} />
+              onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null}
+              onCellDown={cellDown} inSel={inSel} />
           ) : (
             <div className={'cx-grid ' + (dir < 0 ? 'from-left' : dir > 0 ? 'from-right' : 'fade')} key={month}>
               {Array.from({ length: grid.rows }, (_, r) => (
@@ -521,41 +551,64 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
 
       {creating && (
-        <Modal onClose={() => setCreating(null)} label="New course" className="cx-modal" dirty={!!creating.courseId}>
-          <div className="cx-mhead" style={{ '--c': courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80' }}>
-            <div>
-              <h3>New course</h3>
-              <p>{fmt(creating.from)} – {fmt(creating.to)} · {between(creating.from, creating.to) + 1} days</p>
-            </div>
+        <Popover at={at} onClose={() => setCreating(null)} label="New course"
+          className="cx-course-pop" dirty={!!creating.courseId}>
+          <header className="cx-pop-head"
+            style={{ '--c': courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80' }}>
+            <span className="cx-pop-dot" />
+            <h3 className="cx-pop-title">New course</h3>
             <button className="cx-icon" onClick={() => setCreating(null)} aria-label="Close">✕</button>
+          </header>
+
+          <div className="cx-when">
+            <label className="cx-when-b">
+              <small>Starts</small>
+              <input type="date" value={creating.from}
+                onChange={(e) => setCreating((c) => ({ ...c, from: e.target.value, to: c.to < e.target.value ? e.target.value : c.to }))} />
+              <b>{fmt(creating.from)}</b>
+            </label>
+            <span className="cx-when-arrow" aria-hidden="true">›</span>
+            <label className="cx-when-b">
+              <small>Ends</small>
+              <input type="date" value={creating.to} min={creating.from}
+                onChange={(e) => setCreating((c) => ({ ...c, to: e.target.value }))} />
+              <b>{fmt(creating.to)}</b>
+            </label>
+            <span className="cx-when-len">{between(creating.from, creating.to) + 1} days</span>
           </div>
-          <div className="cx-mbody">
-            <div className="cx-field">
-              <label>Which course</label>
-              <select value={creating.courseId || ''} onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
-                <option value="">— pick one —</option>
-                {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-              </select>
-            </div>
-            <div className="cx-actions">
-              <button className="cx-ghost" onClick={() => { const r = creating; setCreating(null); go?.('setup') }}>
-                Use the full set-up instead
-              </button>
-              <button className="cx-primary" disabled={!creating.courseId || busy} onClick={async () => {
-                setBusy(true)
-                try {
-                  const id = await createBlock({ courseId: Number(creating.courseId), from: creating.from, to: creating.to })
-                  setCreating(null)
-                  const f = await load()
-                  const made = f.find((x) => String(x.id) === String(id))
-                  setFlash(String(id)); setTimeout(() => setFlash(null), 900)
-                  if (made) { setAt(null); setOpen(made) }
-                  toast('Course created — add a trainer and delegates')
-                } catch (err) { toast(err.message) } finally { setBusy(false) }
-              }}>{busy ? 'Creating…' : 'Create it'}</button>
+
+          <div className="cx-rows">
+            <div className={'cx-row2' + (creating.courseId ? '' : ' empty')}>
+              <span className="cx-ricon" aria-hidden="true">📚</span>
+              <span className="cx-rwrap">
+                <span className="cx-rlabel">Which course</span>
+                <select autoFocus value={creating.courseId || ''} aria-label="Which course"
+                  onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
+                  <option value="">Pick a course</option>
+                  {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                </select>
+              </span>
             </div>
           </div>
-        </Modal>
+
+          <footer className="cx-pop-foot actions">
+            <button className="cx-ghost" onClick={() => { setCreating(null); go?.('setup') }}>
+              Full set-up instead
+            </button>
+            <button className="cx-primary" disabled={!creating.courseId || busy} onClick={async () => {
+              setBusy(true)
+              try {
+                const id = await createBlock({ courseId: Number(creating.courseId), from: creating.from, to: creating.to })
+                setCreating(null)
+                const f = await load()
+                const made = f.find((x) => String(x.id) === String(id))
+                setFlash(String(id)); setTimeout(() => setFlash(null), 900)
+                if (made) setOpen(made)
+                toast('Course booked — add a trainer and delegates')
+              } catch (err) { toast(err.message) } finally { setBusy(false) }
+            }}>{busy ? 'Booking…' : 'Book it'}</button>
+          </footer>
+        </Popover>
       )}
 
       {open && (
@@ -752,7 +805,7 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
    main event, not an afterthought above a time grid. Below it sits the hour
    grid for timed entries, with a line showing where we are now. */
 const H0 = 7, H1 = 20, HPX = 46
-function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip }) {
+function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip, onCellDown, inSel }) {
   const [hours, setHours] = useState(false)
   const first = days[0], last = days[days.length - 1]
   const allDay = useMemo(() => {
@@ -796,7 +849,11 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
       <div className="cx-band-wrap">
         <div className="cx-gutter"><span>All day</span></div>
         <div className="cx-band" data-cols={days.length} style={{ height: laneCount * 28 + 10 }}>
-          {days.map((d) => <div key={d} className={'cx-band-cell' + (isWknd(d) ? ' wknd' : '')} />)}
+          {days.map((d) => (
+            <div key={d} data-d={d}
+              className={'cx-band-cell' + (isWknd(d) ? ' wknd' : '') + (inSel?.(d) ? ' sel' : '')}
+              onPointerDown={(e) => onCellDown?.(d, e)} />
+          ))}
           {allDay.map(({ b, col, span, lane }) => (
             <button key={b.id} type="button" data-bid={b.id}
               className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (flash === String(b.id) ? ' flash' : '')}
@@ -904,7 +961,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
 /* ── Year ──────────────────────────────────────────────────────────────────
    Months as rows, the whole year in one screen. This is the view Teamup did
    well and the one Simon reads the shape of the business from. */
-function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip }) {
+function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCellDown, inSel }) {
   const y = Number(year)
   const TICKS = [1, 5, 10, 15, 20, 25, 31]
   return (
@@ -949,10 +1006,12 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip }) {
             <div className="cx-ylabel">{name.slice(0, 3)}</div>
             {/* Every row is drawn on the same 31-day scale — otherwise 1 Feb
                 sat under 3 Jan and you could not read a date down a column. */}
-            <div className="cx-ytrack" data-cols={31} style={{ height: laneN * 22 + 12 }}>
+            <div className="cx-ytrack" data-cols={31} style={{ height: Math.max(40, laneN * 22 + 12) }}>
               {Array.from({ length: dim }, (_, i) => {
                 const d = `${y}-${String(m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
-                return <div key={d} className={'cx-ycell' + (isWknd(d) ? ' wknd' : '') + (d === todayISO() ? ' today' : '')}
+                return <div key={d} data-d={d}
+                  className={'cx-ycell' + (isWknd(d) ? ' wknd' : '') + (d === todayISO() ? ' today' : '') + (inSel?.(d) ? ' sel' : '')}
+                  onPointerDown={(e) => onCellDown?.(d, e)}
                   style={{ left: `${(i / 31) * 100}%`, width: `${(1 / 31) * 100}%` }} />
               })}
               {dim < 31 && <div className="cx-ydead" style={{ left: `${(dim / 31) * 100}%`, width: `${((31 - dim) / 31) * 100}%` }} />}

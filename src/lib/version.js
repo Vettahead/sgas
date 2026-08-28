@@ -14,6 +14,19 @@
 
 export const RELEASES = [
   {
+    v: '1.13.0', build: 122, date: '28 Aug 2026',
+    title: 'Calendar (new look): book a course from any view',
+    notes: [
+      'Drag across days in the Year view to book a course \u2014 the same as the Month view already did. It works in Week and Day too.',
+      'In the Year view you can drag from the end of one month into the next, and the course spans both.',
+      'A chip follows the pointer while you drag telling you how many days you have picked and between which dates.',
+      'Booking opens the same panel as everything else, beside the days you picked, already filled in with the dates \u2014 pick the course and press Book it.',
+      'You can nudge the dates in that panel before booking if the drag was a day out.',
+      'A plain click still books nothing \u2014 it takes a deliberate drag.',
+      'Once it is booked the course opens straight away so you can put a trainer and delegates on it.',
+    ],
+  },
+  {
     v: '1.12.0', build: 121, date: '28 Aug 2026',
     title: 'Calendar (new look): the side panel folds away',
     notes: [

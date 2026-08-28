@@ -101,3 +101,21 @@ some courses are amber themselves and the two were indistinguishable.
   `.cx-rail[hidden]{display:none}` is load-bearing — without it the rail drops
   below the calendar instead of disappearing, and an assertion that only checks
   the attribute will not catch it. Check computed display and height.
+
+## Booking by dragging (28 Aug 2026)
+
+`cellDown(d, e)` is the one handler for all four grids. Any grid that can be
+dragged on marks its day cells with `data-d`; the move handler resolves the day
+under the pointer with `elementFromPoint(...).closest('[data-d]')`. To make a
+new grid bookable, give its day cells `data-d` and wire `onPointerDown`, then
+pass `onCellDown` and `inSel` down to it — nothing else is needed.
+
+- Year rows are months and dates compare as ISO strings, so a drag from 30 Mar
+  down into 02 Apr books one four-day course across two rows.
+- A drag books; a click never does. That is judged on whether the POINTER MOVED,
+  not on whether the dates differ — the earlier `from !== to` test meant a
+  one-day course could never be booked by dragging.
+- The selection chip follows the pointer (`.cx-chip-len.float`) because a
+  selection has no bar to ride. The bar-drag chip is the same class without
+  `.float` and sits on the bar.
+- Both panels are `Popover` now; `CalendarNext` no longer imports `Modal`.
