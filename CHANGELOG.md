@@ -4,6 +4,58 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — Calendar (new look): Week, Day and Year
+
+Review: *"the resizer still doesn't work properly, it opens the event after
+resizing; if it goes over a week you can't shrink it back to say 4 days over
+multiple lines"* — plus *"let's move to the other views."* Both bugs are fixed
+and verified end to end; Week, Day and Year are built and were then put through
+an independent critic against Google Calendar, twice.
+
+### Fixed
+- **A drag ended by opening the course you had just dragged.** A pointer drag
+  still fires a `click` on release. A `justDragged` ref, cleared after 250ms,
+  now swallows that one click in all three grids.
+- **A course that crossed a week boundary could not be shrunk back.** The drag
+  was nudging inline `width`/`transform` on the element, which cannot reflow a
+  bar onto a different row. The drag now writes to a `preview` state that the
+  whole grid lays out from, so a two-row course collapses back to one row —
+  verified by dragging one from 9 days to 4 across the boundary.
+
+### Added
+- **Week, Day and Year views**, with a Day/Week/Month/Year switcher whose
+  choice persists. `barDown` reads its column width from the nearest
+  `[data-cols]` track, so one drag handler serves all three grids.
+- **One date drives every view.** `month` was separate state, so paging to July
+  in Month and clicking Week threw you back to today. `month` is now derived
+  from `anchor`.
+- **Jump to a month** from the title — month grid plus year steppers.
+- **A day scale on the Year view.** Every month row is drawn on the same
+  31-day scale (short months hatched), so dates line up down a column. Bars are
+  no longer padded out to fit their label; a course too short to hold its name
+  is labelled alongside, clipped to the gap before the next bar.
+- **The Day view is a roster** — course, trainer, and every delegate with what
+  they are there for — not a second copy of the all-day strip above it.
+- **The hour grid collapses when nothing is timed.** Every course here is an
+  all-day, multi-day thing, so 07:00–20:00 was most of the screen saying
+  nothing. One line offers it; it can be hidden again.
+- **`data-bid` on every bar**, so runtime tests can follow one course across a
+  reflow.
+
+### Changed
+- “Needs attention” is no longer scoped to the visible month — it hid unstaffed
+  courses the moment you paged away from them.
+- The right-hand rail lists the year, not "no courses this month", in Year view.
+- The key above the calendar names its two groups: dots are why each person is
+  there, the bar itself is the course colour.
+- 07:00 no longer collides with the all-day divider.
+
+### Verified
+30 assertions in a headless Chromium run against a production build — all four
+grids render, no dialog opens after any resize, a course stretches across a week
+boundary and shrinks back to 4 days, view switching holds the date, the month
+jump works, the Year scale is uniform and every bar is named. No console errors.
+
 ## 2026-08-28 — Calendar (new look): stretching a course
 
 Review: "stretch to new days is hella janky." It was. Three separate faults.

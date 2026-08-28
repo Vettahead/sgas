@@ -43,6 +43,7 @@ const kindOf = (k) => KIND[k] || KIND.NEW
 // A delegate doing only part of a course — the "split" case.
 const isPart = (d) => !!(d.attendFrom || d.attendTo)
 
+const VIEW_KEY = 'sgas_cx_view'
 const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
@@ -52,7 +53,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
   const [pool, setPool] = useState([])
-  const [month, setMonth] = useState(() => todayISO().slice(0, 7))
+  const [view, setView] = useState(() => readLS(VIEW_KEY, 'Month'))
+  // One date drives every view. Keeping a separate `month` meant paging to
+  // July in Month and then clicking Week threw you back to today.
+  const [anchor, setAnchor] = useState(todayISO())
+  const month = anchor.slice(0, 7)
   const [dir, setDir] = useState(0)              // -1 back, +1 forward: drives the slide
   const [open, setOpen] = useState(null)         // the course being viewed
   const [theme, setTheme] = useState(() => readLS(THEME_KEY, 'light'))
@@ -62,6 +67,15 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
   const [hint, setHint] = useState(null)           // live dates while dragging
+  // While a course is being dragged its dates live here, and the whole grid
+  // lays out from them. Nudging inline width/transform could not reflow a
+  // course across a week boundary, so shrinking a two-row course looked stuck.
+  const [preview, setPreview] = useState(null)     // { id, start, end }
+  // A drag ends with a click. Without this the click opened the course you had
+  // just finished dragging.
+  const justDragged = useRef(false)
+  const [jump, setJump] = useState(false)
+  const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
   async function load() {
     const [b, s, h, cs] = await Promise.all([listBlocks(), listStaff(), listHolidays(), listCourses()])
@@ -71,10 +85,45 @@ export default function CalendarNext({ isAdmin, user, go }) {
   }
   useEffect(() => { (async () => { try { await loadPool() } catch { /* optional */ } await load() })() }, [])
   useEffect(() => { try { localStorage.setItem(THEME_KEY, theme) } catch { /* private */ } }, [theme])
+  useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
   useEffect(() => { try { localStorage.setItem(DENSE_KEY, dense ? '1' : '0') } catch { /* private */ } }, [dense])
 
-  const step = (n) => { setDir(n); setMonth((m) => { const d = new Date(m + '-01T00:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 7) }) }
-  const goToday = () => { setDir(0); setMonth(todayISO().slice(0, 7)) }
+  const step = (n) => {
+    setDir(n)
+    if (view === 'Week') return setAnchor((a) => addDays(a, n * 7))
+    if (view === 'Day') return setAnchor((a) => addDays(a, n))
+    const by = view === 'Year' ? 12 : 1
+    setAnchor((a) => {
+      const d = new Date(a + 'T00:00:00Z')
+      const day = d.getUTCDate()
+      d.setUTCDate(1); d.setUTCMonth(d.getUTCMonth() + n * by)
+      const len = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate()
+      d.setUTCDate(Math.min(day, len))
+      return d.toISOString().slice(0, 10)
+    })
+  }
+  const goToday = () => { setDir(0); setAnchor(todayISO()) }
+  useEffect(() => { setJumpY(Number(month.slice(0, 4))) }, [month])
+  useEffect(() => {
+    if (!jump) return
+    const off = (e) => { if (!e.target.closest?.('.cx-jump, .cx-title')) setJump(false) }
+    const esc = (e) => { if (e.key === 'Escape') setJump(false) }
+    document.addEventListener('pointerdown', off); document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('pointerdown', off); document.removeEventListener('keydown', esc) }
+  }, [jump])
+
+  // Monday-first week containing the anchor.
+  const weekDays = useMemo(() => {
+    const back = (dow(anchor) + 6) % 7
+    const mon = addDays(anchor, -back)
+    return Array.from({ length: 7 }, (_, i) => addDays(mon, i))
+  }, [anchor])
+  const viewDays = view === 'Day' ? [anchor] : weekDays
+
+  // Blocks as they should currently be drawn — the live drag included.
+  const shown = useMemo(() => (blocks || []).map((b) => (
+    preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
+  )), [blocks, preview])
 
   // ── The six-week grid ─────────────────────────────────────────────────────
   const grid = useMemo(() => {
@@ -91,8 +140,9 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const segments = useMemo(() => {
     const out = []
     if (!blocks) return out
+    const blocksForLayout = shown
     const last = grid.days[grid.days.length - 1]
-    for (const b of blocks) {
+    for (const b of blocksForLayout) {
       if (!b.start || !b.end || b.end < grid.start || b.start > last) continue
       let cur = b.start < grid.start ? grid.start : b.start
       const fin = b.end > last ? last : b.end
@@ -119,22 +169,28 @@ export default function CalendarNext({ isAdmin, user, go }) {
       }
     }
     return out
-  }, [blocks, grid])
+  }, [shown, blocks, grid])
 
   const lanesIn = (r) => Math.max(0, ...segments.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
 
   // ── The agenda rail: what is actually coming up ───────────────────────────
-  const inMonth = (b) => b.start.slice(0, 7) <= month && b.end.slice(0, 7) >= month
-  const thisMonth = useMemo(() => (blocks || [])
-    .filter((b) => !b.isHoliday && !b.isEngagement && inMonth(b))
-    .sort((a, z) => a.start.localeCompare(z.start)), [blocks, month])
-  const needsWork = useMemo(
-    () => thisMonth.filter((b) => !b.trainerId || !b.delegates.length), [thisMonth])
-  const monthLabel = MONTHS[Number(month.slice(5, 7)) - 1]
+  // In Year view the rail has to cover the year, or it says "no courses this
+  // month" next to a screen full of them.
+  const inRange = (b) => (view === 'Year'
+    ? b.start.slice(0, 4) <= month.slice(0, 4) && b.end.slice(0, 4) >= month.slice(0, 4)
+    : b.start.slice(0, 7) <= month && b.end.slice(0, 7) >= month)
+  const thisMonth = useMemo(() => (shown || [])
+    .filter((b) => !b.isHoliday && !b.isEngagement && inRange(b))
+    .sort((a, z) => a.start.localeCompare(z.start)), [shown, month, view])
+  // Scoped to the month, this hid overdue problems the moment you paged away
+  // from them. An alert is only an alert if it follows you.
+  const needsWork = useMemo(() => (shown || [])
+    .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || !b.delegates.length))
+    .sort((a, z) => a.start.localeCompare(z.start)), [shown])
+  const monthLabel = view === 'Year' ? month.slice(0, 4) : MONTHS[Number(month.slice(5, 7)) - 1]
 
   // ── Drag to create, drag a bar to move ───────────────────────────────────
   const [sel, setSel] = useState(null)
-  const dragRef = useRef(null)
   function cellDown(d, e) {
     if (!isAdmin || (e.button != null && e.button !== 0)) return
     setSel({ from: d, to: d })
@@ -162,69 +218,64 @@ export default function CalendarNext({ isAdmin, user, go }) {
     if (!isAdmin) return
     e.preventDefault(); e.stopPropagation()
     const el = e.currentTarget.closest('.cx-bar')
-    const week = el.closest('.cx-week')
-    if (!week) return
-    const colW = week.getBoundingClientRect().width / 7
-    const startW = el.getBoundingClientRect().width
+    // Every draggable grid says how many columns it has, so one handler serves
+    // the month, week and year views.
+    const track = el.closest('[data-cols]')
+    if (!track) return
+    const colW = track.getBoundingClientRect().width / Number(track.dataset.cols)
     const x0 = e.clientX
     const spanDays = between(b.start, b.end) + 1
     el.setPointerCapture?.(e.pointerId)
-    el.classList.add('dragging')
     document.body.classList.add('cx-dragging')
-    dragRef.current = { moved: false, delta: 0 }
+    let delta = 0, moved = false
+
+    const dates = (d) => {
+      const from = mode === 'move' ? addDays(b.start, d) : b.start
+      let to = addDays(b.end, d)
+      if (to < from) to = from
+      return { from, to }
+    }
 
     const move = (ev) => {
       const dx = ev.clientX - x0
-      if (Math.abs(dx) > 3) dragRef.current.moved = true
+      if (Math.abs(dx) > 3) moved = true
       let d = Math.round(dx / colW)
-      // A course can never be dragged shorter than a single day.
+      // Never shorter than a single day; otherwise shrink as far as you like,
+      // including back down from a course that wrapped onto another week.
       if (mode === 'resize') d = Math.max(d, -(spanDays - 1))
-      dragRef.current.delta = d
-      if (mode === 'move') el.style.transform = `translateX(${d * colW}px)`
-      else el.style.width = Math.max(colW * 0.6, startW + d * colW) + 'px'
-      // Say what the drag will actually do, so it is not guesswork.
-      setHint(d === 0 ? null : {
-        x: ev.clientX, y: ev.clientY,
-        text: mode === 'move'
-          ? `${fmt(addDays(b.start, d))} – ${fmt(addDays(b.end, d))}`
-          : `${fmt(b.start)} – ${fmt(addDays(b.end, d))} · ${spanDays + d} day${spanDays + d === 1 ? '' : 's'}`,
-      })
+      if (d !== delta) {
+        delta = d
+        const { from, to } = dates(d)
+        // Re-lay the grid from these dates, so a course that spans two weeks
+        // reflows as you drag instead of being stuck at its old shape.
+        setPreview({ id: b.id, start: from, end: to })
+      }
+      const { from, to } = dates(delta)
+      setHint({ x: ev.clientX, y: ev.clientY,
+        text: `${fmt(from)} – ${fmt(to)} · ${between(from, to) + 1} day${between(from, to) === 0 ? '' : 's'}` })
     }
 
     const finish = async (commit) => {
       window.removeEventListener('pointermove', move)
       window.removeEventListener('pointerup', up)
       window.removeEventListener('pointercancel', cancel)
-      el.classList.remove('dragging')
       document.body.classList.remove('cx-dragging')
       setHint(null)
-      const { delta, moved } = dragRef.current || {}
-      dragRef.current = null
-      if (!commit || !moved || !delta) {
-        el.style.transform = ''; el.style.width = ''
-        return
+      if (moved) {
+        // Swallow the click this drag is about to produce.
+        justDragged.current = true
+        setTimeout(() => { justDragged.current = false }, 250)
       }
-      const from = mode === 'move' ? addDays(b.start, delta) : b.start
-      let to = addDays(b.end, delta)
-      if (to < from) to = from
-
-      // Drop the inline styles NOW, before anything async. Clearing them after
-      // the reload wiped the width React had just written, and the bar
-      // collapsed to the width of its own text.
-      el.style.transform = ''; el.style.width = ''
-      // Move it locally straight away so it lands where you dropped it instead
-      // of snapping back while the save is in flight.
+      if (!commit || !moved || !delta) { setPreview(null); return }
+      const { from, to } = dates(delta)
+      // Keep it where it was dropped while the save runs.
       setBlocks((bs) => (bs || []).map((x) => (x.id === b.id ? { ...x, start: from, end: to } : x)))
+      setPreview(null)
       setFlash(String(b.id)); setTimeout(() => setFlash(null), 800)
-
       setBusy(true)
-      try {
-        await updateBlock(b.id, { from, to })
-        await load()
-      } catch (err) {
-        toast(err.message)
-        await load()          // put it back where the server says it is
-      } finally { setBusy(false) }
+      try { await updateBlock(b.id, { from, to }); await load() }
+      catch (err) { toast(err.message); await load() }
+      finally { setBusy(false) }
     }
     const up = () => finish(true)
     const cancel = () => finish(false)
@@ -234,14 +285,39 @@ export default function CalendarNext({ isAdmin, user, go }) {
   }
 
   const inSel = (d) => sel && d >= sel.from && d <= sel.to
-  const title = MONTHS[Number(month.slice(5, 7)) - 1] + ' ' + month.slice(0, 4)
+  const title = view === 'Day'
+    ? new Date(anchor + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : view === 'Week'
+      ? `${fmt(weekDays[0])} – ${fmt(weekDays[6])}`
+      : view === 'Year'
+        ? month.slice(0, 4)
+        : MONTHS[Number(month.slice(5, 7)) - 1] + ' ' + month.slice(0, 4)
 
   return (
     <div className={'cx' + (theme === 'dark' ? ' cx-dark' : '') + (dense ? ' cx-dense' : '')}>
       {/* ── Toolbar ───────────────────────────────────────────────────── */}
       <header className="cx-bar-top">
         <div className="cx-title-wrap">
-          <h2 className="cx-title">{title}</h2>
+          {/* Paging one month at a time from July to November was four clicks. */}
+          <button type="button" className="cx-title" aria-haspopup="true" aria-expanded={jump}
+            onClick={() => setJump((j) => !j)}>{title}<i /></button>
+          {jump && (
+            <div className="cx-jump" role="dialog" aria-label="Jump to a month">
+              <div className="cx-jump-y">
+                <button onClick={() => setJumpY((y) => y - 1)} aria-label="Previous year">‹</button>
+                <b>{jumpY}</b>
+                <button onClick={() => setJumpY((y) => y + 1)} aria-label="Next year">›</button>
+              </div>
+              <div className="cx-jump-g">
+                {MONTHS.map((mn, i) => (
+                  <button key={mn} className={month === `${jumpY}-${String(i + 1).padStart(2, '0')}` ? 'on' : ''}
+                    onClick={() => { setDir(0); setAnchor(`${jumpY}-${String(i + 1).padStart(2, '0')}-01`); setJump(false) }}>
+                    {mn.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="cx-steps">
             <button onClick={() => step(-1)} aria-label="Previous month">‹</button>
             <button onClick={() => step(1)} aria-label="Next month">›</button>
@@ -249,6 +325,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
           <button className="cx-today" onClick={goToday}>Today</button>
         </div>
         <div className="cx-tools">
+          <div className="cx-seg" role="group" aria-label="View">
+            {['Day', 'Week', 'Month', 'Year'].map((v) => (
+              <button key={v} className={view === v ? 'on' : ''} onClick={() => { setDir(0); setView(v) }}>{v}</button>
+            ))}
+          </div>
           <div className="cx-seg" role="group" aria-label="Density">
             <button className={dense ? '' : 'on'} onClick={() => setDense(false)}>Comfortable</button>
             <button className={dense ? 'on' : ''} onClick={() => setDense(true)}>Compact</button>
@@ -262,25 +343,34 @@ export default function CalendarNext({ isAdmin, user, go }) {
       </header>
 
       <div className="cx-legend">
+        <b>Dots on a course — why each person is there:</b>
         {Object.entries(KIND).filter(([k]) => k !== 'MIXED').map(([k, v]) => (
           <span key={k}><i style={{ background: v.c }} />{v.label}</span>
         ))}
         <span><i className="cx-l-part" />Doing part of it</span>
         <span className="cx-l-sep" />
+        <b>The bar itself:</b>
+        <span><i className="cx-l-course" />Coloured by course</span>
         <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
       </div>
 
       <div className="cx-body">
         {/* ── Month grid ──────────────────────────────────────────────── */}
-        <section className="cx-cal" aria-label={'Courses in ' + title}>
-          <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>
+        <section className="cx-cal" aria-label={'Courses — ' + title}>
+          {view === 'Month' && <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>}
 
           {blocks === null ? (
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
+          ) : view === 'Year' ? (
+            <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={(b) => { if (!justDragged.current) setOpen(b) }} isAdmin={isAdmin}
+              onBarDown={barDown} flash={flash} />
+          ) : view !== 'Month' ? (
+            <DaysGrid days={viewDays} blocks={shown} onOpen={(b) => { if (!justDragged.current) setOpen(b) }} isAdmin={isAdmin}
+              onBarDown={barDown} flash={flash} single={view === 'Day'} />
           ) : (
             <div className={'cx-grid ' + (dir < 0 ? 'from-left' : dir > 0 ? 'from-right' : 'fade')} key={month}>
               {Array.from({ length: grid.rows }, (_, r) => (
-                <div className="cx-week" key={r} style={{ '--lanes': lanesIn(r) }}>
+                <div className="cx-week" data-cols="7" key={r} style={{ '--lanes': lanesIn(r) }}>
                   {Array.from({ length: 7 }, (_, c) => {
                     const d = grid.days[r * 7 + c]
                     const out = d.slice(0, 7) !== month
@@ -294,7 +384,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                     )
                   })}
                   {segments.filter((s) => s.row === r).map((s) => (
-                    <button key={s.key} type="button"
+                    <button key={s.key} type="button" data-bid={s.b.id} data-head={s.head ? '1' : '0'}
                       className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '')}
                       style={{
                         left: `calc(${(s.col / 7) * 100}% + 4px)`,
@@ -306,7 +396,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         if (e.target.classList.contains('cx-grab')) barDown(s.b, e, 'move')
                         else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
                       }}
-                      onClick={() => { if (!dragRef.current?.moved) setOpen(s.b) }}>
+                      onClick={() => { if (!justDragged.current) setOpen(s.b) }}>
                       {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
                       <span className="cx-bar-t">
                         {s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}
@@ -347,7 +437,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
           )}
           <div className="cx-card">
             <h3>In {monthLabel} <span>{thisMonth.length}</span></h3>
-            {thisMonth.length === 0 && <p className="cx-empty">No courses this month.</p>}
+            {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
             {thisMonth.slice(0, 7).map((b) => (
               <button key={b.id} className="cx-row" onClick={() => setOpen(b)}>
                 <i style={{ background: b.color || '#5b6b80' }} />
@@ -508,5 +598,244 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove }) {
         </span>
       )}
     </li>
+  )
+}
+
+/* ── Week and Day ──────────────────────────────────────────────────────────
+   Courses run all day and for several days, so the band across the top is the
+   main event, not an afterthought above a time grid. Below it sits the hour
+   grid for timed entries, with a line showing where we are now. */
+const H0 = 7, H1 = 20, HPX = 46
+function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single }) {
+  const [hours, setHours] = useState(false)
+  const first = days[0], last = days[days.length - 1]
+  const allDay = useMemo(() => {
+    const list = (blocks || []).filter((b) => b.start && b.end && b.end >= first && b.start <= last
+      && !(b.isEngagement && b.startTime))
+    const lanes = []
+    return list.sort((a, z) => a.start.localeCompare(z.start) || between(z.start, z.end) - between(a.start, a.end))
+      .map((b) => {
+        const col = Math.max(0, between(first, b.start))
+        const span = Math.min(days.length - col, between(b.start < first ? first : b.start, b.end > last ? last : b.end) + 1)
+        let i = 0
+        while (i < lanes.length && lanes[i] > col) i++
+        if (i === lanes.length) lanes.push(0)
+        lanes[i] = col + span
+        return { b, col, span, lane: i }
+      })
+  }, [blocks, first, last, days.length])
+  const laneCount = Math.max(1, ...allDay.map((x) => x.lane + 1))
+
+  const timed = (blocks || []).filter((b) => b.isEngagement && b.startTime && b.start >= first && b.start <= last)
+  const mins = (t) => Number(String(t).slice(0, 2)) * 60 + Number(String(t).slice(3, 5))
+  const now = new Date()
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const showNow = days.includes(todayISO()) && nowMin >= H0 * 60 && nowMin <= H1 * 60
+
+  return (
+    <div className={'cx-days' + (single ? ' one' : '')}>
+      <div className="cx-days-head">
+        <div className="cx-gutter" />
+        {days.map((d) => (
+          <div key={d} className={'cx-dhead' + (d === todayISO() ? ' today' : '') + (isWknd(d) ? ' wknd' : '')}>
+            <span>{DOW[(dow(d) + 6) % 7]}</span>
+            <b>{Number(d.slice(8))}</b>
+          </div>
+        ))}
+      </div>
+
+      {/* All-day band — where courses live. In Day view it just repeated the
+          name of the course sitting in the card below it, so it is dropped. */}
+      {!single && (
+      <div className="cx-band-wrap">
+        <div className="cx-gutter"><span>All day</span></div>
+        <div className="cx-band" data-cols={days.length} style={{ height: laneCount * 28 + 10 }}>
+          {days.map((d) => <div key={d} className={'cx-band-cell' + (isWknd(d) ? ' wknd' : '')} />)}
+          {allDay.map(({ b, col, span, lane }) => (
+            <button key={b.id} type="button" data-bid={b.id}
+              className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (flash === String(b.id) ? ' flash' : '')}
+              style={{ left: `calc(${(col / days.length) * 100}% + 4px)`, width: `calc(${(span / days.length) * 100}% - 8px)`,
+                top: lane * 28 + 5, height: 24, '--c': b.color || '#5b6b80' }}
+              onPointerDown={(e) => {
+                if (!isAdmin || b.isHoliday) return
+                if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
+                else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
+              }}
+              onClick={() => onOpen(b)}>
+              {isAdmin && !b.isHoliday && b.start >= first && <span className="cx-grab" title="Drag to move" />}
+              <span className="cx-bar-t">
+                {b.course || b.title}
+                {b.delegates?.some(isPart) && <span className="cx-part">◧</span>}
+                {b.delegates?.length > 0 && <em>{b.delegates.length}</em>}
+              </span>
+              {b.delegates?.length > 0 && (
+                <span className="cx-mix">{b.delegates.slice(0, 10).map((d) => (
+                  <i key={d.bookingId} style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />))}</span>
+              )}
+              {isAdmin && !b.isHoliday && b.end <= last && <span className="cx-resize" title="Drag to change the length" />}
+            </button>
+          ))}
+        </div>
+      </div>
+      )}
+
+      {/* A roster, not a second copy of the bar. In Day view the question is
+          never "what time" — courses run all day — it is "who is on it and
+          who is teaching it". */}
+      {single && (
+        <div className="cx-roster">
+          {allDay.length === 0 && <p className="cx-empty">Nothing booked on this day.</p>}
+          {allDay.map(({ b }) => (
+            <article key={b.id} className="cx-rcard" style={{ '--c': b.color || '#5b6b80' }}>
+              <header>
+                <button type="button" className="cx-rname" onClick={() => onOpen(b)}>{b.course || b.title}</button>
+                <span className="cx-rdate">{fmt(b.start)} – {fmt(b.end)}</span>
+              </header>
+              <p className={'cx-rtrainer' + (b.trainerId ? '' : ' none')}>
+                {b.trainerId ? (b.trainer || 'Trainer booked') : 'No trainer yet'}
+              </p>
+              {b.delegates?.length ? (
+                <ul className="cx-rlist">
+                  {b.delegates.map((d) => (
+                    <li key={d.bookingId}>
+                      <i style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />
+                      <b>{d.name}</b>
+                      <span>{kindOf(d.kind).label}{isPart(d) ? ' · part of it' : ''}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="cx-rnone">Nobody booked on yet.</p>}
+            </article>
+          ))}
+        </div>
+      )}
+
+      {/* Hour grid — only worth its space when something actually has a time
+          on it. Almost every course here is an all-day, multi-day thing, so an
+          empty 07:00–20:00 ruler was most of the screen saying nothing. */}
+      {timed.length === 0 && !hours ? (
+        <button type="button" className="cx-hours-toggle" onClick={() => setHours(true)}>
+          Courses run all day · show the hour grid
+        </button>
+      ) : (<>
+      {timed.length === 0 && (
+        <button type="button" className="cx-hours-toggle" onClick={() => setHours(false)}>
+          Nothing has a time on it {single ? 'today' : 'this week'} · hide the hour grid
+        </button>
+      )}
+      <div className="cx-time">
+        <div className="cx-gutter">
+          {Array.from({ length: H1 - H0 }, (_, i) => (
+            <div key={i} className="cx-hour" style={{ height: HPX }}><span>{String(H0 + i).padStart(2, '0')}:00</span></div>
+          ))}
+        </div>
+        <div className="cx-cols">
+          {days.map((d) => (
+            <div key={d} className={'cx-col' + (isWknd(d) ? ' wknd' : '')} style={{ height: (H1 - H0) * HPX }}>
+              {Array.from({ length: H1 - H0 }, (_, i) => <div key={i} className="cx-hline" style={{ top: i * HPX }} />)}
+              {timed.filter((t) => t.start === d).map((t) => (
+                <button key={t.id} className="cx-ev" onClick={() => onOpen(t)}
+                  style={{ top: ((mins(t.startTime) - H0 * 60) / 60) * HPX,
+                    height: Math.max(22, ((mins(t.endTime) - mins(t.startTime)) / 60) * HPX - 2) }}>
+                  <b>{t.title || t.course}</b><span>{String(t.startTime).slice(0, 5)}</span>
+                </button>
+              ))}
+              {showNow && d === todayISO() && (
+                <div className="cx-now" style={{ top: ((nowMin - H0 * 60) / 60) * HPX }}><i /></div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+      </>)}
+    </div>
+  )
+}
+
+/* ── Year ──────────────────────────────────────────────────────────────────
+   Months as rows, the whole year in one screen. This is the view Teamup did
+   well and the one Simon reads the shape of the business from. */
+function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash }) {
+  const y = Number(year)
+  const TICKS = [1, 5, 10, 15, 20, 25, 31]
+  return (
+    <div className="cx-year">
+      {/* Without a date scale you could see the shape of the year but not read
+          a single date off it. */}
+      <div className="cx-yhead" aria-hidden="true">
+        <div className="cx-ylabel" />
+        <div className="cx-ytrack">
+          {Array.from({ length: 31 }, (_, i) => (
+            <span key={i} className={'cx-ytick' + (TICKS.includes(i + 1) ? ' on' : '')}
+              style={{ left: `${(i / 31) * 100}%`, width: `${(1 / 31) * 100}%` }}>
+              {TICKS.includes(i + 1) ? i + 1 : ''}
+            </span>
+          ))}
+        </div>
+      </div>
+      {MONTHS.map((name, m) => {
+        const first = `${y}-${String(m + 1).padStart(2, '0')}-01`
+        const dim = new Date(Date.UTC(y, m + 1, 0)).getUTCDate()
+        const last = `${y}-${String(m + 1).padStart(2, '0')}-${String(dim).padStart(2, '0')}`
+        const rows = (blocks || []).filter((b) => b.start && b.end && b.end >= first && b.start <= last)
+        const lanes = []
+        const laid = rows.sort((a, z) => a.start.localeCompare(z.start)).map((b) => {
+          const col = Math.max(0, between(first, b.start))
+          const span = Math.min(dim - col, between(b.start < first ? first : b.start, b.end > last ? last : b.end) + 1)
+          let i = 0
+          while (i < lanes.length && lanes[i] > col) i++
+          if (i === lanes.length) lanes.push(0)
+          lanes[i] = col + span
+          return { b, col, span, lane: i }
+        })
+        // How much clear room each bar has before the next one in its lane —
+        // a name spilling over the following course is worse than no name.
+        for (const x of laid) {
+          const next = laid.filter((z) => z.lane === x.lane && z.col > x.col).sort((a, z) => a.col - z.col)[0]
+          x.gap = (next ? next.col : 31) - (x.col + x.span)
+        }
+        const laneN = Math.max(1, ...laid.map((x) => x.lane + 1))
+        return (
+          <div className="cx-yrow" key={m}>
+            <div className="cx-ylabel">{name.slice(0, 3)}</div>
+            {/* Every row is drawn on the same 31-day scale — otherwise 1 Feb
+                sat under 3 Jan and you could not read a date down a column. */}
+            <div className="cx-ytrack" data-cols={31} style={{ height: laneN * 22 + 12 }}>
+              {Array.from({ length: dim }, (_, i) => {
+                const d = `${y}-${String(m + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`
+                return <div key={d} className={'cx-ycell' + (isWknd(d) ? ' wknd' : '') + (d === todayISO() ? ' today' : '')}
+                  style={{ left: `${(i / 31) * 100}%`, width: `${(1 / 31) * 100}%` }} />
+              })}
+              {dim < 31 && <div className="cx-ydead" style={{ left: `${(dim / 31) * 100}%`, width: `${((31 - dim) / 31) * 100}%` }} />}
+              {laid.map(({ b, col, span, lane, gap }) => (
+                <button key={b.id} type="button" data-bid={b.id} title={`${b.course || b.title} · ${fmt(b.start)} – ${fmt(b.end)}`}
+                  className={'cx-bar cx-ybar' + (b.isHoliday ? ' hol' : '') + (flash === String(b.id) ? ' flash' : '')}
+                  style={{ left: `calc(${(col / 31) * 100}% + 2px)`, width: `calc(${(span / 31) * 100}% - 4px)`,
+                    top: lane * 22 + 6, height: 18, '--c': b.color || '#5b6b80' }}
+                  onPointerDown={(e) => {
+                    if (!isAdmin || b.isHoliday) return
+                    if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
+                    else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
+                  }}
+                  onClick={() => onOpen(b)}>
+                  {isAdmin && !b.isHoliday && <span className="cx-grab" />}
+                  {/* A two-day course must not be padded out to fit its name —
+                      the length of the bar has to stay honest. */}
+                  {span >= 5 && <span className="cx-bar-t">{b.course || b.title}</span>}
+                  {isAdmin && !b.isHoliday && <span className="cx-resize" />}
+                  {/* A two-day course is too narrow to hold its own name, and a
+                      nameless coloured pill is unreadable. Put it alongside. */}
+                  {span < 5 && gap >= 3 && (
+                    <span className="cx-yout" style={{ maxWidth: `calc(${(gap / 31) * 100}vw * 0 + ${(gap / span) * 100}% - 12px)` }}>
+                      {b.course || b.title}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
   )
 }

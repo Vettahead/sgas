@@ -14,6 +14,21 @@
 
 export const RELEASES = [
   {
+    v: '1.10.0', build: 119, date: '28 Aug 2026',
+    title: 'Calendar (new look): Week, Day and Year',
+    notes: [
+      'Day, Week, Month and Year all present in the new-look calendar, and moving between them keeps the date you were looking at instead of throwing you back to today.',
+      'Click the month name to jump straight to any month — July to November is one click, not four.',
+      'Stretching a course works properly now. It follows the pointer, it reflows when it crosses onto the next week, and it can be shrunk back down again.',
+      'Finishing a drag no longer opens the course you were dragging.',
+      'The Year view has a day scale along the top, so you can read the date off a bar. Every month sits on the same scale, and a short course is named beside its bar rather than being an unlabelled block.',
+      'The Day view is now a roster: who is teaching, who is on it and what each person is there for.',
+      'The hour grid only appears when something actually has a time on it — courses run all day, so it was an empty ruler taking most of the screen.',
+      '\u201cNeeds attention\u201d now follows you as you page through the calendar, instead of hiding unstaffed courses the moment you moved off their month.',
+      'The key above the calendar says what the marks mean: dots are why each person is there, the bar itself is the course colour.',
+    ],
+  },
+  {
     v: '1.9.0', build: 111, date: '28 Aug 2026',
     title: 'Calendar fixes, and a new look to try',
     notes: [
