@@ -5,8 +5,11 @@
 //
 // TO MAINTAIN (every session, same as the Progress page):
 //   1. Add a new entry to the TOP of RELEASES.
-//   2. `build` = how many pushes the repo has had. Read it off the repo, or
-//      just add the number of commits made since the last entry.
+//   2. `build` = the commit count AT THE COMMIT THIS RELEASE SHIPS IN, i.e.
+//      `git rev-list --count HEAD` + 1 for the commit you are about to make.
+//      It drifts if you guess — 1.15.1 was labelled 126 and shipped in 127.
+//      COMMIT below is injected at build time and is always exact, so that is
+//      the field to trust when asking "is my change actually live?".
 //   3. Bump `v` — minor for a new feature, patch for fixes/tweaks.
 // COMMIT is injected automatically at build time (see vite.config.js) so you
 // can always tell exactly which push is live on the site.
@@ -14,7 +17,7 @@
 
 export const RELEASES = [
   {
-    v: '1.15.1', build: 126, date: '28 Aug 2026',
+    v: '1.15.1', build: 127, date: '28 Aug 2026',
     title: 'Calendar (new look): course names no longer run past their dates',
     notes: [
       'In the Year view a short course put its name out to the side of its bar, over days it was not running on. The name now sits inside the bar and is shortened to fit; a course too short to hold any of it shows just its colour, and hovering still names it.',
