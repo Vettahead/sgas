@@ -19,6 +19,7 @@ select version, name from supabase_migrations.schema_migrations order by version
 | `20260828185404_smtp_settings_and_email_log.sql` | `smtp_setting`, `smtp_mailbox`, `email_log`. RLS on, **no policies**. |
 | `20260828185442_smtp_settings_rpcs.sql` | `app_smtp_get` / `app_smtp_save` / `app_email_log`, gated by `app_is_admin()`. |
 | `20260828185532_smtp_tables_revoke_client_grants.sql` | Revokes the table grants from `anon`/`authenticated` as a second lock. |
+| `20260828211500_smtp_dispatch_rpcs.sql` | `app_smtp_dispatch` / `app_email_log_write`, **service_role only**. The send path. |
 | `functions/send-email/index.ts` | The only thing that decrypts an SMTP password. |
 
 ### The rules these encode
@@ -36,6 +37,23 @@ select version, name from supabase_migrations.schema_migrations order by version
   gate is the `app_is_admin()` check inside the function.
 - **Secrets are scrubbed from errors.** SMTP libraries quote failed credentials
   back at you; the function strips them before returning anything.
+- **The server reaches the vault through `public`, never across schemas.**
+  PostgREST only serves `public` and `graphql_public`, so
+  `db.schema('vault').from('decrypted_secrets')` is refused before it reaches
+  the database. It looked right, type-checked, built, deployed, and could never
+  have worked. `app_smtp_dispatch()` is the door.
+- **`revoke ... from public` does NOT cover `anon` and `authenticated`.**
+  Supabase's default privileges grant them `EXECUTE` directly, so those grants
+  survive. `app_smtp_dispatch` returns a plaintext password and was briefly
+  callable by `anon` because of exactly this. Name the roles, then *check*:
+
+  ```sql
+  select p.proname,
+         has_function_privilege('anon', p.oid, 'execute') as anon,
+         has_function_privilege('service_role', p.oid, 'execute') as svc
+  from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = 'public' and p.proname like 'app_smtp%';
+  ```
 
 ### Verifying the lock still holds
 
@@ -47,4 +65,32 @@ select * from public.smtp_mailbox;          -- permission denied
 select * from vault.decrypted_secrets;      -- permission denied
 update public.smtp_mailbox set username='x'; -- permission denied
 select public.app_smtp_get('admin','wrong'); -- Not authorized
+select public.app_smtp_dispatch('crm');     -- permission denied
 ```
+
+And over HTTP with the real anon key, which is the check that actually matters —
+a `set local role` test can pass while the deployed grant differs:
+
+```bash
+curl -s -X POST "$URL/rest/v1/rpc/app_smtp_dispatch" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
+  -H "Content-Type: application/json" -d '{"p_key":"crm"}'
+# {"code":"42501", ... "permission denied for function app_smtp_dispatch"}
+
+curl -s -X POST "$URL/functions/v1/send-email" \
+  -H "Authorization: Bearer $ANON" -H "Content-Type: application/json" \
+  -d '{"to":"x@example.com"}'
+# 401 {"ok":false,"error":"Not authorized"}
+```
+
+### Is the mail server reachable from Supabase?
+
+It is — checked 28 Aug 2026 with a throwaway probe function that opened a TLS
+socket and read the greeting, sending nothing and using no credentials:
+
+```
+smtp.sgas.co.uk:465 TLS -> 220 smtp2.lhr.stackcp.net ESMTP   (710ms)
+```
+
+Worth repeating if a send ever fails with a timeout rather than a refusal, since
+it separates "the network is blocked" from "the password is wrong".

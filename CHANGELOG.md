@@ -4,6 +4,101 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-28 — The test send failed. Two faults, and what each one taught.
+
+Chris entered all three passwords, pressed **Send test email**, and got:
+
+> Edge Function returned a non-2xx status code
+
+Nothing in `email_log`. That absence was the useful clue: the function logs
+*every* attempt, delivered or not, so an empty log meant the failure happened
+before the send — in the setup, not at the mail server.
+
+### Fault 1 — the password could never have been read
+
+The function fetched it with:
+
+```js
+db.schema('vault').from('decrypted_secrets')
+```
+
+PostgREST only serves the schemas it is configured to expose — `public` and
+`graphql_public`. A request for the `vault` schema is refused before it reaches
+the database. The password decrypts perfectly well in SQL (verified: all three
+mailboxes, `decrypts = true`); the *route* to it was wrong.
+
+This is a defect a passing build cannot catch, a passing type-check cannot
+catch, and the anon-role security probes ran last session did not catch either —
+they proved a browser *could not* reach the vault, and read that as success. The
+same probe never asked whether the server could.
+
+**Fix:** stop reaching across schemas from outside. `app_smtp_dispatch(p_key)`
+is a `SECURITY DEFINER` function in `public` that returns host, port, secure,
+address, username, from_name and the decrypted password in one call;
+`app_email_log_write(...)` records the attempt. The Edge Function now touches
+nothing but RPCs.
+
+#### The grant that nearly shipped a password to the browser
+
+`app_smtp_dispatch` returns a **plaintext password**, so it must be
+service-role only. The migration said:
+
+```sql
+revoke all on function public.app_smtp_dispatch(text) from public;
+grant execute on function public.app_smtp_dispatch(text) to service_role;
+```
+
+and that is **not enough**. Supabase's default privileges grant `EXECUTE` to
+`anon` and `authenticated` *directly*, so those grants survive a revoke aimed at
+`PUBLIC`. Checked rather than assumed:
+
+```sql
+select has_function_privilege('anon', p.oid, 'execute') ...
+-- app_smtp_dispatch | anon: true
+```
+
+`anon` could have called it and been handed the SMTP password. Fixed with an
+explicit `revoke ... from anon, authenticated`, re-checked (`anon: false`), and
+confirmed over HTTP with the real anon key: `42501 permission denied for
+function app_smtp_dispatch`.
+
+The lesson worth keeping: **a `revoke ... from public` on a Supabase function
+does not remove the client roles' access.** Always name them, and always verify
+with `has_function_privilege` rather than trusting the statement ran.
+
+### Fault 2 — the real reason was being thrown away
+
+`supabase-js` turns every non-2xx from an Edge Function into the same sentence
+and puts the actual response body on `error.context`. The function had described
+its own failure precisely; `api.js` reported `error.message` and binned it.
+
+**Fix:** `functionError()` reads the body off `error.context` before falling
+back, and a single `sendMail()` wrapper now fronts every send so the flows added
+next inherit this rather than each reinventing it.
+
+Also hardened inside the function: an RPC that *errors* and an admin check that
+*says no* are now different messages. “Not authorized” should mean the password
+was wrong, not that the database was unreachable.
+
+### What is proved, and what is not
+
+A temporary probe function (since retired) opened a TLS socket from Supabase to
+the mail server:
+
+```
+220 smtp2.lhr.stackcp.net ESMTP  — 465/TLS, 710ms
+```
+
+So the host is right, the port is right, and outbound SMTP is not blocked.
+Verified as well: all three secrets decrypt, `app_smtp_dispatch('crm')` returns
+a complete config, the function answers `401 {"ok":false,"error":"Not
+authorized"}` cleanly without credentials, and neither new RPC is reachable with
+the anon key.
+
+**Not** proved: that the three passwords are correct. Only a real send can show
+that, and it needs Chris's admin password — which is exactly the property the
+design was built for. A failure now names itself.
+
 ## 2026-08-28 — Email plumbing, and an Admin screen to set it up
 
 Chris has the SGAS mailbox details and asked for somewhere in Admin to enter

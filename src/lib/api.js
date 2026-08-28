@@ -1682,22 +1682,53 @@ export async function saveSmtpSettings({ host, port, secure, mailboxes }, adminA
   return JSON.parse(JSON.stringify(s))
 }
 
+// Every non-2xx from an Edge Function arrives as the same useless sentence --
+// "Edge Function returned a non-2xx status code" -- because supabase-js puts
+// the response body on error.context and leaves error.message generic. The
+// first test send failed with a precise, correct explanation sitting in that
+// body and Chris was shown the generic line instead. So: always dig it out.
+async function functionError(error, fallback) {
+  const res = error && error.context
+  if (res && typeof res.json === 'function') {
+    try {
+      const body = await res.json()
+      if (body && body.error) return new Error(String(body.error))
+    } catch {
+      // Not JSON. The body can only be read once, so a text() retry is likely
+      // to fail too -- try anyway, then give up gracefully.
+      try {
+        const t = await res.text()
+        if (t) return new Error(t.slice(0, 300))
+      } catch { /* nothing readable left */ }
+    }
+  }
+  return new Error((error && error.message) || fallback)
+}
+
+// One way in for every email the app sends, so that flows added later inherit
+// the error handling rather than each inventing their own.
+export async function sendMail({ mailbox = 'crm', to, subject, text, html, kind = 'manual', refId = null }, adminAuth) {
+  const { data, error } = await supabase.functions.invoke('send-email', {
+    body: {
+      admin: adminAuth.username, admin_pw: adminAuth.password,
+      mailbox, to, subject, text, html, kind, ref_id: refId,
+    },
+  })
+  if (error) throw await functionError(error, 'The send failed')
+  if (!data || !data.ok) throw new Error((data && data.error) || 'The send failed')
+  return data
+}
+
 // Proves the whole path without anyone reading the password back: the function
 // reports what the mail server actually said.
 export async function sendTestEmail({ mailbox, to }, adminAuth) {
   if (LIVE) {
-    const { data, error } = await supabase.functions.invoke('send-email', {
-      body: {
-        admin: adminAuth.username, admin_pw: adminAuth.password,
-        mailbox, to, kind: 'test',
-        subject: 'SGAS test email',
-        text: 'This is a test from the SGAS Training Management system.\n\n'
-          + 'If you are reading it, the mail settings are working.',
-      },
-    })
-    if (error) throw new Error(error.message || 'The send failed')
-    if (!data || !data.ok) throw new Error((data && data.error) || 'The send failed')
-    return data
+    return sendMail({
+      mailbox, to, kind: 'test',
+      subject: 'SGAS test email',
+      text: 'This is a test from the SGAS Training Management system.\n\n'
+        + 'If you are reading it, the mail settings are working.',
+    }, adminAuth)
   }
   const s = store.smtp || DEMO_SMTP
   const row = s.mailboxes.find((x) => x.key === mailbox)

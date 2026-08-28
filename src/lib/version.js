@@ -17,6 +17,15 @@
 
 export const RELEASES = [
   {
+    v: '1.16.1', build: 131, date: '28 Aug 2026',
+    title: 'Send test email now works, and says why when it does not',
+    notes: [
+      'The first test send failed with nothing more than \u201cnon-2xx status code\u201d. Two faults, both fixed: the password could not be fetched at all, and the real reason was being thrown away before it reached the screen.',
+      'Any failure from here on shows the mail server\u2019s own words \u2014 a wrong password says so, rather than looking like the system is broken.',
+      'Checked that the mail server is reachable from where the system sends: smtp.sgas.co.uk answers on port 465. Only the passwords themselves are still unproven.',
+    ],
+  },
+  {
     v: '1.16.0', build: 130, date: '28 Aug 2026',
     title: 'Email settings, ready for the mailboxes',
     notes: [
