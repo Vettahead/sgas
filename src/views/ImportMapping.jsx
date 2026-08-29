@@ -2,32 +2,43 @@ import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import {
   listImportMappings, saveImportMapping, acceptImportProposals,
-  listCategories, listStaff,
+  listCategories, listStaff, listCompanies,
 } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROGRESS → DATA IMPORT
 //
-// The Access database names its qualifications and its staff in free text, with
-// twenty years of typos in it: "S GASDSDON", "S GADSDON", "S GASDSON" and "S G"
-// are all Simon; OFT201 is our OFTEC201; cen1 is ticked 1,783 times and has no
-// home in our catalogue at all.
+// The Access database names things in free text, with twenty years of typing in
+// it: "S GASDSDON", "S GADSDON", "S GASDSON" and "S G" are all Simon; OFT201 is
+// our OFTEC201; "CENTRICA SEND CERT TO WORK" is Centrica with a note stuck on
+// the end. A computer can guess at those. It should not act on a guess — an
+// import that silently invents a qualification is worse than one that stops and
+// asks.
 //
-// A computer can guess at those. It should not act on a guess — an import that
-// silently invents a qualification is worse than one that stops and asks. So
-// every distinct value in the file gets a row here, and this screen is where a
-// person answers it. Nothing is imported until they have.
+// So every distinct value gets a row here, and this screen is where a person
+// answers it. Three things make that bearable rather than a two-hour slog:
 //
-// ONE CONTROL PER ROW, deliberately. A dropdown that already contains the
-// suggestion, the option to create the thing, and the option to ignore it —
-// picking saves immediately. Three buttons and a text box per row would be
-// more flexible and nobody would ever get to the end of the list.
+//   1. THE ANSWER IS ALREADY IN THE BOX. Where there is an exact or near match
+//      the dropdown arrives set to it — the job is to press Confirm, not to
+//      find the right line in a list of 110.
+//   2. NOTHING SAVES UNTIL CONFIRMED. A pre-filled box that saved itself would
+//      be a guess with extra steps.
+//   3. CREATE TAKES YOUR NAME, NOT THEIRS. The Access spelling is only a
+//      starting point; type what it should be called here and that is what gets
+//      created.
+//
+// Two rows that create the same name end up as the same thing — which is how
+// "EDINA" and "EDINA UK LTD" become one company: give them both the same name.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const KINDS = [
-  ['qualification', 'Qualifications', 'Each tick column in the Access file. Map it to one of ours, create it, or ignore it.'],
-  ['staff', 'Assessors, verifiers and trainers', 'Every name that appears against an assessment. Most have left — map those to a past staff record so the history keeps their name.'],
+  ['qualification', 'Qualifications',
+   'Each tick column in the Access file. Match it to one of ours, create it under a name of your choosing, or ignore it.'],
+  ['staff', 'Assessors and verifiers',
+   'Every name that appears against an assessment. Most of these people have left — create them as past staff so the history keeps their name on it.'],
+  ['employer', 'Employers',
+   'Who the delegate worked for. We only hold ten companies, so most of these want creating. Give two of them the same name and they become one company.'],
 ]
 
 const BADGE = {
@@ -36,6 +47,10 @@ const BADGE = {
   none: ['pend', 'no match'],
   not_qual: ['pend', 'not a qualification'],
 }
+
+// Company and people names read better in title case than in the shouting the
+// Access file stores them in. Qualification codes stay as codes.
+const titleCase = (s) => String(s || '').toLowerCase().replace(/\b([a-z])/g, (m) => m.toUpperCase())
 
 export default function ImportMapping({ currentUser }) {
   const [auth, setAuth] = useState(null)
@@ -46,17 +61,36 @@ export default function ImportMapping({ currentUser }) {
   const [rows, setRows] = useState([])
   const [cats, setCats] = useState([])
   const [staff, setStaff] = useState([])
+  const [companies, setCompanies] = useState([])
   const [kind, setKind] = useState('qualification')
   const [onlyTodo, setOnlyTodo] = useState(true)
+  const [draft, setDraft] = useState({})       // key -> { choice, name }
   const [busy, setBusy] = useState(false)
 
+  const keyOf = (r) => r.kind + '|' + r.source_value
+
+  // What the box should say before anybody touches it.
+  function seed(r) {
+    if (r.decision === 'map') return { choice: 'map:' + r.target_code, name: '' }
+    if (r.decision === 'create') return { choice: 'create', name: r.target_code || '' }
+    if (r.decision === 'ignore') return { choice: 'ignore', name: '' }
+    if (r.kind === 'employer') {
+      // We hold almost no companies, so the answer is nearly always "create" —
+      // under the tidied-up name if I had a suggestion, otherwise their own.
+      return { choice: 'create', name: titleCase(r.proposed || r.source_value) }
+    }
+    if (r.proposed) return { choice: 'map:' + r.proposed, name: '' }
+    return { choice: '', name: r.kind === 'qualification' ? String(r.source_value).toUpperCase() : titleCase(r.source_value) }
+  }
+
   async function load(a) {
-    const [m, c, s] = await Promise.all([
-      listImportMappings(a),
-      listCategories(),
-      listStaff({ includeLeft: true }),
+    const [m, c, s, co] = await Promise.all([
+      listImportMappings(a), listCategories(), listStaff({ includeLeft: true }), listCompanies(),
     ])
-    setRows(m); setCats(c); setStaff(s)
+    setRows(m); setCats(c); setStaff(s); setCompanies(co)
+    const d = {}
+    for (const r of m) d[r.kind + '|' + r.source_value] = seed(r)
+    setDraft(d)
   }
 
   async function unlock(e) {
@@ -74,28 +108,34 @@ export default function ImportMapping({ currentUser }) {
 
   useEffect(() => { if (!LIVE) setAuth(undefined) }, [])
 
-  async function decide(row, value) {
-    // value is either "map:<code>", "create", "ignore", or "" for undecided
+  const setD = (k, patch) => setDraft((d) => ({ ...d, [k]: { ...d[k], ...patch } }))
+
+  async function confirm(r) {
+    const k = keyOf(r)
+    const d = draft[k] || {}
     let decision = null, targetCode = null, targetId = null
-    if (value.startsWith('map:')) {
-      decision = 'map'; targetCode = value.slice(4)
-      if (kind === 'staff') {
-        const st = staff.find((x) => x.name === targetCode)
-        targetId = st ? st.staff_id : null
-      } else {
+
+    if ((d.choice || '').startsWith('map:')) {
+      decision = 'map'; targetCode = d.choice.slice(4)
+      if (r.kind === 'staff') targetId = (staff.find((x) => x.name === targetCode) || {}).staff_id ?? null
+      else if (r.kind === 'employer') targetId = (companies.find((x) => x.name === targetCode) || {}).company_id ?? null
+      else {
         const c = cats.find((x) => (x.code || '').toUpperCase() === targetCode.toUpperCase())
-        targetId = c ? (c.category_id ?? c.id ?? null) : null
+        targetId = c ? c.category_id : null
       }
-    } else if (value === 'create') {
-      decision = 'create'; targetCode = row.source_value
-    } else if (value === 'ignore') {
+    } else if (d.choice === 'create') {
+      decision = 'create'
+      targetCode = (d.name || '').trim()
+      if (!targetCode) { toast('Give it a name first'); return }
+    } else if (d.choice === 'ignore') {
       decision = 'ignore'
-    }
+    } else { toast('Choose what it is first'); return }
+
     setBusy(true)
     try {
-      await saveImportMapping({ kind: row.kind, source: row.source_value, decision, targetCode, targetId }, auth)
-      setRows((rs) => rs.map((r) => (r.kind === row.kind && r.source_value === row.source_value
-        ? { ...r, decision, target_code: targetCode, target_id: targetId } : r)))
+      await saveImportMapping({ kind: r.kind, source: r.source_value, decision, targetCode, targetId }, auth)
+      setRows((rs) => rs.map((x) => (keyOf(x) === k
+        ? { ...x, decision, target_code: targetCode, target_id: targetId } : x)))
     } catch (e) { toast(e.message) } finally { setBusy(false) }
   }
 
@@ -103,7 +143,7 @@ export default function ImportMapping({ currentUser }) {
     setBusy(true)
     try {
       const n = await acceptImportProposals(kind, auth)
-      toast(n ? `${n} filled in from the suggestions` : 'Nothing left to fill in')
+      toast(n ? `${n} taken from the suggestions` : 'Nothing left that I had a suggestion for')
       await load(auth)
     } catch (e) { toast(e.message) } finally { setBusy(false) }
   }
@@ -130,15 +170,24 @@ export default function ImportMapping({ currentUser }) {
     )
   }
 
+  const meta = KINDS.find(([k]) => k === kind)
   const mine = rows.filter((r) => r.kind === kind)
   const done = mine.filter((r) => r.decision).length
   const shown = onlyTodo ? mine.filter((r) => !r.decision) : mine
   const options = kind === 'staff'
     ? staff.map((s) => [s.name, s.name + (s.leftOn ? ' (past staff)' : '')])
-    : cats.map((c) => [c.code, `${c.code} — ${c.description || ''}`.trim()])
-  const [, meta] = [null, KINDS.find(([k]) => k === kind)]
+    : kind === 'employer'
+      ? companies.map((c) => [c.name, c.name])
+      : cats.map((c) => [c.code, `${c.code} — ${c.description || ''}`.trim()])
 
-  const valueOf = (r) => (r.decision === 'map' ? 'map:' + r.target_code : r.decision === 'create' ? 'create' : r.decision === 'ignore' ? 'ignore' : '')
+  // What is stored, so a row can say whether the box in front of you matches it.
+  const stored = (r) => (r.decision === 'map' ? 'map:' + r.target_code : r.decision || '')
+  const dirty = (r) => {
+    const d = draft[keyOf(r)] || {}
+    if (!r.decision) return true
+    if (stored(r) !== d.choice) return true
+    return r.decision === 'create' && (d.name || '').trim() !== (r.target_code || '')
+  }
 
   return (
     <>
@@ -169,9 +218,7 @@ export default function ImportMapping({ currentUser }) {
 
         <table>
           <thead>
-            <tr>
-              <th>In the Access file</th><th>Used</th><th>My guess</th><th>What it is</th>
-            </tr>
+            <tr><th>In the Access file</th><th>Used</th><th>What it is</th><th /></tr>
           </thead>
           <tbody>
             {shown.length === 0 && (
@@ -180,30 +227,42 @@ export default function ImportMapping({ currentUser }) {
               </td></tr>
             )}
             {shown.map((r) => {
+              const k = keyOf(r)
+              const d = draft[k] || { choice: '', name: '' }
               const [cls, label] = BADGE[r.confidence] || BADGE.none
               return (
-                <tr key={r.kind + r.source_value}>
-                  <td><b>{r.source_value}</b></td>
+                <tr key={k}>
+                  <td>
+                    <b>{r.source_value}</b>
+                    <div><span className={'b ' + cls}>{label}</span></div>
+                  </td>
                   <td className="muted small nowrap">{r.occurrences ? r.occurrences.toLocaleString('en-GB') : '—'}</td>
                   <td>
-                    <span className={'b ' + cls}>{label}</span>
-                    {r.proposed && <span className="muted small"> {r.proposed}</span>}
-                  </td>
-                  <td>
-                    <select value={valueOf(r)} disabled={busy} onChange={(e) => decide(r, e.target.value)}>
-                      <option value="">— not decided —</option>
-                      <optgroup label={kind === 'staff' ? 'This is one of our staff' : 'This is one of our qualifications'}>
-                        {options.map(([v, label2]) => (
-                          <option key={v} value={'map:' + v}>{label2}</option>
-                        ))}
+                    <select value={d.choice} disabled={busy} onChange={(e) => setD(k, { choice: e.target.value })}>
+                      <option value="">— choose —</option>
+                      <optgroup label={kind === 'staff' ? 'One of our staff' : kind === 'employer' ? 'A company we already hold' : 'One of our qualifications'}>
+                        {options.map(([v, l]) => <option key={v} value={'map:' + v}>{l}</option>)}
                       </optgroup>
                       <optgroup label="Or">
                         <option value="create">
-                          {kind === 'staff' ? `Create "${r.source_value}" as past staff` : `Create "${r.source_value}" as a new qualification`}
+                          {kind === 'staff' ? 'Create as past staff…' : kind === 'employer' ? 'Create as a company…' : 'Create as a new qualification…'}
                         </option>
-                        <option value="ignore">Ignore — do not import this</option>
+                        <option value="ignore">Ignore — leave it out of the import</option>
                       </optgroup>
                     </select>
+                    {d.choice === 'create' && (
+                      <div className="field" style={{ marginTop: 6 }}>
+                        <label className="fl">{kind === 'qualification' ? 'Code to create it under' : 'Name to create it under'}</label>
+                        <input type="text" value={d.name || ''} disabled={busy}
+                          placeholder={r.source_value}
+                          onChange={(e) => setD(k, { name: e.target.value })} />
+                      </div>
+                    )}
+                  </td>
+                  <td className="nowrap">
+                    {dirty(r)
+                      ? <button className="btn sm" disabled={busy} onClick={() => confirm(r)}>Confirm</button>
+                      : <span className="b pass">Saved</span>}
                   </td>
                 </tr>
               )
@@ -213,9 +272,10 @@ export default function ImportMapping({ currentUser }) {
 
         <div className="body">
           <span className="muted small">
-            Picking saves straight away. “Create” makes the qualification or the staff record when the import runs,
-            not now. “Ignore” leaves that column or name out of the import altogether — which is the right answer for
-            the ones that are plainly data-entry rubbish.
+            Nothing is saved until you press Confirm — a box that filled itself in and saved itself would just be a
+            guess with extra steps. Creating happens when the import runs, not now, so a name typed here can still be
+            changed. Two rows created under the same name become one thing, which is how “EDINA” and “EDINA UK LTD”
+            end up as one company.
           </span>
         </div>
       </div>

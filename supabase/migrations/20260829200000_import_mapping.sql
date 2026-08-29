@@ -80,8 +80,14 @@ as $$
 declare n integer;
 begin
   if not app_is_admin(p_admin, p_admin_pw) then raise exception 'Not authorized'; end if;
+  -- A suggestion means different things by kind. For a qualification or a
+  -- member of staff it means "this is one of ours" — a map. For an employer it
+  -- means "call it this instead": we hold ten companies and the file has a
+  -- hundred, so the answer is nearly always create, and two rows created under
+  -- the same name become one company.
   update import_mapping
-     set decision = 'map', target_code = proposed, decided_by = p_admin, decided_at = now()
+     set decision = case when p_kind = 'employer' then 'create' else 'map' end,
+         target_code = proposed, decided_by = p_admin, decided_at = now()
    where kind = p_kind and decision is null and proposed is not null;
   get diagnostics n = row_count;
   return n;

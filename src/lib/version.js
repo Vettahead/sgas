@@ -17,6 +17,17 @@
 
 export const RELEASES = [
   {
+    v: '1.22.0', build: 139, date: '29 Aug 2026',
+    title: 'The import list answers itself \u2014 you just confirm it',
+    notes: [
+      'Employers are now on the Data import tab alongside qualifications and staff \u2014 115 of them, once the history is cut to seven years. Without that cut it was 1,492 and would never have been matched by hand.',
+      'Where there is an exact or close match the dropdown already has it selected: the job is to press Confirm rather than to find the right line in a list of 110.',
+      'Nothing saves until you press Confirm. A box that filled itself in and saved itself would just be a guess with extra steps.',
+      'Creating something now takes YOUR name for it, not the one in the old database \u2014 a text box beside the dropdown, filled in as a starting point. So a course that has been renamed gets its proper name.',
+      'Two rows created under the same name become one thing, which is how \u201cEDINA\u201d and \u201cEDINA UK LTD\u201d end up as a single company.',
+    ],
+  },
+  {
     v: '1.21.0', build: 138, date: '29 Aug 2026',
     title: 'The Access import worklist, on the Progress page',
     notes: [

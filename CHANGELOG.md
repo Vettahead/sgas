@@ -4,6 +4,65 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — Employers on the worklist, and a list that answers itself
+
+### Seven years, not six
+
+Simon's answer moved to seven. 20,980 rows → 5,028; people → 3,266; staff
+spellings 40 → 24; **employers 1,492 → 115**. Qualification columns barely move
+(122 → 106), so that list is the same size whatever the cut. The employer number
+is the whole argument for cutting at all: 1,492 free-text company names was
+never a job anybody was going to do by hand, and 115 is an afternoon.
+
+Employers are now seeded onto the worklist, sorted by how often they appear.
+The rubbish is visible and easy to dispose of — three phone numbers, "ADDRESS AS
+ABOVE", "SELF", "MOD PAYMENT", "INVOICED TO EAGA - SPLIT PAYMENT ETC." — and the
+duplicates are exactly what you would expect: CENTRICA / CENTRICA BUSINESS
+SOLUTIONS / "CENTRICA SEND CERT TO WORK", EDINA / EDINA UK LTD, READ & ERRINGTON
+/ READ AND ERRINGTON / R+E / R&E.
+
+### Three UI rules, and they are the point
+
+Chris: *"if we have an exact match or close have the dropdown on it already so
+we can just click confirm, cuts down on time"* and *"a new field to add our own
+name to a new course (just in case it's changed)"*.
+
+1. **The suggestion is already in the box.** The dropdown arrives set to the
+   match. The job is to press Confirm, not to find the right line in a list of
+   110 codes.
+2. **Nothing saves until Confirm.** A pre-filled control that saved itself would
+   be a guess with extra steps — which is the one thing this screen exists to
+   prevent.
+3. **Create takes OUR name, not theirs.** A text field beside the dropdown,
+   pre-filled from the suggestion (title-cased for names, upper for codes). The
+   Access spelling is a starting point, not the answer.
+
+And one that falls out for free: **two rows created under the same name become
+one thing**. That is how EDINA and EDINA UK LTD merge — no separate merge UI,
+just type the same name twice.
+
+### A bug caught in the design, not in use
+
+`app_import_accept_proposals` set `decision = 'map'` for everything. For
+employers that would have mapped 10 suggestions onto companies that do not
+exist — we hold ten companies and the file has a hundred, so an employer
+suggestion means "call it this", which is a *create*. The function is now
+kind-aware.
+
+### Files
+
+`supabase/migrations/20260829200000_import_mapping.sql` (bulk-accept made
+kind-aware), `src/views/ImportMapping.jsx` (rewritten around confirm-not-save),
+`src/lib/version.js`, `src/views/Roadmap.jsx`.
+
+### Parked
+
+Sage was researched in full and parked at Chris's request — which API, which
+endpoints, how paid should work, and the three questions for Jen. It is written
+up in project memory as `sgas-sage`, including the finding that a **development
+account with test data** exists, so the build is not blocked on Simon's live
+Sage after all.
+
 ## 2026-08-29 — Reading the Access database, and a worklist for the bits a computer should not guess
 
 ### What is actually in the file
