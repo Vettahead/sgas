@@ -145,6 +145,40 @@ curl -s -X POST "$URL/functions/v1/send-email" \
 Use a session whose trainer is a throwaway record when testing, and delete it
 afterwards — a real send goes to a real person.
 
+## ⚠ DO NOT REVOKE THE LEGACY JWT SECRET
+
+**Doing so takes the whole app down.** Not degraded — down. Nobody can load any
+screen.
+
+Sign-in tokens are signed HS256 with this project's **legacy JWT secret**. The
+project has already migrated to asymmetric signing keys, so new Supabase-issued
+tokens use ES256, but the legacy secret is still accepted for **verification** —
+confirmed in the dashboard 30 Aug 2026: *"It is used to only verify JSON Web
+Tokens by Supabase products."* That verification is the only reason our tokens
+work.
+
+The dashboard actively invites the change that would break it:
+
+> "Legacy JWT secret can only be changed by rotating to a standby key and then
+> revoking it. This includes the `anon` and `service_role` JWT based API keys.
+> **Consider switching to publishable and secret API keys to disable them.**"
+
+So the two things that must not happen while sign-in works this way:
+
+1. Do not rotate the legacy key to standby and revoke it.
+2. Do not switch to publishable/secret API keys *in order to disable the legacy
+   JWT keys* — that is the same thing by another route.
+
+Neither is urgent for SGAS and neither buys anything today. If either becomes
+necessary, the session design has to be replaced first — see below.
+
+**The durable replacement, when it is wanted:** stop minting JWTs and put a
+session token in a request header instead, validated by the policies against an
+`app_session` table. No signing secret, immune to anything Supabase does with
+keys, and it gains real "sign this person out everywhere", which a JWT cannot
+do. Roughly half a session's work. It is the right answer eventually; it was not
+worth blocking the lockdown on.
+
 ## The anon lockdown — where it has got to (29 Aug 2026)
 
 **The problem.** This app does not use Supabase Auth, so every request reached

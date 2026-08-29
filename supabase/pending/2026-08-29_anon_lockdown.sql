@@ -22,8 +22,11 @@
 --       asymmetric JWT signing keys — its JWKS endpoint serves an ES256 key —
 --       while app_mint_token signs HS256 with the legacy shared secret.
 --       Supabase keeps honouring the legacy secret until the legacy key is
---       REVOKED. If it has been revoked, our tokens are silently ignored, every
---       request stays `anon`, and this migration locks the business out.
+--       REVOKED. Checked 30 Aug 2026: NOT revoked — the dashboard says the
+--       legacy secret "is used to only verify JSON Web Tokens", which is
+--       exactly what our tokens need. AFTERWARDS IT MUST STAY THAT WAY:
+--       revoking it, or switching to publishable/secret API keys in order to
+--       disable the legacy keys, takes the whole app down. See supabase/README.
 --       DO NOT REASON ABOUT THIS — measure it. Sign in to the live app and
 --       press Admin → Logins & access → "Check this session". It must say
 --       SAFE TO LOCK DOWN. The SQL editor cannot answer this: it carries no
