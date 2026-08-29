@@ -59,6 +59,17 @@ export function render(template: string, tokens: Record<string, string>): string
 export const fmtWorkingDays = (n: number) =>
   n === 1 ? '1 working day' : `${n} working days`
 
+// How long a reset link lasts, said the way a person would say it.
+export function fmtMinutes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return 'a short while'
+  if (n < 60) return n === 1 ? '1 minute' : `${n} minutes`
+  const h = Math.floor(n / 60)
+  const m = n % 60
+  const hours = h === 1 ? '1 hour' : `${h} hours`
+  if (m === 0) return hours
+  return `${hours} ${m === 1 ? '1 minute' : `${m} minutes`}`
+}
+
 // Everything a template can refer to. Anything not in here is a typo, and a
 // typo is left standing in the rendered text rather than blanked.
 //
@@ -80,6 +91,12 @@ export function tokensFor(
     room: ctx.room ? String(ctx.room) : 'to be confirmed',
     delegates: fmtDelegates(Number(ctx.delegates ?? 0)),
     old_dates: pStart ? fmtRange(pStart, pEnd) : 'not recorded',
+    // account
+    name: String(ctx.name ?? ''),
+    username: String(ctx.username ?? ''),
+    role: String(ctx.role ?? ''),
+    link: String(ctx.link ?? ''),
+    expires: fmtMinutes(Number(ctx.minutes ?? 60)),
     // holiday
     staff: String(ctx.staff ?? ''),
     approver: String(ctx.approver ?? 'the office'),
@@ -110,4 +127,9 @@ export const PLACEHOLDER_HELP: Record<string, string> = {
   approver: 'whoever approves holidays',
   note: 'the note they put on the request, or “none given”',
   reason: 'the reason given for the decision, or “not given”',
+  name: 'the person’s name, or their username if there is no name',
+  username: 'the username they sign in with',
+  role: 'what access the account has — Admin, Standard, and so on',
+  link: 'a link back into the system (the reset link, for a reset email)',
+  expires: 'how long a reset link lasts, e.g. 1 hour',
 }

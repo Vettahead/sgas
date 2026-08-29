@@ -3,7 +3,7 @@ import { LIVE } from '../lib/supabase.js'
 import {
   listUsers, createUser, updateUser, setUserPassword, deleteUser,
   listStaff, createStaff, updateStaff, setStaffLeft, deleteStaff, staffUsage,
-  listHolidays, weekdayDays, getSettings, saveSetting,
+  listHolidays, weekdayDays, getSettings, saveSetting, notifyAccount,
 } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
@@ -145,7 +145,8 @@ export default function Admin({ currentUser }) {
     if (!nu.password) return toast('Password is required')
     try {
       const st = await createStaff({ name: nu.name.trim(), email: nu.email, room: nu.room })
-      await createUser({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password, staffId: st.staff_id }, adminAuth)
+      const created = await createUser({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password, staffId: st.staff_id }, adminAuth)
+      if (created?.user_id) notifyAccount({ kind: 'user_created', userId: created.user_id }, adminAuth)
       toast('Staff member created')
       setCreated({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password })
       setNu({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
@@ -157,7 +158,8 @@ export default function Admin({ currentUser }) {
     if (!loginForm.username.trim() || !loginForm.password) return toast('Username and password required')
     const st = staff.find((s) => s.staff_id === staffId)
     try {
-      await createUser({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password, staffId }, adminAuth)
+      const made = await createUser({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password, staffId }, adminAuth)
+      if (made?.user_id) notifyAccount({ kind: 'user_created', userId: made.user_id }, adminAuth)
       toast('Login created')
       setCreated({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password })
       setLoginFor(null); setLoginForm({ username: '', role: 'STANDARD', password: '' }); load()
@@ -189,13 +191,23 @@ export default function Admin({ currentUser }) {
   }
 
   async function toggleActive(u) {
-    try { await updateUser(u.user_id, { is_active: !u.is_active }, adminAuth); load() }
-    catch (e) { toast(e.message) }
+    try {
+      const nowActive = !u.is_active
+      await updateUser(u.user_id, { is_active: nowActive }, adminAuth)
+      notifyAccount({ kind: nowActive ? 'account_enabled' : 'account_disabled', userId: u.user_id }, adminAuth)
+      load()
+    } catch (e) { toast(e.message) }
   }
 
   async function saveReset(u) {
     if (!resetPw) return toast('Enter a new password')
-    try { await setUserPassword(u.user_id, resetPw, adminAuth); toast(`Password reset for ${u.username}`); setResetId(null); setResetPw('') }
+    try {
+      await setUserPassword(u.user_id, resetPw, adminAuth)
+      // They should hear that it changed even when it was you who changed it —
+      // that is how somebody finds out their account was touched.
+      notifyAccount({ kind: 'password_changed', userId: u.user_id }, adminAuth)
+      toast(`Password reset for ${u.username}`); setResetId(null); setResetPw('')
+    }
     catch (e) { toast(e.message) }
   }
 

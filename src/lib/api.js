@@ -2001,6 +2001,69 @@ export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = 
     .catch(() => ({ ok: false }))
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Account emails.
+//
+// These say something about somebody's login, so they are NOT on the open
+// notify door — the Edge Function requires admin credentials for them.
+// Otherwise anyone holding the public key could tell a member of staff their
+// password had been changed.
+//
+// Never awaited by the thing that triggered it: disabling an account must not
+// fail because a mail server is slow.
+// ─────────────────────────────────────────────────────────────────────────────
+export function notifyAccount({ kind, userId }, adminAuth) {
+  if (!kind || userId == null || !adminAuth) return Promise.resolve({ ok: true, sent: false })
+  if (!LIVE) {
+    if (!store.emailLog) store.emailLog = []
+    store.emailLog.unshift({
+      sent_at: new Date().toISOString(), mailbox: 'crm', to_address: 'staff@example.com',
+      subject: `[demo] ${kind}`, kind, ok: true, error: null,
+    })
+    return Promise.resolve({ ok: true, sent: false, demo: true })
+  }
+  return supabase.functions
+    .invoke('send-email', {
+      body: { admin: adminAuth.username, admin_pw: adminAuth.password, notify: kind, ref: userId },
+    })
+    .then(({ data, error }) => (error ? { ok: false } : data))
+    .catch(() => ({ ok: false }))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Forgotten password.
+//
+// The browser never sees the token. It asks the Edge Function to start a reset;
+// the function gets the token from the database, puts it in an email, and
+// forgets it. The reply is the same whether or not the account exists — the
+// difference between "sent" and "no such account" is a list of who works here.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function requestPasswordReset(identifier) {
+  if (!identifier || !identifier.trim()) throw new Error('Enter your username or email address')
+  if (!LIVE) return { ok: true, demo: true }
+  try {
+    await supabase.functions.invoke('send-email', {
+      body: { action: 'password_reset_request', identifier: identifier.trim() },
+    })
+  } catch { /* the answer is the same either way, including when it fails */ }
+  return { ok: true }
+}
+
+// The token IS the credential here — there is nothing else to prove who this
+// is. Unlike the request above, the reason for a failure is the point: "that
+// link has expired" is exactly what the person needs to read.
+export async function completePasswordReset(token, password) {
+  if (!token) throw new Error('That link is missing its code — ask for a new one')
+  if (!password || password.length < 8) throw new Error('Choose a password of at least 8 characters')
+  if (!LIVE) return { ok: true, username: 'demo' }
+  const { data, error } = await supabase.functions.invoke('send-email', {
+    body: { action: 'password_reset_complete', token, password },
+  })
+  if (error) throw await functionError(error, 'That link could not be used')
+  if (!data || !data.ok) throw new Error((data && data.error) || 'That link could not be used')
+  return data
+}
+
 // Proves the whole path without anyone reading the password back: the function
 // reports what the mail server actually said.
 export async function sendTestEmail({ mailbox, to }, adminAuth) {

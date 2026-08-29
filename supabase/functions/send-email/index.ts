@@ -7,31 +7,29 @@
 // the catch below deliberately scrubs it, because SMTP libraries have a habit
 // of putting the failed credentials in the exception.
 //
-// AUTH — three doors, deliberately different sizes:
+// FOUR WAYS IN, deliberately different sizes:
 //
-//   1. internal secret .... trusted server-side jobs (pg_cron). Send anything.
-//   2. admin credentials .. the Admin screen. Send anything, and preview.
-//   3. notify .............. the app, with NO credentials at all.
+//   1. internal secret ..... trusted server-side jobs (pg_cron). Send anything.
+//   2. admin credentials ... the Admin screen. Send anything, and preview.
+//   3. notify .............. the app, with NO credentials. It names the thing
+//                            that changed; the DATABASE decides who is told and
+//                            in what words. Account notifications are excluded
+//                            and need door 2.
+//   4. actions ............. password reset request and completion, which are
+//                            by nature done by somebody who cannot sign in. The
+//                            token is the credential.
 //
 // Door 3 exists because this app does not use Supabase Auth and the browser
 // does not keep anybody's password: app_login checks it in the database and
 // returns a sanitised row. A trainer notification fires the moment somebody
 // drags a name onto a course, so there is nothing to authenticate with.
 //
-// So door 3 does not accept an address or a body. It accepts "session 42 just
-// had a trainer put on it", and the DATABASE decides who is told, in what
-// words, and whether the notification is switched on at all
-// (app_notify_context). The worst it can be used for is making a real trainer
-// receive a true statement about a real course, at most once per ten minutes.
-//
 // EVERYTHING goes through RPCs in the public schema. The first version read the
 // password with db.schema('vault').from('decrypted_secrets') and could never
 // have worked: PostgREST only serves the schemas it is configured to expose —
 // public and graphql_public — so the request was refused before it reached the
-// database. Nothing was logged either, because the failure happened before the
-// log write, which is why the screen could only say "non-2xx". Both lessons are
-// baked in below: one door in (app_smtp_dispatch), and every step that can fail
-// says which step it was.
+// database. Both lessons are baked in: one door in (app_smtp_dispatch), and
+// every step that can fail says which step it was.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
@@ -48,6 +46,11 @@ const INTERNAL_SECRET = Deno.env.get('SGAS_INTERNAL_SECRET') ?? ''
 // genuine second move — to different dates — is a different subject and still
 // goes out.
 const REPEAT_WINDOW_MINUTES = 10
+
+// These say something about somebody's ACCOUNT, so they are not on the open
+// door. Anyone with the public key could otherwise tell a member of staff their
+// password had been changed.
+const ADMIN_ONLY_KINDS = ['password_changed', 'user_created', 'account_disabled', 'account_enabled']
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -68,98 +71,30 @@ function scrub(message: string, secrets: string[]) {
   return out
 }
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') return json({}, 200)
-  if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405)
+// ─────────────────────────────────────────────────────────────────────────────
+// Actually sending. One implementation, used by every path above, so they all
+// get the same error handling and the same guarantee that the attempt is
+// logged whether it worked or not.
+// ─────────────────────────────────────────────────────────────────────────────
+type Deliver = {
+  mailbox: string; to: string; subject: string
+  text?: string; html?: string; kind: string; refId?: string | null
+}
 
-  const db = createClient(SUPABASE_URL, SERVICE_KEY)
+async function deliver(db: ReturnType<typeof createClient>, d: Deliver) {
   let password = ''
-
   try {
-    const body = await req.json()
-    const {
-      admin, admin_pw, internal,
-      notify, session_id, staff_id, prev_start, prev_end, preview,
-      mailbox: mailboxIn = 'crm', to: toIn, subject: subjectIn, text: textIn, html,
-      kind: kindIn = 'manual', ref_id: refIn = null,
-    } = body ?? {}
-
-    let mailbox = mailboxIn
-    let to = toIn
-    let subject = subjectIn
-    let text = textIn
-    let kind = kindIn
-    let refId = refIn
-
-    const isNotify = typeof notify === 'string' && notify.length > 0
-    const wantsPreview = preview === true
-
-    // ── who is asking ───────────────────────────────────────────────────────
-    // A notification needs no credentials — it cannot choose a recipient or a
-    // body. Everything else, including a preview, does.
-    const trusted = INTERNAL_SECRET && internal === INTERNAL_SECRET
-    if (!trusted && (!isNotify || wantsPreview)) {
-      if (!admin || !admin_pw) return json({ ok: false, error: 'Not authorized' }, 401)
-      const { data: isAdmin, error } = await db.rpc('app_is_admin', { p_user: admin, p_pw: admin_pw })
-      // An RPC that errors and an admin check that says no are different things.
-      // Saying so is the difference between "fix your password" and "the
-      // function cannot reach the database".
-      if (error) return json({ ok: false, error: `Could not check the admin login: ${error.message}` }, 500)
-      if (isAdmin !== true) return json({ ok: false, error: 'Not authorized' }, 401)
-    }
-
-    // ── a notification composes itself ──────────────────────────────────────
-    if (isNotify) {
-      // `ref` is whatever the email is about: a session for the course ones, a
-      // holiday for the holiday ones. session_id is still accepted so that a
-      // browser running the previous build keeps working until it is reloaded.
-      const ref = body?.ref ?? session_id ?? null
-      const { data: ctx, error: ctxErr } = await db.rpc('app_notify_context', {
-        p_kind: notify,
-        p_ref: ref,
-        p_staff_id: staff_id ?? null,
-      })
-      if (ctxErr) return json({ ok: false, error: `Could not read the notification: ${ctxErr.message}` }, 500)
-      if (!ctx) return json({ ok: false, error: 'Could not read the notification' }, 500)
-
-      // Switched off, no trainer, no email address on the record: all ordinary
-      // outcomes. 200 with a reason, so a scheduler's screen never reports an
-      // error for something that is working as intended.
-      if (ctx.skip) return json({ ok: true, sent: false, skipped: String(ctx.skip) })
-
-      const tokens = tokensFor(ctx, prev_start, prev_end)
-      mailbox = ctx.template?.mailbox || 'crm'
-      to = ctx.to
-      subject = render(ctx.template?.subject ?? '', tokens)
-      text = render(ctx.template?.body ?? '', tokens)
-      kind = notify
-      refId = ref != null ? String(ref) : null
-
-      if (wantsPreview) return json({ ok: true, sent: false, preview: { to, subject, text, mailbox } })
-
-      const { data: already } = await db.rpc('app_email_recent', {
-        p_kind: kind, p_ref: refId, p_to: to, p_subject: subject, p_minutes: REPEAT_WINDOW_MINUTES,
-      })
-      if (already === true) return json({ ok: true, sent: false, skipped: 'already_sent' })
-    }
-
-    if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(to))) {
-      return json({ ok: false, error: 'A valid "to" address is required' }, 400)
-    }
-
-    // ── settings and password, in one call ──────────────────────────────────
-    const { data: cfg, error: cfgErr } = await db.rpc('app_smtp_dispatch', { p_key: mailbox })
-    if (cfgErr) return json({ ok: false, error: `Could not read the mail settings: ${cfgErr.message}` }, 500)
-    if (!cfg) return json({ ok: false, error: 'Could not read the mail settings' }, 500)
-    if (cfg.error === 'unknown_mailbox') return json({ ok: false, error: `Unknown mailbox "${mailbox}"` }, 400)
-    if (cfg.error === 'no_server') return json({ ok: false, error: 'No mail server is set up yet — Admin → Email settings' }, 400)
+    const { data: cfg, error: cfgErr } = await db.rpc('app_smtp_dispatch', { p_key: d.mailbox })
+    if (cfgErr) return { ok: false, error: `Could not read the mail settings: ${cfgErr.message}`, status: 500 }
+    if (!cfg) return { ok: false, error: 'Could not read the mail settings', status: 500 }
+    if (cfg.error === 'unknown_mailbox') return { ok: false, error: `Unknown mailbox "${d.mailbox}"`, status: 400 }
+    if (cfg.error === 'no_server') return { ok: false, error: 'No mail server is set up yet — Admin → Email', status: 400 }
     if (cfg.error === 'no_password') {
-      return json({ ok: false, error: `No password stored for ${cfg.address || mailbox} — add it in Admin → Email settings` }, 400)
+      return { ok: false, error: `No password stored for ${cfg.address || d.mailbox} — add it in Admin → Email`, status: 400 }
     }
     password = String(cfg.password || '')
-    if (!password) return json({ ok: false, error: 'The stored password could not be read back' }, 500)
+    if (!password) return { ok: false, error: 'The stored password could not be read back', status: 500 }
 
-    // ── send ────────────────────────────────────────────────────────────────
     const client = new SMTPClient({
       connection: {
         hostname: cfg.host,
@@ -174,10 +109,10 @@ Deno.serve(async (req: Request) => {
     try {
       await client.send({
         from: cfg.from_name ? `${cfg.from_name} <${cfg.address}>` : cfg.address,
-        to: String(to),
-        subject: String(subject ?? '(no subject)'),
-        content: text ?? undefined,
-        html: html ?? undefined,
+        to: String(d.to),
+        subject: String(d.subject ?? '(no subject)'),
+        content: d.text ?? undefined,
+        html: d.html ?? undefined,
       })
       ok = true
     } catch (e) {
@@ -190,17 +125,159 @@ Deno.serve(async (req: Request) => {
     // Log every attempt, delivered or not — "did Simon get the warning?" has to
     // be answerable without guessing.
     await db.rpc('app_email_log_write', {
-      p_mailbox: cfg.key, p_to: String(to), p_subject: subject ?? null,
-      p_kind: kind, p_ok: ok, p_error: errText, p_ref_id: refId ? String(refId) : null,
+      p_mailbox: cfg.key, p_to: String(d.to), p_subject: d.subject ?? null,
+      p_kind: d.kind, p_ok: ok, p_error: errText, p_ref_id: d.refId ? String(d.refId) : null,
     })
 
-    return ok
-      ? json({ ok: true, sent: true, from: cfg.address })
-      : json({ ok: false, error: errText }, 502)
-  } catch (e) {
-    const msg = scrub(String((e as Error)?.message ?? e), [password])
-    return json({ ok: false, error: msg }, 500)
+    return ok ? { ok: true, from: cfg.address } : { ok: false, error: errText, status: 502 }
   } finally {
     password = ''
+  }
+}
+
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
+
+Deno.serve(async (req: Request) => {
+  if (req.method === 'OPTIONS') return json({}, 200)
+  if (req.method !== 'POST') return json({ ok: false, error: 'POST only' }, 405)
+
+  const db = createClient(SUPABASE_URL, SERVICE_KEY)
+
+  try {
+    const body = await req.json()
+    const {
+      admin, admin_pw, internal, action,
+      notify, ref, session_id, staff_id, prev_start, prev_end, preview,
+      mailbox: mailboxIn = 'crm', to: toIn, subject: subjectIn, text: textIn, html,
+      kind: kindIn = 'manual', ref_id: refIn = null,
+    } = body ?? {}
+
+    // ── door 4: password resets ──────────────────────────────────────────────
+    // Nobody here can sign in, by definition. Neither branch reveals whether an
+    // account exists: the request always answers the same way, whatever
+    // happened, because the difference between "sent" and "no such account" is
+    // a list of who works here.
+    if (action === 'password_reset_request') {
+      const { data: st, error: stErr } = await db.rpc('app_password_reset_start', {
+        p_identifier: String(body?.identifier ?? ''),
+      })
+      if (stErr) return json({ ok: true })          // still no information leaked
+      if (!st || st.skip) return json({ ok: true })
+
+      const { data: tpl } = await db.rpc('app_template_for_send', { p_key: 'password_reset' })
+      if (!tpl || tpl.skip) return json({ ok: true })
+
+      const base = String(tpl.app_url || '').replace(/\/+$/, '')
+      const tokens = tokensFor({
+        name: st.name, username: st.username, minutes: st.minutes,
+        link: `${base}/?reset=${encodeURIComponent(String(st.token))}`,
+      })
+      await deliver(db, {
+        mailbox: tpl.template?.mailbox || 'crm',
+        to: String(st.to),
+        subject: render(tpl.template?.subject ?? '', tokens),
+        text: render(tpl.template?.body ?? '', tokens),
+        kind: 'password_reset',
+        refId: st.user_id != null ? String(st.user_id) : null,
+      })
+      return json({ ok: true })
+    }
+
+    if (action === 'password_reset_complete') {
+      const { data: done, error: doneErr } = await db.rpc('app_password_reset_complete', {
+        p_token: String(body?.token ?? ''), p_password: String(body?.password ?? ''),
+      })
+      // Here the reason IS the point — "that link has expired" is what the
+      // person needs to read.
+      if (doneErr) return json({ ok: false, error: doneErr.message }, 400)
+
+      // Tell them it changed. If this fails the password is still changed, so
+      // it must not turn a success into an error.
+      try {
+        const { data: ctx } = await db.rpc('app_notify_context', {
+          p_kind: 'password_changed', p_ref: done.user_id, p_staff_id: null,
+        })
+        if (ctx && !ctx.skip) {
+          const tokens = tokensFor(ctx)
+          await deliver(db, {
+            mailbox: ctx.template?.mailbox || 'crm',
+            to: String(ctx.to),
+            subject: render(ctx.template?.subject ?? '', tokens),
+            text: render(ctx.template?.body ?? '', tokens),
+            kind: 'password_changed', refId: String(done.user_id),
+          })
+        }
+      } catch { /* the password is changed; the note about it is not critical */ }
+
+      return json({ ok: true, username: done.username })
+    }
+
+    let mailbox = mailboxIn
+    let to = toIn
+    let subject = subjectIn
+    let text = textIn
+    let kind = kindIn
+    let refId = refIn
+
+    const isNotify = typeof notify === 'string' && notify.length > 0
+    const wantsPreview = preview === true
+    const accountKind = isNotify && ADMIN_ONLY_KINDS.includes(notify)
+
+    // ── who is asking ───────────────────────────────────────────────────────
+    // An ordinary notification needs no credentials — it cannot choose a
+    // recipient or a body. Everything else does: a raw send, a preview, and
+    // anything that talks about somebody's account.
+    const trusted = INTERNAL_SECRET && internal === INTERNAL_SECRET
+    if (!trusted && (!isNotify || wantsPreview || accountKind)) {
+      if (!admin || !admin_pw) return json({ ok: false, error: 'Not authorized' }, 401)
+      const { data: isAdmin, error } = await db.rpc('app_is_admin', { p_user: admin, p_pw: admin_pw })
+      // An RPC that errors and an admin check that says no are different things.
+      if (error) return json({ ok: false, error: `Could not check the admin login: ${error.message}` }, 500)
+      if (isAdmin !== true) return json({ ok: false, error: 'Not authorized' }, 401)
+    }
+
+    // ── a notification composes itself ──────────────────────────────────────
+    if (isNotify) {
+      // `ref` is whatever the email is about: a session for the course ones, a
+      // holiday for the holiday ones, a login for the account ones. session_id
+      // is still accepted so a browser on the previous build keeps working.
+      const theRef = ref ?? session_id ?? null
+      const { data: ctx, error: ctxErr } = await db.rpc('app_notify_context', {
+        p_kind: notify, p_ref: theRef, p_staff_id: staff_id ?? null,
+      })
+      if (ctxErr) return json({ ok: false, error: `Could not read the notification: ${ctxErr.message}` }, 500)
+      if (!ctx) return json({ ok: false, error: 'Could not read the notification' }, 500)
+
+      // Switched off, no trainer, no email address on the record: all ordinary
+      // outcomes. 200 with a reason, so nobody's screen reports an error for
+      // something that is working as intended.
+      if (ctx.skip) return json({ ok: true, sent: false, skipped: String(ctx.skip) })
+
+      const tokens = tokensFor(ctx, prev_start, prev_end)
+      mailbox = ctx.template?.mailbox || 'crm'
+      to = ctx.to
+      subject = render(ctx.template?.subject ?? '', tokens)
+      text = render(ctx.template?.body ?? '', tokens)
+      kind = notify
+      refId = theRef != null ? String(theRef) : null
+
+      if (wantsPreview) return json({ ok: true, sent: false, preview: { to, subject, text, mailbox } })
+
+      const { data: already } = await db.rpc('app_email_recent', {
+        p_kind: kind, p_ref: refId, p_to: to, p_subject: subject, p_minutes: REPEAT_WINDOW_MINUTES,
+      })
+      if (already === true) return json({ ok: true, sent: false, skipped: 'already_sent' })
+    }
+
+    if (!to || !EMAIL_RE.test(String(to))) {
+      return json({ ok: false, error: 'A valid "to" address is required' }, 400)
+    }
+
+    const r = await deliver(db, { mailbox, to: String(to), subject, text, html, kind, refId })
+    return r.ok
+      ? json({ ok: true, sent: true, from: r.from })
+      : json({ ok: false, error: r.error }, r.status ?? 502)
+  } catch (e) {
+    return json({ ok: false, error: String((e as Error)?.message ?? e) }, 500)
   }
 })

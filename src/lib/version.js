@@ -17,6 +17,16 @@
 
 export const RELEASES = [
   {
+    v: '1.20.0', build: 136, date: '29 Aug 2026',
+    title: 'Forgotten passwords sort themselves out, and every page has a ?',
+    notes: [
+      'Sign-in screen now has \u201cForgotten your password?\u201d. Type your username or email, get a link, choose a new password. The link works once and lasts an hour. Nobody has to reset it for you any more.',
+      'The system also emails when a password is changed, when a login is created, and when an account is switched off or back on \u2014 so a change nobody made does not go unnoticed.',
+      'The screen says the same thing whether or not it recognised what you typed. That is deliberate: it stops the sign-in page being used to find out who works here.',
+      'Every screen now has a ? in the top corner explaining what that screen is for and how to use it, and the full Help & FAQ has been brought up to date \u2014 emails, holidays, staff leaving, and the new Admin tabs.',
+    ],
+  },
+  {
     v: '1.19.0', build: 135, date: '29 Aug 2026',
     title: 'Holiday requests, approved or turned down by email',
     notes: [

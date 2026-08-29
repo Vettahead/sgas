@@ -4,6 +4,84 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 (end of day) — Forgotten passwords, account emails, and a ? that works everywhere
+
+### The reset, and what it deliberately does not do
+
+`password_reset` stores **only the sha256 of the token**. The token itself
+exists in exactly two places: the email, and the URL the person clicks. A stolen
+backup is not a way in.
+
+Four things worth keeping:
+
+1. **The browser never sees the token.** The client asks the Edge Function to
+   start a reset; the function gets the token from a `service_role`-only RPC,
+   puts it in an email, and forgets it. There is no client-callable path that
+   returns one.
+2. **The link is not built from the caller's input.** `app_setting.app_url`
+   supplies the base. A reset email whose link comes from whoever asked for it
+   is a phishing kit with extra steps.
+3. **The answer is identical either way.** Existing account, no account, rate
+   limited, no email on file — all return `{ok:true}` and nothing else. The
+   difference between "sent" and "no such account" is a list of who works here.
+4. **Using a link kills every other outstanding one** for that account, so a
+   chain of "I clicked it twice" resets cannot leave a spare key in an inbox.
+
+Rate limit: one live request per account per five minutes.
+
+### A real bug the test found
+
+`app_password_reset_start` matched `username OR email` and took the lowest
+`user_id`. **Chris's admin username IS an email address**, so a reset requested
+for a test account's address resolved to his admin login and posted a live link
+to it. Fixed by ordering an exact username match first; the stray link was
+cancelled. Two accounts can answer to the same string, and the more specific
+claim has to win.
+
+### Account emails are not on the open door
+
+`password_changed`, `user_created`, `account_disabled`, `account_enabled` are in
+`ADMIN_ONLY_KINDS` and require admin credentials. Everything else through
+`notify` is a statement about a *course*; these are statements about somebody's
+*account*, and anyone holding the public key could otherwise tell a member of
+staff their password had been changed.
+
+### index.ts grew a deliver()
+
+Four ways in now — internal secret, admin, notify, and the two reset actions —
+and they all needed the same send-and-log. `deliver()` is that, once, so a new
+path cannot accidentally skip the log or invent its own error handling.
+
+### Help
+
+The `?` in the top bar already existed and read from `Help.jsx`; what it lacked
+was content for the screens added since June and a mapping for four of them.
+Every screen in the nav is now mapped (checked in a script, not by eye), with
+two new sections — Emails, and Holidays — and a rewritten Admin section covering
+the tabs, leaving, and the difference between disabling and deleting a login.
+"Getting started" now answers "I have forgotten my password" and "I got an email
+saying my password changed and it was not me".
+
+### Verified
+
+- reset request for a real account, a fake one, and a second request inside the
+  rate-limit window: all answer `{ok:true}`; only one email was sent
+- complete with a rubbish token, an expired one, a short password, and the same
+  token twice: each refused with the reason a person needs
+- a good token: password changed, old password dead, all links for that account
+  closed, one `password_changed` email logged
+- an account email with no admin credentials: `Not authorized`
+- 15 groups of wording tests, three time zones
+- every screen in the nav has help content (script-checked)
+
+### Files
+
+`supabase/migrations/20260829180000_password_reset_and_account_emails.sql`
+(applied), `supabase/functions/send-email/*` (deployed, v6),
+`src/views/ResetPassword.jsx` (new), `src/views/Login.jsx`, `src/App.jsx`
+(`?reset=` before the sign-in gate), `src/views/Admin.jsx`,
+`src/views/Help.jsx`, `src/lib/api.js`, `tests/wording.mjs`.
+
 ## 2026-08-29 (later still) — Holiday requests, and one context function for every email
 
 Time off used to be a row somebody typed in. It is now a request with a

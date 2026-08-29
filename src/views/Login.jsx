@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { appLogin } from '../lib/api.js'
+import { appLogin, requestPasswordReset } from '../lib/api.js'
 import logoUrl from '../assets/sgas-logo.png'
 
 export default function Login({ onLogin }) {
@@ -8,6 +8,19 @@ export default function Login({ onLogin }) {
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  // Forgotten-password sits behind a link rather than on the form: it is the
+  // rarer thing, and two password boxes on one screen invites the wrong one.
+  const [forgot, setForgot] = useState(false)
+  const [who, setWho] = useState('')
+  const [sent, setSent] = useState(false)
+
+  async function askReset(e) {
+    e.preventDefault()
+    setErr(''); setBusy(true)
+    try { await requestPasswordReset(who); setSent(true) }
+    catch (ex) { setErr(ex.message || 'Could not send that') }
+    finally { setBusy(false) }
+  }
 
   async function submit(e) {
     e.preventDefault()
@@ -20,6 +33,43 @@ export default function Login({ onLogin }) {
     } finally {
       setBusy(false)
     }
+  }
+
+  if (forgot) {
+    return (
+      <div className="login-wrap">
+        <form className="login-card" onSubmit={askReset}>
+          <img className="login-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" />
+          <div className="brand-sub">Forgotten your password?</div>
+          {err && <div className="login-err">{err}</div>}
+          {sent ? (
+            <>
+              {/* Deliberately the same message whether or not that account
+                  exists — otherwise this form is a way to find out who works
+                  here. */}
+              <p className="muted small">
+                If that matches an account, an email is on its way with a link to set a new password.
+                It works once and lasts an hour. Check the junk folder if it does not appear.
+              </p>
+              <button type="button" className="btn" style={{ width: '100%' }}
+                onClick={() => { setForgot(false); setSent(false); setWho('') }}>Back to sign in</button>
+            </>
+          ) : (
+            <>
+              <div className="field">
+                <label className="fl">Username or email address</label>
+                <input type="text" value={who} onChange={(e) => setWho(e.target.value)} autoFocus />
+              </div>
+              <button className="btn" style={{ width: '100%' }} disabled={busy}>
+                {busy ? 'Sending…' : 'Email me a link'}
+              </button>
+              <button type="button" className="linkbtn" style={{ marginTop: 10 }}
+                onClick={() => { setForgot(false); setErr('') }}>Back to sign in</button>
+            </>
+          )}
+        </form>
+      </div>
+    )
   }
 
   return (
@@ -37,6 +87,8 @@ export default function Login({ onLogin }) {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         </div>
         <button className="btn" style={{ width: '100%' }} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
+        <button type="button" className="linkbtn" style={{ marginTop: 10 }}
+          onClick={() => { setForgot(true); setErr('') }}>Forgotten your password?</button>
         {LIVE ? (
           <div className="login-note">Accounts are managed in the app's Admin screen by an administrator.</div>
         ) : (

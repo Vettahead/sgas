@@ -8,7 +8,7 @@
 // before — which is exactly the todayISO() bug already on the board.
 import assert from 'node:assert/strict'
 import {
-  parseDay, fmtDay, fmtRange, fmtDays, fmtDelegates, fmtWorkingDays, render, tokensFor,
+  parseDay, fmtDay, fmtRange, fmtDays, fmtDelegates, fmtWorkingDays, fmtMinutes, render, tokensFor,
 } from '../supabase/functions/send-email/wording.ts'
 
 let n = 0
@@ -136,6 +136,25 @@ ok('the holiday templates render with nothing left over', () => {
   assert.ok(out.includes('Days:  5 working days'))
   assert.ok(out.includes('Note:  Half term'))
   assert.equal(render('Holiday request from {{staff}} — {{dates}}', t), 'Holiday request from Denis Brown — Mon 5 – Fri 9 Oct 2026')
+})
+
+ok('how long a reset link lasts, in English', () => {
+  assert.equal(fmtMinutes(60), '1 hour')
+  assert.equal(fmtMinutes(30), '30 minutes')
+  assert.equal(fmtMinutes(1), '1 minute')
+  assert.equal(fmtMinutes(120), '2 hours')
+  assert.equal(fmtMinutes(90), '1 hour 30 minutes')
+  assert.equal(fmtMinutes(0), 'a short while')
+})
+
+ok('the account emails render, and the link is never invented here', () => {
+  const t = tokensFor({ name: 'Denis Brown', username: 'DenisB', role: 'Standard', link: 'https://sgas-opal.vercel.app/?reset=abc', minutes: 60 })
+  assert.equal(t.expires, '1 hour')
+  assert.equal(t.link, 'https://sgas-opal.vercel.app/?reset=abc')
+  const out = render('Hello {{name}}, sign in at {{link}} as {{username}} ({{role}}). Expires in {{expires}}.', t)
+  assert.equal(out, 'Hello Denis Brown, sign in at https://sgas-opal.vercel.app/?reset=abc as DenisB (Standard). Expires in 1 hour.')
+  // no link in the context = an empty string, never a guess at the address
+  assert.equal(tokensFor({}).link, '')
 })
 
 console.log(`\n${n} groups passed`)

@@ -7,7 +7,7 @@ import { useState } from 'react'
 // Search filters across every question and answer; sections are collapsible.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATED = '29 Jun 2026'
+const UPDATED = '29 Aug 2026'
 
 // Each section = a group of question/answer pairs.
 // q = question, a = answer (array of paragraphs; a leading "•" line becomes a bullet).
@@ -16,6 +16,20 @@ export const SECTIONS = [
   {
     id: 'basics', icon: '🚀', title: 'Getting started',
     items: [
+      {
+        q: 'I have forgotten my password.',
+        a: [
+          'On the sign-in screen, click “Forgotten your password?”, type your username or your email address, and the system emails you a link to set a new one.',
+          'The link works once and stops working an hour after it was sent. If it has expired, just ask for another. Nobody — including an administrator — can read your password; they can only set a new one.',
+          'The screen says the same thing whether or not it recognised what you typed. That is on purpose: it stops the sign-in page being used to find out who works here.',
+        ],
+      },
+      {
+        q: 'I got an email saying my password was changed, and it was not me.',
+        a: [
+          'Tell the office straight away. That email is sent whenever a password changes — whether you did it or an administrator reset it — precisely so that a change you did not make does not go unnoticed.',
+        ],
+      },
       {
         q: 'What is this system for?',
         a: [
@@ -443,20 +457,125 @@ export const SECTIONS = [
       {
         q: 'What is the Admin screen?',
         a: [
-          'It is the one place to manage staff — only administrators see it. Adding a staff member here creates their assignable record (so they can be picked as a trainer/assessor), their login, and their role, all together.',
+          'The one place to manage people — only administrators see it. It has three tabs.',
+          '• Staff — who works here: name, email, room, holidays taken, and what is expiring.',
+          '• Logins & access — every account: username, role, active or not, reset a password, delete a login.',
+          '• Email — where the system sends from, the wording of the emails it sends, and everything it has sent.',
         ],
       },
       {
-        q: 'What can I do to a staff member?',
+        q: 'How do I add somebody?',
         a: [
-          'Change their role, reset their password, disable an account, and create a login for a staff member who doesn’t have one yet. There is also an “Other accounts” area for logins that aren’t linked to a staff record.',
-          'You can tick “Staff member” on an admin-only login so that person also becomes assignable to courses while keeping their admin access.',
+          'Staff tab → “＋ New staff member”. That creates two things at once: their staff record, so they can be picked as a trainer, assessor or verifier on a course, and their login with a role.',
+          'If somebody already has a login but no staff record, tick “Staff member” against their account on the Logins tab and they become assignable while keeping the access they had.',
         ],
       },
       {
-        q: 'Is a password reset emailed out?',
+        q: 'How do I see somebody’s accreditations?',
         a: [
-          'Not yet — email sending is still being set up. For now, when you create a login or reset a password, the system shows you the details to copy and pass on. Automatic emails are planned once the mailboxes are in place.',
+          'Click their name on the Staff tab. That opens their own page — their details, and every accreditation they hold with its expiry countdown. “← All staff” goes back.',
+          'A red or amber badge beside a name in the list means something of theirs has expired or is close to it, so you can see it without opening anyone.',
+        ],
+      },
+      {
+        q: 'Somebody has left. Do I delete them?',
+        a: [
+          'Press Remove on the Staff tab. It marks the day they left rather than deleting them, and that is deliberate: every course they ever taught has to keep their name on it, because that is the record an auditor asks for.',
+          'They disappear from the staff list and from every trainer and assessor picker in the system, so nobody can be put on a course by mistake. Tick “Show past staff” to see them again, and Reinstate if they come back.',
+          'If a course still to come had them down to run it, that course turns up in the calendar’s “Needs attention” as wanting a trainer. Nothing is silently unassigned.',
+          'A record that has never been used at all — one of the made-up ones from setting the system up — is offered as a straight delete instead, because there is nothing to protect.',
+        ],
+      },
+      {
+        q: 'What is the difference between disabling and deleting a login?',
+        a: [
+          'Disable keeps the account and shuts the door — they cannot sign in, and you can switch it back on. Delete removes the account entirely.',
+          'Deleting a login does not touch the person’s staff record or anything they have done. Two things are refused: you cannot delete the account you are signed in as, and you cannot delete the last admin.',
+        ],
+      },
+      {
+        q: 'Who approves holiday requests?',
+        a: [
+          'Set on the Staff tab, under “Who approves holidays”. Any admin can approve as well, so nothing waits a fortnight while one person is away.',
+        ],
+      },
+      {
+        q: 'It says “Password incorrect” and the page is empty.',
+        a: [
+          'The Admin page asks you to confirm your own password before it opens. If that is refused, nothing on the page can load.',
+          'Check you are signed in as an account with Admin access — a Standard or Scheduler account will be refused however right the password is.',
+        ],
+      },
+    ],
+  },
+
+  // ── Emails ──────────────────────────────────────────────────────────────────
+  {
+    id: 'emails', icon: '✉️', title: 'Emails the system sends',
+    items: [
+      {
+        q: 'What does the system email on its own?',
+        a: [
+          'Six things, and every one of them can be switched off.',
+          '• A trainer is told when they are put on a course, when they are taken off one, and when a course they are down to run is moved.',
+          '• Holiday requests: whoever approves is told there is one waiting, and the person who asked is told whether it was approved or not.',
+          '• Account emails: a forgotten-password link, a note when a password is changed, a welcome when a login is created, and a note when an account is switched off or back on.',
+        ],
+      },
+      {
+        q: 'Can I change what they say?',
+        a: [
+          'Yes — Admin → Email → Wording. Change the subject, change the message, or switch one off entirely. You do not need anybody to change the system to do it.',
+          'Anything in double curly brackets, like {{course}}, is filled in when the email is sent. Each email lists the ones it can use underneath the box — they are not the same for every email, because “course” means nothing in a holiday email.',
+          'Press Preview to see the real thing, built by the same code that sends it, against a real course or a real request. Save first: Preview shows what is stored, not what you have just typed.',
+        ],
+      },
+      {
+        q: 'Did an email actually go?',
+        a: [
+          'Admin → Email → “What has been sent”. Every attempt is listed, whether it worked or not, with the reason when it failed.',
+          'The same email is not repeated inside ten minutes, so shuffling the board about does not fill somebody’s inbox. Anyone with no email address on their record is simply not emailed.',
+        ],
+      },
+      {
+        q: 'Which address do they come from?',
+        a: [
+          'Course and account emails come from crm@, holiday emails from holidays@. You can change which mailbox any of them uses in the Wording tab.',
+        ],
+      },
+    ],
+  },
+
+  // ── Holidays ────────────────────────────────────────────────────────────────
+  {
+    id: 'holidays', icon: '🏖', title: 'Holidays and time off',
+    items: [
+      {
+        q: 'How do I book time off?',
+        a: [
+          'On the Calendar, the same as adding anything else: drag the days, pick “Holiday”, add a note if it helps, and save.',
+          'If you are not somebody who approves holidays, the button says “Request time off” and it goes off to be approved. It shows on the calendar in amber as “waiting for approval” until somebody decides.',
+        ],
+      },
+      {
+        q: 'Who approves it, and how?',
+        a: [
+          'Whoever is set as the approver in Admin → Staff, and any administrator. They get an email, and a “Holiday requests” card appears on their dashboard with Approve and Reject on each one.',
+          'Rejecting asks for a reason first. The reason goes in the email, so nobody is told no without being told why.',
+          'The approver’s own time off goes straight on the calendar — there is nobody to ask.',
+        ],
+      },
+      {
+        q: 'What happens once it is approved?',
+        a: [
+          'It goes on the calendar as time off, and the system will warn anyone trying to put that person on a course those days.',
+          'A rejected request disappears from the calendar entirely — it was never time off.',
+        ],
+      },
+      {
+        q: 'How are the days counted?',
+        a: [
+          'In working days, Monday to Friday. A week off is five days, not seven. The days you have taken show against your name on the Admin staff list.',
         ],
       },
     ],
@@ -514,19 +633,24 @@ export const SECTIONS = [
 ]
 
 // Which Help section(s) belong to each page (used by the per-page "?" button).
+// Which help section(s) the "?" in the top bar shows on each screen. Every
+// screen in the nav belongs here — a "?" that does nothing is worse than no "?".
 export const VIEW_HELP = {
-  dash: ['dashboard', 'basics'],
+  dash: ['dashboard', 'holidays', 'basics'],
   inquiries: ['inquiries'],
   book: ['book'],
+  setup: ['schedule', 'courses'],
   sched: ['schedule'],
-  calendar: ['calendar'],
+  calendar: ['calendar', 'holidays'],
+  calendarnext: ['calendar', 'holidays'],
   assess: ['assess', 'acs'],
   pay: ['payments'],
   delegates: ['delegates'],
   companies: ['companies'],
   courses: ['courses'],
-  admin: ['admin', 'roles'],
+  admin: ['admin', 'emails', 'roles'],
   roadmap: ['progress'],
+  changelog: ['progress'],
 }
 
 // Turn an answer line into a paragraph or a bullet (lines starting with "•").

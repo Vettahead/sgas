@@ -21,6 +21,7 @@ import Roadmap from './views/Roadmap.jsx'
 import Changelog from './views/Changelog.jsx'
 import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
+import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
 
 const SESSION_KEY = 'sgas_user'
@@ -95,6 +96,12 @@ function loadSession() {
 
 export default function App() {
   const [user, setUser] = useState(loadSession)
+  // Read once, at start-up: the token is in the query string of the link the
+  // person just clicked.
+  const [resetToken, setResetToken] = useState(() => {
+    if (typeof window === 'undefined') return null
+    try { return new URLSearchParams(window.location.search).get('reset') || null } catch { return null }
+  })
   const [view, setView] = useState(() => defaultView(loadSession()?.role))
   const [openDelegate, setOpenDelegate] = useState(null)
   const [bookPrefill, setBookPrefill] = useState(null)
@@ -108,6 +115,25 @@ export default function App() {
   function signOut() {
     localStorage.removeItem(SESSION_KEY)
     setUser(null)
+  }
+
+  // An emailed reset link opens the app with ?reset=<token>. It has to be
+  // handled before the sign-in screen, because somebody following that link is
+  // by definition unable to sign in. The token is dropped out of the address
+  // bar as soon as it is used, so it does not sit in history or get shared in
+  // a screenshot.
+  if (resetToken) {
+    return (
+      <ResetPassword
+        token={resetToken}
+        onDone={() => {
+          setResetToken(null)
+          if (typeof window !== 'undefined' && window.history?.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname)
+          }
+        }}
+      />
+    )
   }
 
   if (!user) return <Login onLogin={onLogin} />
