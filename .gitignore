@@ -5,3 +5,9 @@ dist
 *.local
 
 vite.config.js.timestamp-*.mjs
+
+# Client data must never reach this repo — it is PUBLIC on GitHub.
+# The Access database and any export of it stays out of the working tree.
+*.mdb
+*.accdb
+*.bak
