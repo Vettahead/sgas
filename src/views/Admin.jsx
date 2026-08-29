@@ -3,7 +3,7 @@ import { LIVE } from '../lib/supabase.js'
 import {
   listUsers, createUser, updateUser, setUserPassword, deleteUser,
   listStaff, createStaff, updateStaff, setStaffLeft, deleteStaff, staffUsage,
-  listHolidays, weekdayDays, getSettings, saveSetting, notifyAccount,
+  listHolidays, weekdayDays, getSettings, saveSetting, notifyAccount, whoami,
 } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
@@ -50,6 +50,58 @@ const TABS = [
 ]
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+
+// ─────────────────────────────────────────────────────────────────────────────────
+// "Is this browser actually signed in, or just holding the public key?"
+//
+// One job: proving the session token is being honoured BEFORE the database is
+// locked down against the public key. Minting a token and having Postgres
+// accept it are two different things — this project has moved to the newer
+// asymmetric signing keys while we sign with the legacy shared secret, so
+// whether ours is accepted is a fact about the project, not something that can
+// be reasoned out.
+//
+// It must be run from the browser. The SQL editor carries no session and would
+// always look healthy. Kept afterwards as the first thing to check when
+// somebody says "nothing is loading".
+// ─────────────────────────────────────────────────────────────────────────────────
+function SessionCheck() {
+  const [res, setRes] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function run() {
+    setBusy(true)
+    try { setRes(await whoami()) } catch (e) { setRes({ verdict: e.message }) } finally { setBusy(false) }
+  }
+
+  const good = res && res.role === 'authenticated' && res.signed_in
+  const bad = res && res.tokens_enabled && res.role !== 'authenticated'
+
+  return (
+    <div className="subform" style={{ marginBottom: 16 }}>
+      <div className="sfh">Session security</div>
+      <div className="hint">
+        Checks whether this browser talks to the database as a signed-in member of staff, or merely
+        as the public key that ships inside the page. Run it from here while signed in — not from
+        the SQL editor, which carries no session and would always look healthy.
+      </div>
+      <div className="inrow">
+        <button className="btn sm" onClick={run} disabled={busy}>
+          {busy ? 'Checking…' : 'Check this session'}
+        </button>
+      </div>
+      {res && (
+        <div className="pc-msg" style={{ color: good ? '#1a8a4b' : bad ? '#b42318' : undefined }}>
+          <b>{res.verdict}</b>
+          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+            Talking to the database as <b>{String(res.role)}</b>
+            {res.app_role ? <> · signed in as {String(res.app_role)}</> : null}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Admin({ currentUser }) {
   const [tab, setTab] = useState('staff')
@@ -460,6 +512,8 @@ export default function Admin({ currentUser }) {
             password hashes. <b>Disable</b> keeps the account and shuts the door; <b>Delete</b> removes the account
             entirely and leaves the person's staff record and history untouched.
           </div>
+
+          <SessionCheck />
 
           <div className="card">
             <h3>🔑 Logins <span className="tag">{users.length}</span></h3>

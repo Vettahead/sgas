@@ -14,9 +14,20 @@
 --      currently 137 grants to anon in the public schema.
 --
 -- BEFORE RUNNING IT — every one of these must be true:
---   [ ] Vault secret `sgas_jwt_secret` is set to the project's JWT secret
---       (Dashboard → Project Settings → API → JWT Settings → JWT Secret).
---       Until it is, app_login returns token = NULL and this LOCKS EVERYONE OUT.
+--   [ ] Vault secret `sgas_jwt_secret` is set to the project's LEGACY JWT
+--       secret (Dashboard → Project Settings → JWT Keys → the legacy secret;
+--       the old API → JWT Settings path is gone). Until it is, app_login
+--       returns token = NULL and this LOCKS EVERYONE OUT.
+--   [ ] THE ONE THAT CAN CATCH YOU OUT: this project has already migrated to
+--       asymmetric JWT signing keys — its JWKS endpoint serves an ES256 key —
+--       while app_mint_token signs HS256 with the legacy shared secret.
+--       Supabase keeps honouring the legacy secret until the legacy key is
+--       REVOKED. If it has been revoked, our tokens are silently ignored, every
+--       request stays `anon`, and this migration locks the business out.
+--       DO NOT REASON ABOUT THIS — measure it. Sign in to the live app and
+--       press Admin → Logins & access → "Check this session". It must say
+--       SAFE TO LOCK DOWN. The SQL editor cannot answer this: it carries no
+--       token and always looks healthy.
 --   [ ] The build carrying src/lib/session.js is deployed, live, and has been
 --       long enough that nobody is still on the previous one.
 --   [ ] You have signed OUT and back IN on the live site since that deploy — a

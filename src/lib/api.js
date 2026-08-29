@@ -933,6 +933,15 @@ function tally(rows, key) {
 // the browser cannot tell "the secret is not set up yet" from "my token has
 // expired" — and those need opposite responses. Never throws: if it cannot be
 // reached, the answer is "no", which leaves behaviour exactly as it is today.
+// What the database sees when THIS browser asks. See app_whoami() — it reports
+// the role the request arrives as, and whether that is safe to lock down.
+export async function whoami() {
+  if (!LIVE) return { role: 'demo', verdict: 'Demo data — no database to check.' }
+  const { data, error } = await supabase.rpc('app_whoami')
+  if (error) throw new Error(error.message)
+  return data
+}
+
 export async function tokensEnabled() {
   if (!LIVE) return false
   try {
