@@ -19,7 +19,6 @@
 
 export const RELEASES = [
   {
-<<<<<<< HEAD
     v: '1.24.2', build: 143, date: '29 Aug 2026',
     title: 'The history filled in',
     notes: [
@@ -29,8 +28,6 @@ export const RELEASES = [
     ],
   },
   {
-=======
->>>>>>> 146b27cfd3e90ca1d7113bcddfc4e8ef49f9e2d9
     v: '1.24.1', build: 142, date: '29 Aug 2026',
     title: 'The logo is on the emails',
     notes: [
