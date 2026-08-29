@@ -52,18 +52,20 @@ const TABS = [
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 
 // ─────────────────────────────────────────────────────────────────────────────────
-// "Is this browser actually signed in, or just holding the public key?"
+// "Why is this person seeing empty screens?"
 //
-// One job: proving the session token is being honoured BEFORE the database is
-// locked down against the public key. Minting a token and having Postgres
-// accept it are two different things — this project has moved to the newer
-// asymmetric signing keys while we sign with the legacy shared secret, so
-// whether ours is accepted is a fact about the project, not something that can
-// be reasoned out.
+// It was built to prove the token worked before the lockdown. That job is done,
+// but the check earned its keep: since the lockdown, an expired session and a
+// revoked signing key produce the SAME symptom — every screen loads empty — and
+// from the outside that is indistinguishable from the system being broken.
 //
-// It must be run from the browser. The SQL editor carries no session and would
-// always look healthy. Kept afterwards as the first thing to check when
-// somebody says "nothing is loading".
+//   expired session            -> sign out and back in, fixed in ten seconds
+//   revoked legacy JWT secret  -> nobody can work until it is restored
+//
+// One click says which. Without it, both look like "SGAS is down".
+//
+// It must be run from the browser: the SQL editor carries no token and always
+// looks healthy.
 // ─────────────────────────────────────────────────────────────────────────────────
 function SessionCheck() {
   const [res, setRes] = useState(null)
@@ -74,29 +76,27 @@ function SessionCheck() {
     try { setRes(await whoami()) } catch (e) { setRes({ verdict: e.message }) } finally { setBusy(false) }
   }
 
-  const good = res && res.role === 'authenticated' && res.signed_in
-  const bad = res && res.tokens_enabled && res.role !== 'authenticated'
+  const good = res?.healthy === true
 
   return (
     <div className="subform" style={{ marginBottom: 16 }}>
-      <div className="sfh">Session security</div>
+      <div className="sfh">Connection check</div>
       <div className="hint">
-        Checks whether this browser talks to the database as a signed-in member of staff, or merely
-        as the public key that ships inside the page. Run it from here while signed in — not from
-        the SQL editor, which carries no session and would always look healthy.
+        If somebody says screens are loading empty, press this on their machine before anything
+        else. It tells an expired sign-in — which they fix themselves by signing out and back in —
+        apart from a real fault. It has to be run in the browser, on the affected machine.
       </div>
       <div className="inrow">
         <button className="btn sm" onClick={run} disabled={busy}>
-          {busy ? 'Checking…' : 'Check this session'}
+          {busy ? 'Checking…' : 'Check this connection'}
         </button>
       </div>
       {res && (
-        <div className="pc-msg" style={{ color: good ? '#1a8a4b' : bad ? '#b42318' : undefined }}>
-          <b>{res.verdict}</b>
-          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
-            Talking to the database as <b>{String(res.role)}</b>
-            {res.app_role ? <> · signed in as {String(res.app_role)}</> : null}
-          </div>
+        <div className="pc-msg" style={{ color: good ? '#1a8a4b' : '#b42318' }}>
+          <b>{good ? '✓ ' : '⚠ '}{res.verdict}</b>
+          {res.app_role ? (
+            <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>Signed in as {String(res.app_role)}</div>
+          ) : null}
         </div>
       )}
     </div>
