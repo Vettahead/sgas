@@ -22,9 +22,9 @@
 --   [ ] You have signed OUT and back IN on the live site since that deploy — a
 --       token is only issued at login, so an existing session has none.
 --   [ ] `select public.app_jwt_secret() is not null;` returns true.
---   [ ] Token expiry is handled. A token lasts 12 hours; when it lapses the
---       browser falls back to anon, which is harmless today but becomes
---       "nothing loads" once this is applied. Add a re-issue path first.
+--   [x] Token expiry is handled. DONE 30 Aug: App.jsx signs the person out and
+--       says "Your session has ended" when tokens are being issued and theirs
+--       has gone, instead of leaving them looking signed in with empty screens.
 --
 -- IF THE SITE GOES DARK: run 2026-08-29_anon_lockdown_ROLLBACK.sql, which puts
 -- p_anon_all and the grants back exactly as they were. Keep it to hand.

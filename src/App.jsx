@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { LIVE } from './lib/supabase.js'
 import logoUrl from './assets/sgas-logo-white.png'
 import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
@@ -23,7 +23,8 @@ import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
 import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
-import { clearToken } from './lib/session.js'
+import { clearToken, getToken } from './lib/session.js'
+import { tokensEnabled } from './lib/api.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -119,6 +120,27 @@ export default function App() {
     setUser(null)
   }
 
+  // ── the session has to end when the token does ──────────────────────────
+  // Being signed in is remembered in localStorage and never expired, but the
+  // token only lasts 12 hours. Before the anon lockdown that mismatch is
+  // harmless. After it, somebody whose token has quietly lapsed sits there
+  // looking signed in while every screen comes back empty — which reads as
+  // "the system is broken", not "sign in again".
+  //
+  // The two reasons for having no token look identical from here, so the
+  // database is asked which it is: no secret set yet means carry on exactly as
+  // before; tokens ARE being issued and mine has gone means the session is
+  // genuinely over.
+  const [expired, setExpired] = useState(false)
+  useEffect(() => {
+    if (!LIVE || !user || getToken()) return
+    let cancelled = false
+    tokensEnabled().then((on) => {
+      if (!cancelled && on) { signOut(); setExpired(true) }
+    })
+    return () => { cancelled = true }
+  }, [user])
+
   // An emailed reset link opens the app with ?reset=<token>. It has to be
   // handled before the sign-in screen, because somebody following that link is
   // by definition unable to sign in. The token is dropped out of the address
@@ -138,7 +160,7 @@ export default function App() {
     )
   }
 
-  if (!user) return <Login onLogin={onLogin} />
+  if (!user) return <Login onLogin={onLogin} notice={expired ? 'Your session has ended. Please sign in again.' : null} />
 
   const isAdmin = user.role === 'ADMIN'
   const allowed = viewsForRole(user.role)

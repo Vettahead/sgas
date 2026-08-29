@@ -1637,3 +1637,9 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
    only way the LAYOUT (not just the paint) can never exceed the date span.
    pointer-events:none so the label does not cover the drag handles under it. */
 .cx-ybar .cx-bar-t{position:absolute;inset:0;padding:0 4px;pointer-events:none}
+
+/* Sign-in notice: why you are here when you did not ask to be. Deliberately
+   NOT .login-err (nobody has got anything wrong) and not .login-note, which
+   is the small grey footnote under the form. */
+.login-info{background:#eef4ff;color:#1e3a8a;border:1px solid #c7dbff;border-radius:8px;
+  padding:10px 12px;margin:0 0 12px;font-size:14px;line-height:1.4;text-align:left}

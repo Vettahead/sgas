@@ -929,6 +929,18 @@ function tally(rows, key) {
 // DEMO: in-memory only, hashed client-side.
 // =============================================================================
 
+// Is this system issuing session tokens yet? Answered by the database, because
+// the browser cannot tell "the secret is not set up yet" from "my token has
+// expired" — and those need opposite responses. Never throws: if it cannot be
+// reached, the answer is "no", which leaves behaviour exactly as it is today.
+export async function tokensEnabled() {
+  if (!LIVE) return false
+  try {
+    const { data, error } = await supabase.rpc('app_tokens_enabled')
+    return !error && data === true
+  } catch { return false }
+}
+
 const sanitizeUser = (u) => ({ user_id: u.user_id, username: u.username, name: u.name, email: u.email, role: u.role, is_active: u.is_active, staffId: u.staff_id ?? u.staffId ?? null })
 
 export async function appLogin(username, password) {

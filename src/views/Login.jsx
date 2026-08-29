@@ -3,7 +3,10 @@ import { LIVE } from '../lib/supabase.js'
 import { appLogin, requestPasswordReset } from '../lib/api.js'
 import logoUrl from '../assets/sgas-logo.png'
 
-export default function Login({ onLogin }) {
+// `notice` explains WHY they are looking at this screen when they did not ask
+// to be. Without it, being signed out by an expired session is
+// indistinguishable from the system having lost their login.
+export default function Login({ onLogin, notice }) {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [err, setErr] = useState('')
@@ -77,6 +80,7 @@ export default function Login({ onLogin }) {
       <form className="login-card" onSubmit={submit}>
         <img className="login-logo" src={logoUrl} alt="SGAS — Specialist Gas Assessment Services" />
         <div className="brand-sub">Training Management — staff sign in</div>
+        {notice && !err && <div className="login-info">{notice}</div>}
         {err && <div className="login-err">{err}</div>}
         <div className="field">
           <label className="fl">Username</label>
