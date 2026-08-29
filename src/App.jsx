@@ -23,6 +23,7 @@ import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
 import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
+import { clearToken } from './lib/session.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -114,6 +115,7 @@ export default function App() {
   }
   function signOut() {
     localStorage.removeItem(SESSION_KEY)
+    clearToken()          // stop sending the JWT the moment they sign out
     setUser(null)
   }
 

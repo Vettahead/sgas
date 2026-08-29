@@ -1,6 +1,7 @@
 // Source-agnostic data access layer.
 // Every function returns the SAME view-friendly shape whether the data comes
 // from live Supabase or the bundled seed store. Views never touch raw tables.
+import { setToken, clearToken } from './session.js'
 
 import { supabase, LIVE } from './supabase.js'
 import { store, ASSESSOR_COLOR } from './core.js'
@@ -938,6 +939,10 @@ export async function appLogin(username, password) {
     if (error) throw new Error('Could not reach the server')
     const row = (data || [])[0]
     if (!row) throw new Error('Invalid username or password')
+    // The token is what makes this browser `authenticated` rather than `anon`
+    // for every request after this one. It is null until the signing secret is
+    // in Vault, and the app works either way — see lib/session.js.
+    setToken(row.token || null)
     return sanitizeUser(row)
   }
   const row = store.users.find((u) => u.username.toLowerCase() === uname.toLowerCase())

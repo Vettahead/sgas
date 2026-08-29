@@ -144,3 +144,43 @@ curl -s -X POST "$URL/functions/v1/send-email" \
 
 Use a session whose trainer is a throwaway record when testing, and delete it
 afterwards — a real send goes to a real person.
+
+## The anon lockdown — where it has got to (29 Aug 2026)
+
+**The problem.** This app does not use Supabase Auth, so every request reached
+Postgres as `anon` whether somebody was signed in or not. The only way to make
+that work was `p_anon_all` (ALL / anon / USING true) on all 18 tables, plus 137
+table grants to `anon`. The anon key ships inside the JavaScript bundle and is
+therefore public — so anyone who viewed source could read and write every
+delegate's name, date of birth, NI number and address. This is the largest
+outstanding risk on the project.
+
+**What is done.** `app_login` now mints a JWT (migration
+`20260829234500_app_session_jwt.sql`) carrying `role: authenticated` plus
+`app_user_id` / `app_role` claims, and `src/lib/session.js` hands it to every
+request through supabase-js's `accessToken` hook. **Nothing is locked down
+yet** — the policies still allow anon exactly as before, so no token, an expired
+token and an older build all behave as they did. The mechanism was proved on a
+throwaway table: anon → `permission denied`, a token without our claims → 0
+rows, a signed-in SGAS user → the row.
+
+**What is left — and it needs Chris.** The token is NULL until the project's JWT
+secret is in Vault, and that value must never go through a chat. In the SQL
+editor, paste your own value:
+
+```sql
+select vault.create_secret('PASTE_THE_JWT_SECRET_HERE', 'sgas_jwt_secret',
+                           'Signs the app_login JWT');
+-- then check, without printing it:
+select public.app_jwt_secret() is not null;   -- must be true
+```
+
+It is at **Dashboard → Project Settings → API → JWT Settings → JWT Secret**.
+
+Then, and only then, work through the checklist at the top of
+`supabase/pending/2026-08-29_anon_lockdown.sql` and run it. Keep
+`..._ROLLBACK.sql` open in a tab while you do.
+
+**One gap still to close before the flip:** a token lasts 12 hours, and when it
+lapses the browser silently drops back to anon. That is harmless today; after
+the lockdown it means "nothing loads". Add a re-issue path first.
