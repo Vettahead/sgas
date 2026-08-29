@@ -189,7 +189,16 @@ what he typed:
 Adjacent detail blocks separated only by a blank line merge into ONE table —
 two tables meant two label columns of different widths, which reads as a bug.
 
-Rules baked in, do not undo them: no images (clients block them by default);
+**The logo** is the ONE image, and there may never be a second. It lives at
+`public/email-logo.png` (a copy of the white lockup — the `src/assets/` one gets
+a content hash at build and has no stable URL), and `LOGO` in `layout.ts` points
+at it absolutely: `https://sgas-opal.vercel.app/email-logo.png`. **Change that
+constant if the site moves to its own domain.** It carries no `height`
+attribute, and its `alt="SGAS"` is styled white/700/20px, so a client with
+images off renders the wordmark rather than a hole. Nothing the email has to SAY
+may ever live in a picture.
+
+Rules baked in, do not undo them: no other images (clients block them by default);
 600px; tables with `role="presentation"`; every style inline; `color-scheme`
 meta plus a `prefers-color-scheme` override block; a hidden preheader. Outlook
 renders through Word, Gmail strips `<link>` and clips above 102KB.

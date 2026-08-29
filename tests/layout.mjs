@@ -87,7 +87,15 @@ ok('it is a whole document, sized and themed for email', () => {
   assert.ok(html.includes('role="presentation"'))
   assert.ok(html.includes('prefers-color-scheme:dark'))
   assert.ok(html.includes('name="color-scheme"'))
-  assert.ok(!/<img/i.test(html), 'no images — a blocked image is a broken email')
+  // Exactly one image, and it is the logo. Mail programs block images by
+  // default, so nothing the email has to SAY may live in a picture — and the
+  // one that is allowed must read correctly when it does not load.
+  const imgs = html.match(/<img\b[^>]*>/gi) || []
+  assert.equal(imgs.length, 1, 'the logo is the only image there may ever be')
+  assert.ok(/alt="SGAS"/.test(imgs[0]), 'blocked, it still says SGAS')
+  assert.ok(/color:#ffffff/.test(imgs[0]), 'and the alt text is styled to look like the wordmark')
+  assert.ok(/^https:\/\//.test(imgs[0].match(/src="([^"]+)"/)[1]), 'absolute — an email is read outside the app')
+  assert.ok(html.includes('Specialist Gas Assessment Services'), 'the strapline is live text, not part of the picture')
   assert.ok(html.length < 102000, 'under the Gmail clipping threshold')
 })
 

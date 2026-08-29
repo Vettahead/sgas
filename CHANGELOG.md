@@ -4,6 +4,26 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — The logo, and the only image there will ever be
+
+`public/email-logo.png` (a copy of `src/assets/sgas-logo-white.png` — the
+bundled asset gets a content hash, so it has no stable URL an inbox can fetch)
+served from the site root and referenced absolutely by `LOGO` in `layout.ts`.
+**Change that constant if the site ever moves to its own domain.**
+
+The rule stays "nothing the email has to SAY may live in a picture". The logo
+qualifies because it says nothing: `alt="SGAS"` is styled white/700/20px so a
+blocked image renders as the wordmark the header carried before, and the
+strapline is live text either way. No `height` attribute — reserving the image's
+height left a hole above the strapline when it did not load. `tests/layout.mjs`
+now asserts exactly one `<img>`, absolute src, and that alt text.
+
+Verified both states by screenshotting with Playwright and `page.route()` —
+once fulfilling the logo request from disk, once aborting it.
+
+**Edge Function v9.** The logo only resolves once the site is deployed; until
+then recipients see the alt-text header.
+
 ## 2026-08-29 — The emails get a layout
 
 Plain-text emails were going out looking like a printout. Every send now carries
