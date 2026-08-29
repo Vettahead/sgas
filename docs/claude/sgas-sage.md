@@ -17,9 +17,10 @@ here:
   middleware running on a machine in the office, permanently on, and a way to
   reach it from the cloud. That whole class of problem does not apply.
 
-So when this is picked up, it is an ordinary OAuth integration, not an
-infrastructure project. Note the tier: "Plus" — check the API is included on it
-before building, as Sage has historically gated API access by plan.
+**API access is included on Accounting Plus** — Chris checked, 29 Aug 2026.
+That was the one thing that could have made this a purchasing conversation
+rather than a build; it is not. So when this is picked up it is an ordinary
+OAuth integration, not an infrastructure project and not a plan upgrade.
 
 ## What already exists on our side
 
@@ -47,8 +48,10 @@ Which direction is the truth?
 
 ## Open, for Jen or Simon
 
-- Is API access included on Accounting Plus, or does it need a plan change?
-- Who owns the Sage login that would authorise the connection?
+- ~~Is API access included on Accounting Plus?~~ **Yes** — Chris, 29 Aug 2026.
+- Who owns the Sage login that would authorise the connection, and are they
+  happy for it to be used that way? Read-only first. **This is now the only
+  thing standing between here and a costing.**
 - Does an invoice already carry anything that ties back to a booking, or is
   `sage_ref` typed in by hand every time?
 
