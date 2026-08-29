@@ -9,7 +9,7 @@ import ImportMapping from './ImportMapping.jsx'
 // Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATED = '29 Aug 2026'
+const UPDATED = '30 Aug 2026'
 
 const STATUS = {
   done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },
@@ -85,6 +85,7 @@ const ITEMS = [
   { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar; confirm the Courses catalogue saves on change — Simon lost about 20 minutes of tidy-up edits last time and it was never established whether they saved.' },
 
   // ── Waiting on Chris ─────────────────────────────────────────────────────────
+  { t: 'Customer data locked down', s: 'review', d: 'DONE 30 Aug 2026. The most important fix on the project so far, and nothing on screen looks different. The key this website uses to reach the database is published inside every page \u2014 that is normal and unavoidable \u2014 but the database had been set up to trust it completely, so anyone who knew where to look could have read every delegate\u2019s name, date of birth, National Insurance number and address, and changed them. The database now tells a signed-in member of staff apart from somebody merely holding that key, and answers only the first. Checked from both sides after the change: as the public key every table AND the reporting view refuse to answer; signed in, everything is there as normal. ONE THING YOU WILL NOTICE: signing in now lasts a working day instead of forever \u2014 come back the next morning and it asks you to sign in again and says why, rather than showing empty pages.' },
   { t: 'The emails look the part', s: 'review', d: 'BUILT 29 Aug 2026. Everything the system sends now arrives properly laid out \u2014 headed with SGAS, the dates and details in their own panel, warnings highlighted, links as buttons \u2014 instead of a wall of typewriter text. You still write plain English in Admin \u2192 Email \u2192 Wording and never touch a tag: indent a line as \u201cWhen: \u2026\u201d and it becomes a row in the panel, start a paragraph in capitals and it stands out, put a link on its own line and it becomes a button. The plain version still goes with every one, so an old phone or a screen reader gets something readable. Deliberately no pictures anywhere \u2014 most mail programs block them and a grey broken box is worse than nothing. Reads on a phone, and follows dark mode.' },
   { t: 'Email set-up', s: 'done', d: 'DONE 28 Aug 2026. holidays@, crm@ and bookings@ are live, the server details are in, and the passwords are stored encrypted — entered once in Admin → Email and never shown again. A test email was sent successfully from all three.' },
   { t: 'Course-name matching for Sage', s: 'chris', d: 'SGAS course names and bundles need marrying up to the Sage names by hand when Sage is wired in.' },

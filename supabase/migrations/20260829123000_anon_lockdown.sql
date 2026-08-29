@@ -1,47 +1,24 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- THE LOCKDOWN. NOT APPLIED. Read all of this before running it.
+-- THE ANON LOCKDOWN. APPLIED 30 Aug 2026 — Chris ran it by hand in the SQL
+-- editor, and the migration history was back-filled to match.
 --
--- This is the migration that closes the hole: it stops the public anon key —
--- which ships inside the JavaScript bundle — reading and writing every
--- delegate, company, booking and staff record. It is kept OUT of
--- supabase/migrations/ on purpose so nothing applies it by accident.
+-- It closed the largest risk on the project. Before this, all 18 tables carried
+-- p_anon_all (ALL / anon / USING true) and 137 grants to `anon`, and the anon
+-- key ships inside the JavaScript bundle — so anyone who viewed source could
+-- read and write every delegate's name, date of birth, NI number and address.
 --
--- WHAT IT DOES
---   1. Replaces p_anon_all (ALL / anon+authenticated / USING true) on all 18
---      tables with a policy only a signed-in SGAS user satisfies.
---   2. REVOKEs the table grants from anon. This matters as much as the
---      policies: a GRANT with a permissive policy is wide open, and there are
---      currently 137 grants to anon in the public schema.
+-- VERIFIED AFTER APPLYING, not assumed:
+--   anon grants outside app_setting ......... 0
+--   tables still on the open policy ......... 0
+--   tables on the signed-in policy .......... 18
+--   as anon:  select from client ............ permission denied
+--   as anon:  select from the view .......... permission denied
+--   as a signed-in user: 10 delegates, 19 bookings, 35 sessions, 30 via view
 --
--- BEFORE RUNNING IT — every one of these must be true:
---   [ ] Vault secret `sgas_jwt_secret` is set to the project's LEGACY JWT
---       secret (Dashboard → Project Settings → JWT Keys → the legacy secret;
---       the old API → JWT Settings path is gone). Until it is, app_login
---       returns token = NULL and this LOCKS EVERYONE OUT.
---   [ ] THE ONE THAT CAN CATCH YOU OUT: this project has already migrated to
---       asymmetric JWT signing keys — its JWKS endpoint serves an ES256 key —
---       while app_mint_token signs HS256 with the legacy shared secret.
---       Supabase keeps honouring the legacy secret until the legacy key is
---       REVOKED. Checked 30 Aug 2026: NOT revoked — the dashboard says the
---       legacy secret "is used to only verify JSON Web Tokens", which is
---       exactly what our tokens need. AFTERWARDS IT MUST STAY THAT WAY:
---       revoking it, or switching to publishable/secret API keys in order to
---       disable the legacy keys, takes the whole app down. See supabase/README.
---       DO NOT REASON ABOUT THIS — measure it. Sign in to the live app and
---       press Admin → Logins & access → "Check this session". It must say
---       SAFE TO LOCK DOWN. The SQL editor cannot answer this: it carries no
---       token and always looks healthy.
---   [ ] The build carrying src/lib/session.js is deployed, live, and has been
---       long enough that nobody is still on the previous one.
---   [ ] You have signed OUT and back IN on the live site since that deploy — a
---       token is only issued at login, so an existing session has none.
---   [ ] `select public.app_jwt_secret() is not null;` returns true.
---   [x] Token expiry is handled. DONE 30 Aug: App.jsx signs the person out and
---       says "Your session has ended" when tokens are being issued and theirs
---       has gone, instead of leaving them looking signed in with empty screens.
+-- The emergency undo lives at supabase/rollback/anon_lockdown_EMERGENCY_UNDO.sql.
 --
--- IF THE SITE GOES DARK: run 2026-08-29_anon_lockdown_ROLLBACK.sql, which puts
--- p_anon_all and the grants back exactly as they were. Keep it to hand.
+-- DO NOT REVOKE THE LEGACY JWT SECRET. Sign-in tokens are signed with it; the
+-- whole app goes down without it. See supabase/README.md.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 begin;

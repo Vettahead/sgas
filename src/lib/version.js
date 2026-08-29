@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.25.0', build: 154, date: '30 Aug 2026',
+    title: 'The customer data is behind the lock now',
+    notes: [
+      'The biggest thing wrong with this system has been fixed, and it was invisible from the screens. The key the website uses to reach the database was published inside every page \u2014 that is normal and unavoidable \u2014 but the database had been set up to trust it completely. Anyone who knew where to look could have read every delegate\u2019s name, date of birth, National Insurance number and address, and could have changed them.',
+      'The database now tells the difference between a signed-in member of staff and somebody merely holding that key, and only answers the first. Checked from both sides afterwards: as the public key, every table and the reporting view refuse to answer; signed in, everything is there as normal.',
+      'The one change you will notice: signing in now lasts a working day rather than forever. If you come back to a screen the next morning it will ask you to sign in again and say so, instead of showing you empty pages.',
+      'Nothing about how the system is used has changed otherwise, and no data moved.',
+    ],
+  },
+  {
     v: '1.24.2', build: 143, date: '29 Aug 2026',
     title: 'The history filled in',
     notes: [

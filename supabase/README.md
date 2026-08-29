@@ -179,7 +179,7 @@ keys, and it gains real "sign this person out everywhere", which a JWT cannot
 do. Roughly half a session's work. It is the right answer eventually; it was not
 worth blocking the lockdown on.
 
-## The anon lockdown — where it has got to (29 Aug 2026)
+## The anon lockdown — DONE (30 Aug 2026)
 
 **The problem.** This app does not use Supabase Auth, so every request reached
 Postgres as `anon` whether somebody was signed in or not. The only way to make
@@ -198,9 +198,14 @@ token and an older build all behave as they did. The mechanism was proved on a
 throwaway table: anon → `permission denied`, a token without our claims → 0
 rows, a signed-in SGAS user → the row.
 
-**What is left — and it needs Chris.** The token is NULL until the project's JWT
-secret is in Vault, and that value must never go through a chat. In the SQL
-editor, paste your own value:
+**APPLIED 30 Aug 2026** and verified from both sides: as anon, every table and
+the reporting view refuse; signed in, 10 delegates / 19 bookings / 35 sessions
+are all there. 0 anon grants remain outside `app_setting`. Chris ran it by hand,
+so the migration history was back-filled. Emergency undo:
+`supabase/rollback/anon_lockdown_EMERGENCY_UNDO.sql`.
+
+The secret was set like this, for reference — the value never goes through a
+chat:
 
 ```sql
 select vault.create_secret('PASTE_THE_JWT_SECRET_HERE', 'sgas_jwt_secret',
@@ -211,10 +216,12 @@ select public.app_jwt_secret() is not null;   -- must be true
 
 It is at **Dashboard → Project Settings → API → JWT Settings → JWT Secret**.
 
-Then, and only then, work through the checklist at the top of
-`supabase/pending/2026-08-29_anon_lockdown.sql` and run it. Keep
-`..._ROLLBACK.sql` open in a tab while you do.
+**The one gap that WAS closed first**, and had to be: a token lasts 12 hours,
+but being signed in was remembered forever. `app_tokens_enabled()` plus the
+guard in App.jsx now end the session when the token ends and say so, instead of
+leaving somebody looking signed in with empty screens.
 
-**One gap still to close before the flip:** a token lasts 12 hours, and when it
-lapses the browser silently drops back to anon. That is harmless today; after
-the lockdown it means "nothing loads". Add a re-issue path first.
+**The check that must be run from the BROWSER, never the SQL editor:**
+Admin → Logins & access → "Check this session". It reports the role the request
+actually arrives as. The SQL editor carries no token and always looks healthy —
+which is exactly how you would talk yourself into a lockdown that fails.

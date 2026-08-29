@@ -4,6 +4,58 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — The anon lockdown, applied
+
+The largest risk on the project, closed. Every table carried `p_anon_all`
+(ALL / anon / USING true) plus 137 grants to `anon`, and the anon key ships in
+the JS bundle — so viewing source got you read/write on every delegate's name,
+DOB, NI number and address.
+
+### Why it took two halves
+
+RLS alone was never going to do it. A policy cannot restrict a role that holds
+an open GRANT, and a GRANT is not consulted at all once RLS denies — both had to
+change together. 137 grants revoked, 18 policies replaced.
+
+### The one that nearly got away
+
+`v_live_qualification` — forename, surname, email, mobile, employer, expiries.
+A view has no policies of its own, and without `security_invoker` it runs with
+its OWNER's rights, reading straight past every policy on the tables beneath it.
+Locking 18 tables and leaving that view would have been no lockdown at all.
+Caught by listing what `anon` could still reach rather than trusting the
+migration, and only because Chris asked to be walked through step 4 again.
+
+### The trap underneath all of it
+
+This project has already migrated to asymmetric JWT signing keys (its JWKS
+endpoint serves ES256), while `app_mint_token` signs HS256 with the legacy
+shared secret. Supabase honours the legacy secret only until the legacy key is
+**revoked** — and the dashboard actively invites revoking it ("consider
+switching to publishable and secret API keys to disable them"). Doing so takes
+the whole app down. `app_whoami()` + the "Check this session" button in Admin
+exist so this is measured from the browser rather than reasoned about; the SQL
+editor carries no token and always looks healthy, which is the trap.
+
+**The durable fix, not done:** drop the JWT for a session token in a request
+header validated by the policies against an `app_session` table. No signing
+secret, immune to Supabase key changes, and it gains sign-out-everywhere.
+
+### Verified after applying, not assumed
+
+| check | result |
+|---|---|
+| anon grants outside `app_setting` | 0 |
+| tables still on `p_anon_all` | 0 |
+| tables on `p_signed_in_all` | 18 |
+| as anon: `select from client` | permission denied |
+| as anon: `select from v_live_qualification` | permission denied |
+| as a signed-in user | 10 delegates, 19 bookings, 35 sessions, 30 via view |
+
+Applied by hand in the SQL editor, so `supabase_migrations.schema_migrations`
+was back-filled — otherwise the next `db push` meets a schema the repo cannot
+explain, and re-running would fail on the existing policies.
+
 ## 2026-08-29 — The June history, rebuilt from the commits
 
 The in-app Changelog screen (`src/lib/version.js`) had 7 entries for the 104
