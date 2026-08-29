@@ -17,4 +17,6 @@ begin
     execute format('grant select, insert, update, delete on public.%I to anon, authenticated', t);
   end loop;
 end $body$;
+alter view public.v_live_qualification set (security_invoker = false);
+grant select on public.v_live_qualification to anon, authenticated;
 commit;

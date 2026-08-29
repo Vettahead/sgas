@@ -81,9 +81,22 @@ begin
   end loop;
 end $body$;
 
+-- ── the back door: the view ─────────────────────────────────────────────────
+-- v_live_qualification exposes every delegate's name, email, mobile, employer
+-- and qualification expiries. A VIEW HAS NO POLICIES OF ITS OWN, and without
+-- security_invoker it runs with its owner's rights — so it reads straight past
+-- every policy set above. Locking the tables and leaving this is no lockdown at
+-- all. security_invoker makes it obey the caller's policies instead, which is
+-- what everyone assumes a view does anyway.
+alter view public.v_live_qualification set (security_invoker = true);
+revoke all on public.v_live_qualification from anon;
+grant select on public.v_live_qualification to authenticated;
+
 -- What anon must keep: a signed-out browser still has to reach the sign-in
 -- screen and ask for a reset. These are SECURITY DEFINER, so they work with no
 -- table grant at all — which is exactly why they are safe to leave open.
+-- app_setting also stays readable; checked 30 Aug, it holds only the app URL
+-- and which staff id approves holidays.
 grant execute on function public.app_login(text, text) to anon;
 
 commit;
