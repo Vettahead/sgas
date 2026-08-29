@@ -17,6 +17,14 @@
 
 export const RELEASES = [
   {
+    v: '1.24.1', build: 142, date: '29 Aug 2026',
+    title: 'The logo is on the emails',
+    notes: [
+      'The SGAS logo now heads every email instead of the word typed out.',
+      'If somebody\u2019s mail program blocks pictures \u2014 most do by default \u2014 it falls back to \u201cSGAS\u201d in the same white lettering, with the strapline underneath, so nothing looks broken and nothing is lost. It is still the only picture in there, deliberately.',
+    ],
+  },
+  {
     v: '1.24.0', build: 141, date: '29 Aug 2026',
     title: 'The emails stop looking like a printout',
     notes: [

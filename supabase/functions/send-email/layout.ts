@@ -20,8 +20,14 @@
 // screen readers and search indexes get.
 //
 // Email HTML is not web HTML. Tables with role="presentation", every style
-// inline, 600px, web-safe fonts, no external CSS and no images — Outlook renders
-// through Word, Gmail strips <link>, and a blocked image is a broken email.
+// inline, 600px, web-safe fonts and no external CSS — Outlook renders through
+// Word and Gmail strips <link>.
+//
+// ONE image, ever: the logo. Mail programs block images by default, so nothing
+// an email has to SAY may live in a picture. The logo is allowed because it
+// says nothing — blocked, its alt text is styled to render as the same white
+// "SGAS" wordmark the header carried before it existed, with the strapline
+// underneath as live text either way. Do not add a second image.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const BRAND = '#0d1b2e'        // the app's navy
@@ -30,6 +36,12 @@ const INK = '#1f2937'
 const MUTED = '#5b6b80'
 const LINE = '#e3e8ef'
 const PAGE = '#f4f6f9'
+// Absolute and public — an email is read outside the app, so a bundled asset or
+// a relative path is a broken picture. Served from public/email-logo.png, which
+// means it only resolves once the site has been deployed. CHANGE THIS if the
+// site ever moves to its own domain.
+const LOGO = 'https://sgas-opal.vercel.app/email-logo.png'
+
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
 
 export function esc(s: string): string {
@@ -179,8 +191,8 @@ export function toHtml(text: string, subject: string): string {
       <tr><td style="padding:0 0 14px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:${BRAND};border-radius:10px;">
           <tr><td style="padding:18px 24px;font-family:${FONT};">
-            <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:.5px;">SGAS</div>
-            <div style="font-size:12px;color:#93a4bb;letter-spacing:.4px;text-transform:uppercase;">Specialist Gas Assessment Services</div>
+            <img src="${LOGO}" width="118" alt="SGAS" style="display:block;border:0;outline:none;text-decoration:none;width:118px;height:auto;font-family:${FONT};font-size:20px;font-weight:700;color:#ffffff;letter-spacing:.5px;" />
+            <div style="margin-top:8px;font-size:12px;color:#93a4bb;letter-spacing:.4px;text-transform:uppercase;">Specialist Gas Assessment Services</div>
           </td></tr>
         </table>
       </td></tr>
