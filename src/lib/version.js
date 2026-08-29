@@ -7,7 +7,9 @@
 //   1. Add a new entry to the TOP of RELEASES.
 //   2. `build` = the commit count AT THE COMMIT THIS RELEASE SHIPS IN, i.e.
 //      `git rev-list --count HEAD` + 1 for the commit you are about to make.
-//      It drifts if you guess — 1.15.1 was labelled 126 and shipped in 127.
+//      It drifts if you guess — 1.15.1 was labelled 126 and shipped in 127, and
+//      the whole of June drifted the same way until it was rederived from git
+//      on 29 Aug. DERIVE IT, never estimate: `git rev-list --count <sha>`.
 //      COMMIT below is injected at build time and is always exact, so that is
 //      the field to trust when asking "is my change actually live?".
 //   3. Bump `v` — minor for a new feature, patch for fixes/tweaks.
@@ -16,6 +18,15 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const RELEASES = [
+  {
+    v: '1.24.2', build: 143, date: '29 Aug 2026',
+    title: 'The history filled in',
+    notes: [
+      'This screen only really started keeping track in late August. June was four months of work squeezed into seven lines, and two of the bigger days were missing outright \u2014 so it has been gone back over against what was actually built.',
+      'Added: the scheduling board being rebuilt around dragging, the calendar being written from scratch (27 June, not 28 as it said), personal diary entries, the daily task list, and the renewal chase log.',
+      'Every build number is now worked out from the real history rather than estimated, which is why some of the June ones have moved.',
+    ],
+  },
   {
     v: '1.24.1', build: 142, date: '29 Aug 2026',
     title: 'The logo is on the emails',
@@ -231,7 +242,7 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.9.0', build: 111, date: '28 Aug 2026',
+    v: '1.9.0', build: 118, date: '28 Aug 2026',
     title: 'Calendar fixes, and a new look to try',
     notes: [
       'Fixed a fault that showed an error message after every change you made on the calendar, and stopped the screen refreshing.',
@@ -244,7 +255,7 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.8.0', build: 107, date: '27 Aug 2026',
+    v: '1.8.0', build: 113, date: '28 Aug 2026',
     title: 'Calendar rebuilt, and a set-up wizard',
     notes: [
       'New “Set up a course” screen — one question at a time: the course, the dates, who is teaching, who is attending, then a check.',
@@ -256,7 +267,7 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.7.0', build: 106, date: '27 Aug 2026',
+    v: '1.7.0', build: 110, date: '27 Aug 2026',
     title: 'Staff accreditations',
     notes: [
       'Admin: click a staff member\'s name to open their own page. The staff list stays clean, with a small red or amber dot beside anyone who has an accreditation expired or expiring.',
@@ -272,7 +283,7 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.6.0', build: 105, date: '27 Aug 2026',
+    v: '1.6.0', build: 106, date: '27 Aug 2026',
     title: 'Version tracking',
     notes: [
       'Version + build number in the bottom-left of the menu — click it to open the changelog.',
@@ -302,7 +313,15 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.3.0', build: 78, date: '27 Jun 2026',
+    v: '1.3.1', build: 96, date: '28 Jun 2026',
+    title: 'Your own diary, and a list of what needs doing',
+    notes: [
+      'Personal engagements — anything you need in your day that is not a course. Give it a title, a date and a time and it sits on your calendar alongside the teaching.',
+      'A daily task list on the dashboard, kept up to date by the system rather than by somebody remembering to tick things off.',
+    ],
+  },
+  {
+    v: '1.3.0', build: 76, date: '27 Jun 2026',
     title: 'Real catalogue and pricing',
     notes: [
       'Catalogue rebuilt off the real database — 110 qualifications across 17 schemes.',
@@ -313,34 +332,59 @@ export const RELEASES = [
     ],
   },
   {
-    v: '1.2.0', build: 52, date: '26 Jun 2026',
+    v: '1.2.2', build: 62, date: '27 Jun 2026',
+    title: 'The calendar, built from scratch',
+    notes: [
+      'The first in-app calendar, written from nothing to replace the Teamup embed — Year, Month, Week and Day, with courses as coloured bars you click straight into.',
+      'Hover a course to see who is on it without opening anything.',
+      'The sidebar folds away when you want the width, and the schedule sits on the calendar itself.',
+    ],
+  },
+  {
+    v: '1.2.1', build: 53, date: '27 Jun 2026',
+    title: 'The scheduling board, rebuilt around dragging',
+    notes: [
+      'Delegates are dragged onto a course rather than picked from a form, and a waiting pool holds anyone not yet placed.',
+      'The pool now survives a refresh instead of emptying itself — the bug that made the board untrustworthy.',
+      'Pick, mix and remove blocks on the board; a finished course locks so history cannot be quietly rewritten.',
+      'Cards fold, reorder, and stay how you left them.',
+    ],
+  },
+  {
+    v: '1.2.0', build: 29, date: '26 Jun 2026',
     title: 'Post-demo polish',
     notes: [
       'Inquiries screen for capturing leads and converting them into a booking.',
       'Courses screen became full management rather than a read-only list.',
       'Mixed new + reassessment on one booking; add a qualification to an existing booking.',
+      'The dashboard modules fold away, so a long screen is only as long as you want it.',
       'Postcode lookup, delegate address fields and copy-delegate-to-new-company.',
       'SGAS logo and branding throughout.',
     ],
   },
   {
-    v: '1.1.0', build: 34, date: '11 Jun 2026',
+    v: '1.1.0', build: 12, date: '11 Jun 2026',
     title: 'ACS form auto-fill',
     notes: [
       'The ACS application form prints filled in from the booking — one delegate, a whole block, or a zip per delegate.',
     ],
   },
   {
-    v: '1.0.0', build: 28, date: '10 Jun 2026',
+    v: '1.0.0', build: 10, date: '10 Jun 2026',
     title: 'First full system',
     notes: [
       'Companies and delegate history, the renewal engine and cold-call list.',
       'Per-user dashboards, payments and chase log.',
+      'Every renewal chase logged against the client — who was contacted, when, and how — so it stopped living in somebody\u2019s inbox.',
       'Assess rework with NYC and no-show, and the rebooking loop.',
       'Roles and permissions across all five roles.',
     ],
   },
   {
+    // The only entry whose build does not line up with a commit of that date,
+    // and it is correct: the system went live on 7 Jun, and THIS git repo was
+    // started on 10 Jun ("update to git desktop"). The history before that is
+    // not in here. Do not "fix" it.
     v: '0.1.0', build: 1, date: '7 Jun 2026',
     title: 'Live for the first time',
     notes: [

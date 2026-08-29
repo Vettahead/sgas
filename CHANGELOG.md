@@ -4,6 +4,38 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — The June history, rebuilt from the commits
+
+The in-app Changelog screen (`src/lib/version.js`) had 7 entries for the 104
+commits up to 29 Jun, and 23 for the 38 after 27 Aug. June was reconstructed by
+reading the diffs — the commit messages from that era ("dels", "block gap",
+"cc") carry nothing.
+
+**Three things the old entries got wrong, all found by reading the code rather
+than the messages:**
+
+- The calendar was written on **27 Jun**, not 28 — `src/views/Calendar.jsx`
+  appears at build 54 and is reworked twice the same day. 1.4.0 (28 Jun) was
+  claiming it. Now 1.2.2.
+- "engagement system" is **personal diary entries** (`listEngagements` /
+  `createEngagement`, title + date + time, owned by a user), not managed
+  learning programmes. Nearly written up as the latter.
+- "email chain and logs" is the **renewal chase log**
+  (`recordRenewalContact` / `getRenewalContacts`), not an email feature.
+
+**Build numbers rederived.** Every one was an estimate and most had drifted —
+1.2.0 was labelled build 52, which is a 27 Jun commit. Also fixed at the
+27/28 Aug boundary: 1.6.0 was on 105 (the 17 Jul docs import), 1.8.0 was dated
+27 Aug for work committed on the 28th. All 32 now verified against
+`git rev-list --count`, with a script in the commit message's session.
+
+**0.1.0 is the one deliberate mismatch** and now carries a comment saying so:
+the system went live 7 Jun, this repo starts 10 Jun ("update to git desktop"),
+so build 1 is not a 7 Jun commit and never will be.
+
+New entries: 1.2.1 (drag-and-drop board), 1.2.2 (the calendar), 1.3.1 (diary and
+daily tasks), plus additions to 1.0.0 and 1.2.0.
+
 ## 2026-08-29 — The logo, and the only image there will ever be
 
 `public/email-logo.png` (a copy of `src/assets/sgas-logo-white.png` — the
