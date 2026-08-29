@@ -79,6 +79,7 @@ function scrub(message: string, secrets: string[]) {
 type Deliver = {
   mailbox: string; to: string; subject: string
   text?: string; html?: string; kind: string; refId?: string | null
+  cc?: string | null          // the employer, on a delegate's booking email
 }
 
 async function deliver(db: ReturnType<typeof createClient>, d: Deliver) {
@@ -110,6 +111,7 @@ async function deliver(db: ReturnType<typeof createClient>, d: Deliver) {
       await client.send({
         from: cfg.from_name ? `${cfg.from_name} <${cfg.address}>` : cfg.address,
         to: String(d.to),
+        cc: d.cc ? [String(d.cc)] : undefined,
         subject: String(d.subject ?? '(no subject)'),
         content: d.text ?? undefined,
         html: d.html ?? undefined,
@@ -218,6 +220,7 @@ Deno.serve(async (req: Request) => {
     let text = textIn
     let kind = kindIn
     let refId = refIn
+    let cc: string | null = null
 
     const isNotify = typeof notify === 'string' && notify.length > 0
     const wantsPreview = preview === true
@@ -242,9 +245,17 @@ Deno.serve(async (req: Request) => {
       // holiday for the holiday ones, a login for the account ones. session_id
       // is still accepted so a browser on the previous build keeps working.
       const theRef = ref ?? session_id ?? null
-      const { data: ctx, error: ctxErr } = await db.rpc('app_notify_context', {
-        p_kind: notify, p_ref: theRef, p_staff_id: staff_id ?? null,
-      })
+      // A delegate's booking email needs the course it was on, which a
+      // cancelled booking no longer points at — so that family has its own
+      // context function rather than a fourth parameter on the shared one.
+      const isBooking = notify.startsWith('booking_')
+      const { data: ctx, error: ctxErr } = isBooking
+        ? await db.rpc('app_notify_booking', {
+            p_kind: notify, p_ref: theRef, p_session: body?.session ?? null,
+          })
+        : await db.rpc('app_notify_context', {
+            p_kind: notify, p_ref: theRef, p_staff_id: staff_id ?? null,
+          })
       if (ctxErr) return json({ ok: false, error: `Could not read the notification: ${ctxErr.message}` }, 500)
       if (!ctx) return json({ ok: false, error: 'Could not read the notification' }, 500)
 
@@ -256,12 +267,13 @@ Deno.serve(async (req: Request) => {
       const tokens = tokensFor(ctx, prev_start, prev_end)
       mailbox = ctx.template?.mailbox || 'crm'
       to = ctx.to
+      cc = ctx.cc || null
       subject = render(ctx.template?.subject ?? '', tokens)
       text = render(ctx.template?.body ?? '', tokens)
       kind = notify
       refId = theRef != null ? String(theRef) : null
 
-      if (wantsPreview) return json({ ok: true, sent: false, preview: { to, subject, text, mailbox } })
+      if (wantsPreview) return json({ ok: true, sent: false, preview: { to, cc, subject, text, mailbox } })
 
       const { data: already } = await db.rpc('app_email_recent', {
         p_kind: kind, p_ref: refId, p_to: to, p_subject: subject, p_minutes: REPEAT_WINDOW_MINUTES,
@@ -273,7 +285,14 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: 'A valid "to" address is required' }, 400)
     }
 
-    const r = await deliver(db, { mailbox, to: String(to), subject, text, html, kind, refId })
+    const r = await deliver(db, { mailbox, to: String(to), subject, text, html, kind, refId, cc })
+
+    // Only once it has actually gone. The column has to mean "they were told",
+    // not "we meant to tell them".
+    if (r.ok && kind === 'booking_confirmed' && refId) {
+      try { await db.rpc('app_booking_confirmed', { p_booking_id: Number(refId) }) } catch { /* the email went; the stamp is a nicety */ }
+    }
+
     return r.ok
       ? json({ ok: true, sent: true, from: r.from })
       : json({ ok: false, error: r.error }, r.status ?? 502)

@@ -4,6 +4,76 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — The first emails that leave the building
+
+Every email so far went to staff. Delegates now get four, from `bookings@`.
+
+### The trigger, and why not the other one
+
+A booking can exist before it has dates — reception takes it into the waiting
+pool and it is scheduled later. So "you are booked" and "here are your dates"
+are two different moments, and only the second is worth an email. "We have you
+down, we will let you know when" generates the phone call it is meant to
+prevent. `booking_confirmed` fires when a delegate is actually placed on a
+course — from `addDelegatesToBlock` and `scheduleCourse`, not from the booking
+screen.
+
+The other three: `booking_moved` (the course they are on changes dates),
+`booking_rescheduled` (they are moved onto a different one), `booking_cancelled`
+(their place is released back to the waiting list).
+
+### Two schema things that were waiting for this
+
+`booking.confirmation_sent_at` has existed since the beginning and had never
+been written to. It is now stamped **by the Edge Function after the send
+succeeds**, not by the client when it fires — the column has to mean "they were
+told", not "we meant to tell them".
+
+`flag_photo_outstanding` explains why the confirmation says, in capitals, to
+bring photographic ID. It is the cheapest possible place to ask, and a delegate
+who arrives without it has wasted the day.
+
+There is no start time anywhere in the schema, only dates. Rather than add a
+column nobody would maintain, "arrive in good time" lives in the wording, which
+is editable. The same trick covers the address.
+
+### The employer copy
+
+`company.send_to_employer` already routes the ACS form; it now also decides
+whether the employer is copied. One send with a `cc`, not two sends — one email,
+one log row, and the delegate is visibly the person being written to rather than
+receiving a copy of something addressed to their boss.
+
+### A second context function, on purpose
+
+`app_notify_booking` rather than another branch in `app_notify_context`. A
+cancelled booking has already had its session removed by the time the email is
+composed, so this family — and only this family — needs a second id passed in.
+Adding a fourth parameter to a function four other families share would spread
+that awkwardness over all of them. Verified both ways: without the session id it
+returns `no_session`; with it, the email can still name the course they came
+off.
+
+### Verified
+
+Against a throwaway delegate, employer and course, since deleted: confirmed,
+moved and rescheduled all sent from `bookings@` with the right subjects;
+`confirmation_sent_at` stamped only after the send; a non-existent booking
+returns `no_booking` cleanly.
+
+### Note for whoever redeploys the Edge Function
+
+The deployed copy of `send-email` carries the same code as the repo with some
+comment blocks trimmed. **Deploy from the repo files** so the two converge
+again.
+
+### Files
+
+`supabase/migrations/20260829220000_delegate_booking_emails.sql` (applied),
+`supabase/functions/send-email/*` (deployed, v7 — `cc` support and the booking
+branch), `src/lib/api.js` (`attachPoolItem` now returns its booking id;
+notifications on schedule, move, reschedule and return-to-pool).
+
 ## 2026-08-29 — Employers on the worklist, and a list that answers itself
 
 ### Seven years, not six

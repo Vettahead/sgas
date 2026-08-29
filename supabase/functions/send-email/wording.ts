@@ -97,6 +97,10 @@ export function tokensFor(
     role: String(ctx.role ?? ''),
     link: String(ctx.link ?? ''),
     expires: fmtMinutes(Number(ctx.minutes ?? 60)),
+    // delegate booking
+    delegate: String(ctx.delegate ?? ''),
+    employer: String(ctx.employer ?? ''),
+    quals: String(ctx.quals ?? ''),
     // holiday
     staff: String(ctx.staff ?? ''),
     approver: String(ctx.approver ?? 'the office'),
@@ -132,4 +136,7 @@ export const PLACEHOLDER_HELP: Record<string, string> = {
   role: 'what access the account has — Admin, Standard, and so on',
   link: 'a link back into the system (the reset link, for a reset email)',
   expires: 'how long a reset link lasts, e.g. 1 hour',
+  delegate: 'the delegate’s name',
+  employer: 'the company they work for, if we hold one',
+  quals: 'the qualification codes on their booking, e.g. CCN1, CENWAT',
 }

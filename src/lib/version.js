@@ -17,6 +17,17 @@
 
 export const RELEASES = [
   {
+    v: '1.23.0', build: 140, date: '29 Aug 2026',
+    title: 'Delegates finally hear from us',
+    notes: [
+      'Until now every email the system sent went to staff. Delegates now get one too, from bookings@, the moment they are given dates \u2014 course, dates, what they are taking, and a clear line telling them to bring photographic ID.',
+      'They are also told if the course moves, if they are put on a different one, and if their place is released.',
+      'The employer is copied in when that company is set to receive paperwork, so the people paying can see it without being sent a separate list.',
+      'A booking sitting on the waiting list with no dates gets nothing \u2014 \u201cwe will let you know when\u201d causes phone calls rather than preventing them.',
+      'The wording is yours as usual, in Admin \u2192 Email \u2192 Wording. There is no start time in the system, only dates, so \u201carrive in good time\u201d lives in the wording where you can change it.',
+    ],
+  },
+  {
     v: '1.22.0', build: 139, date: '29 Aug 2026',
     title: 'The import list answers itself \u2014 you just confirm it',
     notes: [

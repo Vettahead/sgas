@@ -530,6 +530,7 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
     }
     const { error: e3 } = await supabase.from('booking').update({ rescheduled: true }).eq('booking_id', bookingId)
     if (e3) throw e3
+    notifyEmail({ kind: 'booking_rescheduled', ref: targetId })
     return
   }
   const orig = D.bookings.find((x) => x.booking_id === bookingId)
@@ -758,6 +759,8 @@ function bookingAttrs(p) {
 // so a delegate has ONE booking per block — if they already have one, MERGE this
 // item's modules into it (one booking, many modules) rather than adding a second
 // (which would silently violate the constraint and appear to "do nothing").
+// Returns the booking id this pool item ended up as — the delegate's
+// confirmation is sent against it, so the caller needs to know.
 async function attachPoolItem(blockId, p) {
   if (LIVE) {
     const { data: existing } = await supabase.from('booking').select('booking_id').eq('session_id', blockId).eq('client_id', p.client_id).maybeSingle()
@@ -770,9 +773,11 @@ async function attachPoolItem(blockId, p) {
         else await supabase.from('booking_category').update({ booking_id: existing.booking_id }).eq('booking_category_id', bc.booking_category_id)
       }
       await supabase.from('booking').delete().eq('booking_id', p.id)
+      return existing.booking_id
     } else {
       const { error } = await supabase.from('booking').update({ session_id: blockId }).eq('booking_id', p.id)
       if (error) throw new Error(error.message)
+      return p.id
     }
   } else {
     const existing = D.bookings.find((b) => b.session_id === blockId && b.client_id === p.client_id)
@@ -781,10 +786,12 @@ async function attachPoolItem(blockId, p) {
       for (const cid of p.category_ids) {
         if (!have.has(cid)) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: existing.booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
       }
+      return existing.booking_id
     } else {
       const booking_id = ++D.seq.booking
       D.bookings.push({ booking_id, client_id: p.client_id, session_id: blockId, company_id: p.company_id ?? cl(p.client_id)?.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_payment_outstanding: false, last_chased: null, confirmation_sent_at: null, ...bookingAttrs(p) })
       for (const cid of p.category_ids) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id, category_id: cid, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: catReassess(p, cid) })
+      return booking_id
     }
   }
 }
@@ -802,7 +809,10 @@ export async function scheduleCourse({ scheme, courseId, assessorId, poolIds, fr
     blockId = ++D.seq.session
     D.sessions.push({ session_id: blockId, assessor_id: assessorId, course_id: courseId, start_date: from, end_date: to, teamup_event_id: 'tu-' + blockId })
   }
-  for (const p of items) await attachPoolItem(blockId, p)
+  for (const p of items) {
+    const bookingId = await attachPoolItem(blockId, p)
+    if (bookingId != null) notifyEmail({ kind: 'booking_confirmed', ref: bookingId })
+  }
   // remove scheduled items from the staging pool
   for (const p of items) {
     const i = poolList.findIndex((x) => x.id === p.id)
@@ -1543,7 +1553,11 @@ export async function assignBlockRole(blockId, role, staffId) {
 
 export async function addDelegatesToBlock(blockId, poolIds) {
   const items = poolList.filter((p) => poolIds.includes(p.id))
-  for (const p of items) await attachPoolItem(blockId, p)
+  for (const p of items) {
+    const bookingId = await attachPoolItem(blockId, p)
+    // Being given dates is the moment there is something worth telling them.
+    if (bookingId != null) notifyEmail({ kind: 'booking_confirmed', ref: bookingId })
+  }
   for (const p of items) {
     const i = poolList.findIndex((x) => x.id === p.id)
     if (i >= 0) poolList.splice(i, 1)
@@ -1665,6 +1679,19 @@ export async function updateBlock(sessionId, { from, to, courseId }) {
       prevStart: before.start_date, prevEnd: before.end_date,
     })
   }
+
+  // The delegates are on that course too. One email each, with the dates it
+  // moved from — the ten-minute rule stops a nudged bar filling anybody's inbox.
+  const datesChanged = before && ((from && from !== before.start_date) || (to && to !== before.end_date))
+  if (datesChanged) {
+    const ids = LIVE
+      ? await supabase.from('booking').select('booking_id').eq('session_id', sessionId)
+        .then(({ data }) => (data || []).map((b) => b.booking_id)).catch(() => [])
+      : D.bookings.filter((b) => b.session_id === sessionId).map((b) => b.booking_id)
+    for (const id of ids) {
+      notifyEmail({ kind: 'booking_moved', ref: id, prevStart: before.start_date, prevEnd: before.end_date })
+    }
+  }
 }
 
 // Delete a block (session). Blocked if delegates are booked on it.
@@ -1695,8 +1722,12 @@ export async function setBookingAttendance(bookingId, from, to) {
 // delegate was placed on the wrong block.
 export async function returnToPool(bookingId) {
   if (LIVE) {
+    // Read the course first: once session_id is null the email cannot say what
+    // they have been taken off, and the send happens after this returns.
+    const { data: was } = await supabase.from('booking').select('session_id').eq('booking_id', bookingId).maybeSingle()
     const { error } = await supabase.from('booking').update({ session_id: null }).eq('booking_id', bookingId)
     if (error) throw new Error(error.message)
+    if (was?.session_id) notifyEmail({ kind: 'booking_cancelled', ref: bookingId, session: was.session_id })
     return
   }
   const b = D.bookings.find((x) => x.booking_id === bookingId)
@@ -1977,7 +2008,7 @@ export async function sendMail({ mailbox = 'crm', to, subject, text, html, kind 
 // the editable templates in Admin → Email settings). That is what lets this
 // work without anybody's password: the browser does not keep one.
 // ─────────────────────────────────────────────────────────────────────────────
-export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = null, prevEnd = null }) {
+export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = null, prevEnd = null, session = null }) {
   const id = ref != null ? ref : sessionId          // a session, a holiday — whatever it is about
   if (!kind || id == null) return Promise.resolve({ ok: true, sent: false, skipped: 'nothing_to_send' })
   if (!LIVE) {
@@ -1993,7 +2024,7 @@ export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = 
   return supabase.functions
     .invoke('send-email', {
       body: {
-        notify: kind, ref: id, staff_id: staffId,
+        notify: kind, ref: id, staff_id: staffId, session,
         prev_start: prevStart, prev_end: prevEnd,
       },
     })
