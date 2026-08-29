@@ -178,7 +178,7 @@ y -= 20
 y = para(M, y, (
     'The training system knows every booking, who is on it and what they are taking. Sage knows what has been paid. '
     'Right now the only thing joining the two up is somebody typing an invoice number into a box and ticking Paid by '
-    'hand. Here is what we would like to do about that, and the handful of things we need to ask you first.'
+    'hand. Here is what I would like to do about that, and the handful of things I need to ask you first.'
 ), size=10, lead=14)
 
 y -= 8
@@ -188,7 +188,7 @@ c.setFont('Helvetica-Bold', 9.2)
 c.drawString(M + 9, y - 11, 'None of this changes how you raise invoices unless you decide you want it to. Phase 1 is the bit to read.')
 y -= 40
 
-y = heading(M, y, 'The workflow we are proposing')
+y = heading(M, y, 'What I am proposing')
 
 # ── swimlane diagram ────────────────────────────────────────────────────────
 LANE_H = 33 * mm
@@ -260,15 +260,15 @@ y = bot_y - 14
 
 y = para(M, y, (
     'That green arrow is really the whole point. At the moment someone has to spot a payment in Sage and then '
-    'remember to go and tick it off in the training system. We would rather the training system just asked Sage, so '
+    'remember to go and tick it off in the training system. I would rather the training system just asked Sage, so '
     'the outstanding list and the chase list keep themselves straight.'
 ), size=9.5)
 
 y -= 6
 y = para(M, y, (
-    'Sage stays the only place that decides what is owed. We would keep a copy so the screens stay quick, but it '
-    'would always say when we last checked. A number on a screen should not be able to pass itself off as more '
-    'up to date than it really is.'
+    'Sage stays the only place that decides what is owed. The training system would keep a copy so the screens stay '
+    'quick, but it would always say when it last checked. A number on a screen should not be able to pass itself off '
+    'as more up to date than it really is.'
 ), size=9.5, colour=MUTED)
 
 y -= 10
@@ -276,7 +276,7 @@ y = heading(M, y, 'Two phases, and why')
 
 y = para(M, y, (
     'Reading from Sage and writing to it are two very different propositions. If the reading half goes wrong, a '
-    'screen shows the wrong number for a while. If the writing half goes wrong, it is your actual accounts. So we '
+    'screen shows the wrong number for a while. If the writing half goes wrong, it is your actual accounts. So I '
     'would rather keep them apart, and take them in this order.'
 ), size=9.5)
 y -= 10
@@ -334,23 +334,23 @@ y = heading(M, y, 'What has to be true before Phase 2')
 panel(M, y - 30, CW, 28, fill=AMBERBG, stroke=AMBER)
 c.setFillColor(HexColor('#7a4f10'))
 c.setFont('Helvetica-Bold', 9)
-c.drawString(M + 9, y - 12, 'There is one thing holding Phase 2 up, and it is at our end rather than yours.')
+c.drawString(M + 9, y - 12, 'There is one thing holding Phase 2 up, and it is at my end rather than yours.')
 c.setFont('Helvetica', 8.4)
-c.drawString(M + 9, y - 23, 'Not one of the 110 qualifications has a price against it yet, and we cannot invoice for something the system cannot price.')
+c.drawString(M + 9, y - 23, 'Not one of the 110 qualifications has a price against it yet, and nothing can be invoiced until the system knows what to charge.')
 y -= 46
 
-y = heading(M, y, 'How we would match your customers')
+y = heading(M, y, 'How I would match your customers')
 
 y = para(M, y, (
-    'This is the bit most likely to go wrong, so forgive us for labouring it. Every customer in Sage carries its own '
-    'reference. Once we have matched a company in the training system to a customer in Sage, we save that reference '
+    'This is the bit most likely to go wrong, so forgive me for labouring it. Every customer in Sage carries its own '
+    'reference. Once a company in the training system has been matched to a customer in Sage, that reference is saved '
     'against them, and after that the two stay joined.'
 ), size=9.5)
 y -= 4
 y = para(M, y, (
-    'We will not create anything in your Sage. Where we cannot be confident about a match, the company goes on a '
-    'short list for someone at your end to point at the right customer. It is a one-off job, and only for the ones we '
-    'are unsure about. Leave a computer to guess and you end up with "EDINA" and "EDINA UK LTD" as two separate '
+    'Nothing will be created in your Sage. Where a match is not obvious, the company goes on a short list for '
+    'someone at your end to point at the right customer. It is a one-off job, and only for the ones that are '
+    'genuinely unclear. Leave a computer to guess and you end up with "EDINA" and "EDINA UK LTD" as two separate '
     'customers, and then your aged debtors report is telling you fibs.'
 ), size=9.5)
 
@@ -423,10 +423,10 @@ def question(y, text, name, lines=3, note=None, yn=False):
 
 
 y -= 12
-y = heading(M, y, 'What we need to know')
+y = heading(M, y, 'What I need to know')
 y = para(M, y, (
-    'These are the ones where your answer genuinely changes what we build. Type straight into this and send it back, '
-    'or print it and scribble on it, whichever is easier.'
+    'These are the ones where your answer genuinely changes what gets built. Type straight into this and send it '
+    'back, or print it and scribble on it, whichever is easier.'
 ), size=9.5)
 y -= 16
 
@@ -436,29 +436,29 @@ y = question(y, 'Would you like invoices raised for you, or would you rather car
 
 y = question(y, 'When do you invoice today - when the booking is taken, or after the course has run?',
              'q_when', lines=3,
-             note='We would rather fit round how you already work than ask you to change it.')
+             note='I would rather fit round how you already work than ask you to change it.')
 
 y = question(y, 'Are the courses already set up in Sage as products or services, with prices against them?',
              'q_products', lines=3, yn=True,
-             note='If they are, we can pull the prices from Sage instead of typing them all in again.')
+             note='If they are, the prices can come from Sage instead of being typed in all over again.')
 
 y = question(y, 'Who is invoiced - the delegate, or the company they work for? Is it ever both?',
              'q_payer', lines=3)
 
 y = question(y, 'Do any of your customers require a purchase order number on the invoice?',
              'q_po', lines=3, yn=True,
-             note='If so we need to grab it at the booking, otherwise the invoice comes straight back.')
+             note='If so it needs grabbing at the booking, otherwise the invoice comes straight back.')
 
 y = question(y, 'If somebody does not turn up, do you still charge them?',
              'q_noshow', lines=3)
 
 y = question(y, 'Whose Sage login would authorise the connection, and are they happy for it to be used this way?',
              'q_login', lines=3,
-             note='Read-only to start with, so there is no way for us to touch a real invoice.')
+             note='Read-only to start with, so there is no way for me to touch a real invoice.')
 
 y = question(y, 'Roughly how many invoices do you raise in a month?',
              'q_volume', lines=1,
-             note='Only so we know how often to go and look.')
+             note='Only so I know how often to go and look.')
 
 y = question(y, 'Is there anything about the way you work now that you would not want touched?',
              'q_sacred', lines=5)
@@ -482,8 +482,8 @@ if y < 72 * mm:
 y = heading(M, y, 'What happens once this comes back')
 STEPS = [
     ('1', 'You send this back', 'Questions 1, 2 and 3 are the ones that shape it. The rest can follow on.'),
-    ('2', 'We get read-only access', 'One of you signs in to Sage once to allow it. Nothing can be written to your accounts.'),
-    ('3', 'We build Phase 1 and show you', 'Payments flowing back, and the outstanding and chase lists looking after themselves.'),
+    ('2', 'Read-only access', 'One of you signs in to Sage once to allow it. Nothing can be written to your accounts.'),
+    ('3', 'I build Phase 1 and show you', 'Payments flowing back, and the outstanding and chase lists looking after themselves.'),
     ('4', 'You decide about Phase 2', 'Once you have lived with Phase 1 for a bit, and only if it is worth the bother.'),
 ]
 for n, t, d in STEPS:
@@ -502,7 +502,7 @@ for n, t, d in STEPS:
 y -= 4
 c.setFillColor(MUTED)
 c.setFont('Helvetica-Oblique', 8.4)
-c.drawString(M, y, 'If this throws up more questions than it answers, do say. Far easier to change our minds on paper than halfway through building it.')
+c.drawString(M, y, 'If this throws up more questions than it answers, do say. Far easier to change my mind on paper than halfway through building it.')
 
 footer()
 c.save()
