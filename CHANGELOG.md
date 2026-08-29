@@ -4,6 +4,91 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — Three notifications, and the wording moved out of the code
+
+The plumbing built on the 28th could send but nothing used it. It does now.
+`trainer_assigned`, `trainer_removed` and `course_moved` go out on their own,
+and the words they use live in the database where Chris can change them.
+
+### The problem worth writing down: nothing to authenticate with
+
+Every email path so far takes admin credentials, because the Admin screen has
+them to hand. A trainer notification does not. It fires when somebody drops a
+name onto a course, that somebody may be a scheduler, and the browser does not
+keep anyone's password — `app_login` checks it in the database and hands back a
+sanitised row.
+
+Three options were on the table:
+
+1. **Hold the password in memory after login.** Rejected: a password kept
+   around for the convenience of a feature is a password waiting to leak, and
+   it dies on refresh anyway.
+2. **A trigger or cron job inside the database.** The right long-term shape,
+   and where the scheduled accreditation alerts will live — but it needs
+   `pg_net` and `pg_cron` (neither installed) plus `SGAS_INTERNAL_SECRET`
+   (not set, and only Chris can set it in the dashboard). All of that to ship
+   one email.
+3. **Narrow the door instead of widening the caller.** Taken.
+
+The notify path accepts no address and no body. It accepts *"session 42 just
+had a trainer put on it"*, and `app_notify_context` — `SECURITY DEFINER`,
+`service_role` only — decides who is told, in what words, and whether the
+notification is switched on at all. The worst an anon caller can do with it is
+make a real trainer receive a true statement about a real course, at most once
+per ten minutes. Measured against `p_anon_all`, which still lets the same key
+read and write every delegate record in the system, that is not the risk worth
+worrying about.
+
+### Editable wording
+
+New `email_template` table (RLS on, no policies, grants revoked from
+`anon`/`authenticated`), seeded with the three. `app_email_templates` /
+`app_email_template_save` are admin-gated exactly like `app_smtp_get`.
+Placeholders are `{{like_this}}` and unknown ones are **left standing rather
+than blanked**, so a typo shows up in the preview instead of silently emptying
+a line.
+
+The preview is rendered by the Edge Function itself, one step short of the mail
+server, so it cannot drift from the email. It renders what is *stored*, not the
+unsaved draft — save, then preview.
+
+### Repeats
+
+`app_email_recent` suppresses an identical kind + session + recipient +
+**subject** inside ten minutes. Keying on the subject rather than a plain time
+window is deliberate: the subject carries the dates, so a genuine second move —
+to different dates — is a different subject and still goes out. A burst of
+identical updates from dragging a bar about does not.
+
+### Dates
+
+`wording.ts` is split out of `index.ts` purely so it can be unit-tested with
+`node --experimental-strip-types` (index.ts calls `Deno.serve` at import and
+cannot be loaded outside Deno). Dates are parsed as UTC on purpose:
+`new Date('2026-09-14')` is midnight UTC and printing it with `getDate()` in a
+behind-UTC zone gives the 13th — the same trap `todayISO()` is still sitting in
+elsewhere in the app. `tests/wording.mjs` runs in Los Angeles and Auckland to
+prove it.
+
+### Verified
+
+- 10 groups of wording unit tests, in three time zones
+- `app_notify_context` returns a clean reason for every skip: template off, no
+  trainer, no email on the record, no such session, unknown kind
+- over HTTP with the real anon key: the notification sends, an arbitrary send
+  is still `Not authorized`, a preview is still `Not authorized`, and neither
+  new RPC nor the template table is reachable
+- three real emails sent and logged, against a throwaway trainer and course
+  that were then deleted. No real staff were emailed.
+
+### Files
+
+`supabase/migrations/20260829090000_email_templates_and_notify.sql` (applied),
+`supabase/functions/send-email/index.ts` + `wording.ts` (deployed, v3),
+`src/lib/api.js` (`notifyEmail`, template calls, and the two write paths that
+fire them), `src/views/EmailSettings.jsx` (tabs + the wording editor),
+`tests/wording.mjs`.
+
 ## 2026-08-28 — The test send failed. Two faults, and what each one taught.
 
 Chris entered all three passwords, pressed **Send test email**, and got:

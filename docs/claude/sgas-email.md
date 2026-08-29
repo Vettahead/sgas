@@ -1,8 +1,14 @@
 # SGAS email — how it works, and what bit us
 
-Built 28 Aug 2026. **The plumbing is done and proven as far as it can be proven
-without a real send. No flow actually sends anything yet — that is the next
-job.**
+Built 28 Aug 2026; the first flows hung off it 29 Aug 2026.
+
+**UPDATE 29 Aug 2026 — it sends, and the wording is Chris's.** The three
+trainer notifications are live: put on a course, taken off one, and a course
+that has moved. Passwords are proven (all three mailboxes sent on 28 Aug at
+21:10). Two things below have changed since the original write-up and are
+marked ⬇ where they appear: there is now a **third auth door** (`notify`), and
+the wording lives in an **`email_template` table** edited in Admin, not in
+code.
 
 ## The shape of it
 
@@ -36,7 +42,26 @@ addresses are already filled in; the only thing anyone ever types is a password.
   back at you; `scrub()` strips them before anything is returned or logged.
 - **`verify_jwt` is off on `send-email` on purpose.** This app does not use
   Supabase Auth — everyone shares the anon key, so a JWT proves nothing. The
-  real gate is `app_is_admin()` inside the function. Scheduled sends (pg_cron)
+  real gate is `app_is_admin()` inside the function.
+- ⬇ **THIRD DOOR (29 Aug): `notify`, with no credentials at all.** A trainer
+  notification fires when somebody drags a name onto a course, and the browser
+  keeps nobody's password — `app_login` checks it in the database and returns a
+  sanitised row. Rather than hold a password in memory for the convenience of a
+  feature, the door was made too narrow to matter: `{notify, session_id}` and
+  nothing else. `app_notify_context` (SECURITY DEFINER, service_role only)
+  chooses the recipient, the wording, and whether it is switched on. The worst
+  an anon caller can do is make a real trainer receive a true statement about a
+  real course, at most once per ten minutes (`app_email_recent`, keyed on
+  kind + session + recipient + **subject** — so a genuine second move, to
+  different dates, still goes out). Weigh that against `p_anon_all`, which lets
+  the same key rewrite every delegate record in the system.
+- ⬇ **The wording is data (29 Aug).** `email_template` — RLS on, no policies,
+  grants revoked from anon/authenticated, edited through admin-gated RPCs and
+  Admin → Email → Wording. Placeholders are `{{like_this}}` and an unknown one
+  is LEFT STANDING rather than blanked, so a typo shows in the preview instead
+  of silently emptying a line. The preview is rendered by the Edge Function
+  itself, one step short of the mail server, so it cannot drift from the email —
+  it renders what is *stored*, so save before previewing an edit. Scheduled sends (pg_cron)
   will use `SGAS_INTERNAL_SECRET` instead; it is not set yet.
 - **Every attempt is logged, delivered or not.** "Did Simon get the warning?"
   has to be answerable without guessing.
@@ -104,17 +129,34 @@ Proved 28 Aug 2026:
   710ms. So host, port and outbound egress are all sound. (That probe function
   has been emptied but still exists — delete `smtp-probe` in the dashboard.)
 
-**Not proved: that the three passwords are correct.** Only a real send shows
-that. If one is wrong, the screen will now say so in the mail server's own
-words rather than "non-2xx".
+~~Not proved: that the three passwords are correct.~~ **Proved 28 Aug 21:10** —
+all three mailboxes sent successfully (`email_log` ids 1–3).
 
-## The four flows — none of them built
+Proved 29 Aug 2026, for the notify path:
+
+- the wording unit tests (`tests/wording.mjs`, run under three time zones —
+  dates are parsed as UTC on purpose, because `new Date('2026-09-14')` printed
+  with `getDate()` in a behind-UTC zone gives the 13th)
+- every skip reason comes back cleanly: template off, no trainer, no email on
+  the record, no such session, unknown kind
+- over HTTP with the real anon key: the notification sends; an arbitrary send
+  is `Not authorized`; a preview is `Not authorized`; neither new RPC nor
+  `email_template` is reachable
+- three real emails sent and logged, against a throwaway trainer and course
+  that were deleted afterwards
+
+## The flows
 
 In the order agreed with Chris ("we need to set all of them"):
 
-1. **Trainer notified when put on a course** — smallest, proves the plumbing.
-   From `crm`. Fires where a trainer is assigned: the course popover in
-   `CalendarNext.jsx`, the Schedule board, and the setup wizard.
+1. ✅ **BUILT 29 Aug 2026 — and it grew.** Chris asked for all three trainer
+   events, not just the one: `trainer_assigned`, `trainer_removed` (so a swap
+   tells both people) and `course_moved`. From `crm`. It does NOT fire from the
+   screens — it fires from `assignBlockRole()` and `updateBlock()` in
+   `api.js`, which is why the calendar, the Schedule board, the setup wizard
+   and Assess are all covered by one implementation. Both read the previous
+   value BEFORE the write, because afterwards the old trainer and the old dates
+   are gone.
 2. **Accreditation expiry alerts** + a scheduled job. From `crm`. **This is the
    one with Simon's early-October audit attached** — see
    `sgas-staff-accreditations.md`. Needs pg_cron plus `SGAS_INTERNAL_SECRET`.

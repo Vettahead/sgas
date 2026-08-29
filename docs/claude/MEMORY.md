@@ -1,5 +1,5 @@
 - [SGAS client meeting 27 Aug 2026](sgas-client-meeting-aug26.md) — READ FIRST: verified live state, October deadlines, next builds, who owes what
-- [SGAS email](sgas-email.md) — SMTP/Vault plumbing, the vault-schema and revoke gotchas, and the four flows STILL TO HOOK UP
+- [SGAS email](sgas-email.md) — SMTP/Vault plumbing, the three auth doors, editable wording, and the trainer notifications that are BUILT
 - [SGAS UI conventions](sgas-ui-conventions.md) — READ BEFORE WRITING ANY SCREEN: reuse the existing CSS classes, never invent a parallel set
 - [Planner — REJECTED](sgas-planner.md) — an experimental timeline calendar, built and binned 27 Aug 2026; what it taught us
 - [SGAS staff accreditations](sgas-staff-accreditations.md) — accreditations + expiry: schema, API, Admin panel; core BUILT, report/dashboard/alerts still to do
@@ -8,7 +8,7 @@
 - [SGAS doc generation](sgas-doc-generation.md) — §4.7 ACS form auto-fill (pdf-lib overlay) in Assess/Schedule; open GN8 category rule
 - [SGAS calendar](sgas-calendar.md) — in-app Calendar (Month/Week/Day/Year, drag move+resize, holidays, engagements+members, admin-as-staff); REPLACES Teamup
 - [SGAS demo backlog](sgas-demo-backlog.md) — post-demo backlog; Teamup SCRATCHED, calendar BUILT — only item 4 (staff quals+expiry) left to build
-- [SGAS deploy flow](sgas-deploy-flow.md) — Vercel+Supabase ONLY; Chris just commit+push; ALWAYS end with a commit Summary + Description; don't run git
+- [SGAS deploy flow](sgas-deploy-flow.md) — CLAUDE does the git (commit as Vettahead, no AI attribution); Chris clicks Push; migrations via Supabase MCP; the CRLF and index.lock traps
 - [SGAS progress page](sgas-progress-page.md) — in-app admins-only Roadmap.jsx; code-maintained; UPDATE ITEMS+UPDATED every session
 - [SGAS version + changelog](sgas-version-changelog.md) — sidebar version badge + Changelog.jsx; BUMP RELEASES in src/lib/version.js every session
 - [SGAS Help & FAQ](sgas-help-faq.md) — in-app all-roles Help.jsx (search + collapsible, 16 sections); code-maintained; built 29 Jun 2026

@@ -1312,13 +1312,34 @@ export async function assignBlockRole(blockId, role, staffId) {
   const col = ROLE_COL[role]
   if (!col) throw new Error('Unknown role')
   const value = staffId || null
+
+  // Who was on it before, so a swap can tell BOTH people. Read before the
+  // write, obviously — afterwards the old name is gone.
+  let prev = null
+  if (role === 'trainer') {
+    if (LIVE) {
+      const { data } = await supabase.from('session').select('trainer_id').eq('session_id', blockId).maybeSingle()
+      prev = data ? data.trainer_id : null
+    } else {
+      const s0 = ses(blockId)
+      prev = s0 ? s0.trainer_id || null : null
+    }
+  }
+
   if (LIVE) {
     const { error } = await supabase.from('session').update({ [col]: value }).eq('session_id', blockId)
     if (error) throw new Error(error.message)
-    return
+  } else {
+    const s = ses(blockId)
+    if (s) s[col] = value
   }
-  const s = ses(blockId)
-  if (s) s[col] = value
+
+  // Only the trainer is notified. Assessor and verifier are chosen at the
+  // assessment phase, on the day, with the person in the room.
+  if (role === 'trainer' && prev !== value) {
+    if (prev) notifyEmail({ kind: 'trainer_removed', sessionId: blockId, staffId: prev })
+    if (value) notifyEmail({ kind: 'trainer_assigned', sessionId: blockId })
+  }
 }
 
 export async function addDelegatesToBlock(blockId, poolIds) {
@@ -1414,13 +1435,37 @@ export async function updateBlock(sessionId, { from, to, courseId }) {
   if (to) patch.end_date = to
   if (courseId) patch.course_id = courseId
   if (!Object.keys(patch).length) return
+
+  // The dates it is moving FROM, for the email. Read first, same reason as above.
+  let before = null
+  if (LIVE) {
+    const { data } = await supabase.from('session')
+      .select('start_date,end_date,trainer_id').eq('session_id', sessionId).maybeSingle()
+    before = data || null
+  } else {
+    const s0 = D.sessions.find((x) => x.session_id === sessionId)
+    before = s0 ? { start_date: s0.start_date, end_date: s0.end_date, trainer_id: s0.trainer_id } : null
+  }
+
   if (LIVE) {
     const { error } = await supabase.from('session').update(patch).eq('session_id', sessionId)
     if (error) throw new Error(error.message)
-    return
+  } else {
+    const s = D.sessions.find((x) => x.session_id === sessionId)
+    if (s) Object.assign(s, patch)
   }
-  const s = D.sessions.find((x) => x.session_id === sessionId)
-  if (s) Object.assign(s, patch)
+
+  // Only when the DATES actually changed and somebody is down to run it. A
+  // drag that lands where it started is not news, and neither is a course with
+  // no trainer on it yet.
+  const moved = before && before.trainer_id
+    && ((from && from !== before.start_date) || (to && to !== before.end_date))
+  if (moved) {
+    notifyEmail({
+      kind: 'course_moved', sessionId,
+      prevStart: before.start_date, prevEnd: before.end_date,
+    })
+  }
 }
 
 // Delete a block (session). Blocked if delegates are booked on it.
@@ -1719,6 +1764,43 @@ export async function sendMail({ mailbox = 'crm', to, subject, text, html, kind 
   return data
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Notifications.
+//
+// Fire-and-forget ON PURPOSE. A trainer being emailed must never slow down, or
+// fail, the thing the person on the screen actually asked for: dropping a name
+// on a course has to feel instant, and an SMTP round trip does not. Nothing
+// here is awaited by its caller and nothing here throws — every attempt is
+// written to email_log, which is where "did it go?" is answered.
+//
+// The app sends NO wording and NO address. It says which session changed, and
+// the database decides who is told and in what words (app_notify_context +
+// the editable templates in Admin → Email settings). That is what lets this
+// work without anybody's password: the browser does not keep one.
+// ─────────────────────────────────────────────────────────────────────────────
+export function notifyEmail({ kind, sessionId, staffId = null, prevStart = null, prevEnd = null }) {
+  if (!kind || sessionId == null) return Promise.resolve({ ok: true, sent: false, skipped: 'no_session' })
+  if (!LIVE) {
+    // Demo mode has no mail server. Show it in the log so the Admin screen
+    // demonstrates the flow.
+    if (!store.emailLog) store.emailLog = []
+    store.emailLog.unshift({
+      sent_at: new Date().toISOString(), mailbox: 'crm', to_address: 'trainer@example.com',
+      subject: `[demo] ${kind}`, kind, ok: true, error: null,
+    })
+    return Promise.resolve({ ok: true, sent: false, demo: true })
+  }
+  return supabase.functions
+    .invoke('send-email', {
+      body: {
+        notify: kind, session_id: sessionId, staff_id: staffId,
+        prev_start: prevStart, prev_end: prevEnd,
+      },
+    })
+    .then(({ data, error }) => (error ? { ok: false } : data))
+    .catch(() => ({ ok: false }))
+}
+
 // Proves the whole path without anyone reading the password back: the function
 // reports what the mail server actually said.
 export async function sendTestEmail({ mailbox, to }, adminAuth) {
@@ -1736,6 +1818,94 @@ export async function sendTestEmail({ mailbox, to }, adminAuth) {
   if (!store.emailLog) store.emailLog = []
   store.emailLog.unshift({ sent_at: new Date().toISOString(), mailbox, to_address: to, subject: 'SGAS test email', kind: 'test', ok: true, error: null })
   return { ok: true, from: row.address, demo: true }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The wording of the automatic emails, editable in Admin.
+//
+// The templates live in the database, not in the code, so Chris can change what
+// they say without a deploy. Placeholders are {{like_this}} and are filled in by
+// the Edge Function at send time — see supabase/functions/send-email/wording.ts,
+// which is the source of truth for the list.
+// ─────────────────────────────────────────────────────────────────────────────
+const DEMO_TEMPLATES = [
+  {
+    key: 'course_moved', name: 'Course dates changed', mailbox: 'crm', enabled: true,
+    description: 'Sent to the trainer already on a course when its dates are changed.',
+    subject: '{{course}} has moved to {{dates}}',
+    body: 'Hello {{trainer}},\n\n{{course}}, which you are down to run, has been moved.\n\n  Was:    {{old_dates}}\n  Now:    {{dates}} ({{days}})\n  Where:  {{room}}\n  Booked: {{delegates}}\n\nSGAS Training Management',
+  },
+  {
+    key: 'trainer_assigned', name: 'Trainer put on a course', mailbox: 'crm', enabled: true,
+    description: 'Sent to a trainer when they are put on a course.',
+    subject: 'You are on {{course}}, {{dates}}',
+    body: 'Hello {{trainer}},\n\nYou have been put on {{course}}.\n\n  When:   {{dates}} ({{days}})\n  Where:  {{room}}\n  Booked: {{delegates}}\n\nThe number booked can still change. The system holds the up-to-date position.\n\nSGAS Training Management',
+  },
+  {
+    key: 'trainer_removed', name: 'Trainer taken off a course', mailbox: 'crm', enabled: true,
+    description: 'Sent to a trainer when they are taken off a course, including when somebody else is put on in their place.',
+    subject: 'You are no longer on {{course}}, {{dates}}',
+    body: 'Hello {{trainer}},\n\nYou have been taken off {{course}} on {{dates}}.\n\nNothing further is needed from you. If that looks wrong, let the office know.\n\nSGAS Training Management',
+  },
+]
+
+export async function listEmailTemplates(adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_email_templates', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data || []
+  }
+  if (!store.templates) store.templates = JSON.parse(JSON.stringify(DEMO_TEMPLATES))
+  return JSON.parse(JSON.stringify(store.templates))
+}
+
+export async function saveEmailTemplate({ key, subject, body, enabled, mailbox }, adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_email_template_save', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_key: key, p_subject: subject, p_body: body, p_enabled: !!enabled, p_mailbox: mailbox || null,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data || []
+  }
+  if (!store.templates) store.templates = JSON.parse(JSON.stringify(DEMO_TEMPLATES))
+  const t = store.templates.find((x) => x.key === key)
+  if (!t) throw new Error('No such template')
+  Object.assign(t, { subject, body, enabled: !!enabled, mailbox: mailbox || t.mailbox, updated_at: new Date().toISOString() })
+  return JSON.parse(JSON.stringify(store.templates))
+}
+
+// A course to preview against: the most recently starting one that actually has
+// a trainer on it, so the preview shows real names and real dates rather than
+// invented ones.
+async function previewSession() {
+  const { data } = await supabase.from('session')
+    .select('session_id,trainer_id').not('trainer_id', 'is', null)
+    .order('start_date', { ascending: false }).limit(1)
+  return (data || [])[0] || null
+}
+
+// Rendered by the SAME code that will send it — the preview cannot drift from
+// the email, because it is the email, stopped one step short of the mail server.
+export async function previewEmailTemplate(kind, adminAuth) {
+  if (!LIVE) return { demo: true }
+  const s = await previewSession()
+  if (!s) return { none: true }
+  const { data, error } = await supabase.functions.invoke('send-email', {
+    body: {
+      admin: adminAuth.username, admin_pw: adminAuth.password,
+      // "Taken off" is about somebody who is no longer on the session, so the
+      // caller has to name them. For a preview, that is whoever is on it now.
+      notify: kind, session_id: s.session_id, staff_id: s.trainer_id, preview: true,
+      // A move has to have something to have moved from.
+      prev_start: '2026-01-05', prev_end: '2026-01-07',
+    },
+  })
+  if (error) throw await functionError(error, 'Could not build the preview')
+  if (data && data.skipped) return { skipped: data.skipped }
+  return data && data.preview ? data.preview : { skipped: 'no_preview' }
 }
 
 export async function listEmailLog(adminAuth, limit = 50) {

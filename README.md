@@ -86,6 +86,42 @@ be added then). Fine as-is for local/internal use.
 - `src/lib/demo.js` — in-memory dataset shaped like the real tables.
 - `src/views/*` — one file per screen.
 
+## Email
+
+Everything the system sends goes through **one** Edge Function, `send-email`.
+Nothing else may talk to it directly — call `sendMail()` or `notifyEmail()` in
+`src/lib/api.js`, both of which unpack the real reason out of a failure
+(`supabase-js` throws away an Edge Function's error body; see `functionError`).
+
+SMTP passwords live in Supabase Vault and are decrypted only inside that
+function. No `VITE_` prefixed secret exists or ever should — Vite inlines those
+into the browser bundle.
+
+There are **three ways in**, deliberately different sizes:
+
+| Door | Who | May send |
+|---|---|---|
+| `internal` secret | server-side jobs (pg_cron, not built yet) | anything |
+| `admin` + `admin_pw` | the Admin screen | anything, and previews |
+| `notify` | the app, with no credentials | nothing of its own choosing |
+
+The third exists because the browser never keeps a password: `app_login` checks
+it in the database and returns a sanitised row, so the moment somebody drags a
+trainer onto a course there is nothing to authenticate with. So the app does not
+say "send this text to this address". It says *which session changed*, and
+`app_notify_context` decides who is told, in what words, and whether that
+notification is switched on. See `docs/claude/sgas-email.md` for the full
+reasoning and the gotchas that cost a round trip.
+
+**The wording is data, not code.** `email_template` holds the subject and body
+of each automatic email, edited in Admin → Email → Wording. Placeholders are
+`{{like_this}}`; unknown ones are left standing rather than blanked so a typo
+shows up in the preview. `supabase/functions/send-email/wording.ts` is the
+source of truth for the list — add one there and add it to `PLACEHOLDERS` in
+`src/views/EmailSettings.jsx` so it is offered.
+
+Every attempt is written to `email_log`, delivered or not.
+
 ## Known gap to decide (carried over from the build brief)
 
 The **unscheduled pool** (draft bookings made at reception before an assessor/date
@@ -98,7 +134,13 @@ your call before real data goes in.
 
 ## Tests
 
-`tests/` holds the runtime suites for the new-look calendar — 213 assertions
+`node --experimental-strip-types tests/wording.mjs` checks the notification
+wording — date formatting, ranges, placeholder substitution and the fallbacks.
+Run it under `TZ=America/Los_Angeles` and `TZ=Pacific/Auckland` too: every date
+here is a calendar date, and the usual way to get one wrong is to print the day
+before.
+
+`tests/` also holds the runtime suites for the new-look calendar — 213 assertions
 driving a real headless Chromium against a production build, at desktop, tablet
 and phone sizes. **A passing `vite build` proves almost nothing**; that is what
 let the `setNonce` crash reach the live site. See `tests/README.md` for how to

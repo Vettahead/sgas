@@ -17,6 +17,17 @@
 
 export const RELEASES = [
   {
+    v: '1.17.0', build: 133, date: '29 Aug 2026',
+    title: 'The system tells the trainer, and you decide what it says',
+    notes: [
+      'Three emails now send on their own: a trainer is told when they are put on a course, when they are taken off one, and when a course they are down to run is moved. A swap tells both people.',
+      'The wording is yours. Admin \u2192 Email \u2192 Wording holds all three \u2014 change the subject, change the message, or switch one off \u2014 with a preview built by the same code that sends it, so what you see is what goes out.',
+      'It fires wherever a trainer is assigned \u2014 the calendar, the schedule board, the set-up wizard \u2014 because it hangs off the assignment itself rather than any one screen.',
+      'The same email is not repeated inside ten minutes, so shuffling the board does not fill anyone\u2019s inbox. Nobody without an email address on their record is chased for one.',
+      'Admin \u2192 Email is now three tabs \u2014 Server, Wording, and what has been sent \u2014 rather than one long page.',
+    ],
+  },
+  {
     v: '1.16.1', build: 131, date: '28 Aug 2026',
     title: 'Send test email now works, and says why when it does not',
     notes: [

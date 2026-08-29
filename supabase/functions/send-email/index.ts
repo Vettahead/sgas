@@ -7,12 +7,22 @@
 // the catch below deliberately scrubs it, because SMTP libraries have a habit
 // of putting the failed credentials in the exception.
 //
-// AUTH: this app does not use Supabase Auth (it has its own app_user table), so
-// a JWT proves nothing here — everyone shares the public anon key. Callers must
-// therefore pass admin credentials, which are checked with the same
-// app_is_admin() the user-admin screen uses. verify_jwt is off for that reason;
-// the check below is the real gate. Scheduled sends will come from pg_cron
-// inside the database and use the internal secret instead.
+// AUTH — three doors, deliberately different sizes:
+//
+//   1. internal secret .... trusted server-side jobs (pg_cron). Send anything.
+//   2. admin credentials .. the Admin screen. Send anything, and preview.
+//   3. notify .............. the app, with NO credentials at all.
+//
+// Door 3 exists because this app does not use Supabase Auth and the browser
+// does not keep anybody's password: app_login checks it in the database and
+// returns a sanitised row. A trainer notification fires the moment somebody
+// drags a name onto a course, so there is nothing to authenticate with.
+//
+// So door 3 does not accept an address or a body. It accepts "session 42 just
+// had a trainer put on it", and the DATABASE decides who is told, in what
+// words, and whether the notification is switched on at all
+// (app_notify_context). The worst it can be used for is making a real trainer
+// receive a true statement about a real course, at most once per ten minutes.
 //
 // EVERYTHING goes through RPCs in the public schema. The first version read the
 // password with db.schema('vault').from('decrypted_secrets') and could never
@@ -25,11 +35,19 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
+import { render, tokensFor } from './wording.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 // Set this to let trusted server-side jobs (pg_cron) send without a password.
 const INTERNAL_SECRET = Deno.env.get('SGAS_INTERNAL_SECRET') ?? ''
+
+// How long an identical notification is suppressed for. Dragging a course about
+// produces a burst of identical updates and a trainer should not get five
+// emails because somebody nudged a bar. The subject carries the dates, so a
+// genuine second move — to different dates — is a different subject and still
+// goes out.
+const REPEAT_WINDOW_MINUTES = 10
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -61,13 +79,26 @@ Deno.serve(async (req: Request) => {
     const body = await req.json()
     const {
       admin, admin_pw, internal,
-      mailbox = 'crm', to, subject, text, html,
-      kind = 'manual', ref_id = null,
+      notify, session_id, staff_id, prev_start, prev_end, preview,
+      mailbox: mailboxIn = 'crm', to: toIn, subject: subjectIn, text: textIn, html,
+      kind: kindIn = 'manual', ref_id: refIn = null,
     } = body ?? {}
 
+    let mailbox = mailboxIn
+    let to = toIn
+    let subject = subjectIn
+    let text = textIn
+    let kind = kindIn
+    let refId = refIn
+
+    const isNotify = typeof notify === 'string' && notify.length > 0
+    const wantsPreview = preview === true
+
     // ── who is asking ───────────────────────────────────────────────────────
+    // A notification needs no credentials — it cannot choose a recipient or a
+    // body. Everything else, including a preview, does.
     const trusted = INTERNAL_SECRET && internal === INTERNAL_SECRET
-    if (!trusted) {
+    if (!trusted && (!isNotify || wantsPreview)) {
       if (!admin || !admin_pw) return json({ ok: false, error: 'Not authorized' }, 401)
       const { data: isAdmin, error } = await db.rpc('app_is_admin', { p_user: admin, p_pw: admin_pw })
       // An RPC that errors and an admin check that says no are different things.
@@ -75,6 +106,37 @@ Deno.serve(async (req: Request) => {
       // function cannot reach the database".
       if (error) return json({ ok: false, error: `Could not check the admin login: ${error.message}` }, 500)
       if (isAdmin !== true) return json({ ok: false, error: 'Not authorized' }, 401)
+    }
+
+    // ── a notification composes itself ──────────────────────────────────────
+    if (isNotify) {
+      const { data: ctx, error: ctxErr } = await db.rpc('app_notify_context', {
+        p_kind: notify,
+        p_session_id: session_id ?? null,
+        p_staff_id: staff_id ?? null,
+      })
+      if (ctxErr) return json({ ok: false, error: `Could not read the notification: ${ctxErr.message}` }, 500)
+      if (!ctx) return json({ ok: false, error: 'Could not read the notification' }, 500)
+
+      // Switched off, no trainer, no email address on the record: all ordinary
+      // outcomes. 200 with a reason, so a scheduler's screen never reports an
+      // error for something that is working as intended.
+      if (ctx.skip) return json({ ok: true, sent: false, skipped: String(ctx.skip) })
+
+      const tokens = tokensFor(ctx, prev_start, prev_end)
+      mailbox = ctx.template?.mailbox || 'crm'
+      to = ctx.to
+      subject = render(ctx.template?.subject ?? '', tokens)
+      text = render(ctx.template?.body ?? '', tokens)
+      kind = notify
+      refId = session_id != null ? String(session_id) : null
+
+      if (wantsPreview) return json({ ok: true, sent: false, preview: { to, subject, text, mailbox } })
+
+      const { data: already } = await db.rpc('app_email_recent', {
+        p_kind: kind, p_ref: refId, p_to: to, p_subject: subject, p_minutes: REPEAT_WINDOW_MINUTES,
+      })
+      if (already === true) return json({ ok: true, sent: false, skipped: 'already_sent' })
     }
 
     if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(String(to))) {
@@ -125,11 +187,11 @@ Deno.serve(async (req: Request) => {
     // be answerable without guessing.
     await db.rpc('app_email_log_write', {
       p_mailbox: cfg.key, p_to: String(to), p_subject: subject ?? null,
-      p_kind: kind, p_ok: ok, p_error: errText, p_ref_id: ref_id ? String(ref_id) : null,
+      p_kind: kind, p_ok: ok, p_error: errText, p_ref_id: refId ? String(refId) : null,
     })
 
     return ok
-      ? json({ ok: true, from: cfg.address })
+      ? json({ ok: true, sent: true, from: cfg.address })
       : json({ ok: false, error: errText }, 502)
   } catch (e) {
     const msg = scrub(String((e as Error)?.message ?? e), [password])

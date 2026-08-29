@@ -94,3 +94,53 @@ smtp.sgas.co.uk:465 TLS -> 220 smtp2.lhr.stackcp.net ESMTP   (710ms)
 
 Worth repeating if a send ever fails with a timeout rather than a refusal, since
 it separates "the network is blocked" from "the password is wrong".
+
+### Can anon reach the notification path? (added 29 Aug 2026)
+
+`app_notify_context` and `app_email_recent` are `service_role` only — they are
+called by the Edge Function and by nothing else. `app_notify_context` hands back
+a staff email address and the composed wording, so it must stay that way.
+
+```sql
+select p.proname,
+       has_function_privilege('anon', p.oid, 'execute')         as anon,
+       has_function_privilege('service_role', p.oid, 'execute') as svc
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'public'
+  and p.proname in ('app_notify_context','app_email_recent');
+-- both: anon = false, svc = true
+```
+
+And over HTTP with the real anon key — PostgREST reports a function it cannot
+see as *not found* (`PGRST202`), which is the answer you want here:
+
+```bash
+curl -s -X POST "$URL/rest/v1/rpc/app_notify_context" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
+  -H "Content-Type: application/json" -d '{"p_kind":"trainer_assigned","p_session_id":1}'
+# {"code":"PGRST202", ...}
+
+curl -s "$URL/rest/v1/email_template?select=*" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON"
+# {"code":"42501", ... "permission denied for table email_template"}
+```
+
+The notification path itself is open by design and should stay working:
+
+```bash
+curl -s -X POST "$URL/functions/v1/send-email" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
+  -H "Content-Type: application/json" \
+  -d '{"notify":"trainer_assigned","session_id":<a real one>}'
+# {"ok":true,"sent":true,...}  — or {"ok":true,"sent":false,"skipped":"..."}
+
+# but an arbitrary send, and a preview, still are not:
+curl -s -X POST "$URL/functions/v1/send-email" \
+  -H "apikey: $ANON" -H "Authorization: Bearer $ANON" \
+  -H "Content-Type: application/json" \
+  -d '{"to":"x@example.com","subject":"nope","text":"nope"}'
+# 401 {"ok":false,"error":"Not authorized"}
+```
+
+Use a session whose trainer is a throwaway record when testing, and delete it
+afterwards — a real send goes to a real person.
