@@ -17,6 +17,18 @@
 
 export const RELEASES = [
   {
+    v: '1.19.0', build: 135, date: '29 Aug 2026',
+    title: 'Holiday requests, approved or turned down by email',
+    notes: [
+      'Booking time off is now a request. Anyone who cannot approve holidays asks for their own days from the calendar, and it sits as \u201cwaiting for approval\u201d in amber until somebody decides.',
+      'Whoever approves gets an email, and a Holiday requests card on their dashboard with Approve and Reject. Rejecting asks for a reason, and the reason goes in the email \u2014 nobody is told no without being told why.',
+      'The person who asked is emailed either way, from holidays@.',
+      'Admin \u2192 Staff sets who approves. Any admin can still approve, so nothing waits a fortnight while one person is away, and the approver\u2019s own time off goes straight on the calendar.',
+      'Holiday is counted in working days, the way the rest of the system counts it.',
+      'The wording of all three is yours to change in Admin \u2192 Email \u2192 Wording, like the course ones. Each email now lists only the placeholders that mean something in it.',
+    ],
+  },
+  {
     v: '1.18.0', build: 134, date: '29 Aug 2026',
     title: 'Admin in three tabs, and people who leave',
     notes: [

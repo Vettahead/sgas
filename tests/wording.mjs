@@ -8,7 +8,7 @@
 // before — which is exactly the todayISO() bug already on the board.
 import assert from 'node:assert/strict'
 import {
-  parseDay, fmtDay, fmtRange, fmtDays, fmtDelegates, render, tokensFor,
+  parseDay, fmtDay, fmtRange, fmtDays, fmtDelegates, fmtWorkingDays, render, tokensFor,
 } from '../supabase/functions/send-email/wording.ts'
 
 let n = 0
@@ -104,6 +104,38 @@ ok('the shipped templates render with nothing left over', () => {
   assert.ok(out.includes('When:   Mon 14 – Wed 16 Sep 2026 (3 days)'))
   assert.ok(out.includes('Where:  Bay Block A'))
   assert.ok(out.includes('Booked: 6 delegates'))
+})
+
+ok('holiday is counted in working days, not calendar days', () => {
+  assert.equal(fmtWorkingDays(1), '1 working day')
+  assert.equal(fmtWorkingDays(5), '5 working days')
+  // Mon 14 to Fri 25 Sep is 12 calendar days but 10 working ones. The context
+  // does the counting; the wording must use it and not recount.
+  const t = tokensFor({ staff: 'Denis Brown', start: '2026-09-14', end: '2026-09-25', working_days: 10 })
+  assert.equal(t.days, '10 working days')
+  assert.equal(t.dates, 'Mon 14 – Fri 25 Sep 2026')
+  assert.equal(t.staff, 'Denis Brown')
+})
+
+ok('an empty note or reason reads as a sentence, not a gap', () => {
+  const t = tokensFor({ staff: 'Phil', start: '2026-09-14', end: '2026-09-14', working_days: 1 })
+  assert.equal(t.note, 'none given')
+  assert.equal(t.reason, 'not given')
+  assert.equal(t.approver, 'the office')
+  assert.equal(t.days, '1 working day')
+})
+
+ok('the holiday templates render with nothing left over', () => {
+  const body = [
+    '{{staff}} has asked for time off.', '',
+    '  When:  {{dates}}', '  Days:  {{days}}', '  Note:  {{note}}',
+  ].join('\n')
+  const t = tokensFor({ staff: 'Denis Brown', approver: 'Simon Gadsdon', start: '2026-10-05', end: '2026-10-09', working_days: 5, note: 'Half term' })
+  const out = render(body, t)
+  assert.ok(!/\{\{/.test(out), 'a placeholder was left unrendered:\n' + out)
+  assert.ok(out.includes('Days:  5 working days'))
+  assert.ok(out.includes('Note:  Half term'))
+  assert.equal(render('Holiday request from {{staff}} — {{dates}}', t), 'Holiday request from Denis Brown — Mon 5 – Fri 9 Oct 2026')
 })
 
 console.log(`\n${n} groups passed`)

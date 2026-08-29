@@ -1203,25 +1203,124 @@ export async function updateStaff(staffId, d) {
 }
 
 // ---- Holidays (staff time off) ----------------------------------------------
-export async function listHolidays() {
+// Time off is now a request with a decision on it. REJECTED rows are dropped
+// here rather than filtered by every caller — a refused request is not time off
+// and has no business on a calendar.
+const holidayShape = (h, name) => ({
+  holidayId: h.holiday_id, staffId: h.staff_id, staffName: name,
+  start: h.start_date, end: h.end_date, note: h.note || '',
+  status: h.status || 'APPROVED',
+  pending: (h.status || 'APPROVED') === 'REQUESTED',
+  decisionNote: h.decision_note || '',
+})
+
+export async function listHolidays({ includeRejected = false } = {}) {
   if (LIVE) {
-    const { data } = await supabase.from('holiday').select('holiday_id,staff_id,start_date,end_date,note,staff:staff_id(name)').order('start_date')
-    return (data || []).map((h) => ({ holidayId: h.holiday_id, staffId: h.staff_id, staffName: h.staff?.name || '—', start: h.start_date, end: h.end_date, note: h.note || '' }))
+    let q = supabase.from('holiday')
+      .select('holiday_id,staff_id,start_date,end_date,note,status,decision_note,staff:staff_id(name)')
+    if (!includeRejected) q = q.neq('status', 'REJECTED')
+    const { data } = await q.order('start_date')
+    return (data || []).map((h) => holidayShape(h, h.staff?.name || '—'))
   }
   D.holidays = D.holidays || []
-  return D.holidays.map((h) => ({ holidayId: h.holiday_id, staffId: h.staff_id, staffName: asr(h.staff_id)?.name || '—', start: h.start_date, end: h.end_date, note: h.note || '' }))
+  return D.holidays
+    .filter((h) => includeRejected || (h.status || 'APPROVED') !== 'REJECTED')
+    .map((h) => holidayShape(h, asr(h.staff_id)?.name || '—'))
 }
-export async function createHoliday({ staffId, from, to, note }) {
+
+// ─────────────────────────────────────────────────────────────────────────────
+// App settings — small, non-secret, one row per key. Readable by anyone (the
+// calendar has to know who approves holidays before it can decide whether to
+// ask), writable only by an admin.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function getSettings() {
+  if (LIVE) {
+    const { data } = await supabase.from('app_setting').select('key,value')
+    const out = {}
+    for (const r of data || []) out[r.key] = r.value
+    return out
+  }
+  store.settings = store.settings || { holiday_approver_staff_id: null }
+  return { ...store.settings }
+}
+
+export async function saveSetting(key, value, adminAuth) {
+  if (LIVE) {
+    const { error } = await supabase.rpc('app_setting_save', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_key: key, p_value: value,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return value
+  }
+  store.settings = store.settings || {}
+  store.settings[key] = value
+  return value
+}
+
+// Who may approve time off: the named approver, and any admin as the fallback
+// so nothing stalls for a fortnight while that person is in Australia.
+export function canApproveHolidays(user, settings) {
+  if (!user) return false
+  if (user.role === 'ADMIN') return true
+  const approver = settings ? settings.holiday_approver_staff_id : null
+  return approver != null && String(approver) === String(user.staffId)
+}
+
+// Everything still waiting on somebody, for the approver's list.
+export async function listHolidayRequests() {
+  if (LIVE) {
+    const { data } = await supabase.from('holiday')
+      .select('holiday_id,staff_id,start_date,end_date,note,status,decision_note,staff:staff_id(name)')
+      .eq('status', 'REQUESTED').order('start_date')
+    return (data || []).map((h) => holidayShape(h, h.staff?.name || '—'))
+  }
+  return (D.holidays || []).filter((h) => h.status === 'REQUESTED')
+    .map((h) => holidayShape(h, asr(h.staff_id)?.name || '—'))
+}
+
+// asApprover: the person entering it can approve holidays, so theirs goes
+// straight on the calendar. Everyone else's waits, and the approver is emailed.
+export async function createHoliday({ staffId, from, to, note, requestedBy = null, asApprover = false }) {
   if (!staffId) throw new Error('Pick a staff member')
   if (!from || !to) throw new Error('Set start and end dates')
   if (from > to) throw new Error('Start must be on or before end')
+  const status = asApprover ? 'APPROVED' : 'REQUESTED'
+  let id = null
   if (LIVE) {
-    const { error } = await supabase.from('holiday').insert({ staff_id: Number(staffId), start_date: from, end_date: to, note: note || null })
+    const { data, error } = await supabase.from('holiday').insert({
+      staff_id: Number(staffId), start_date: from, end_date: to, note: note || null,
+      status, requested_by: requestedBy ? Number(requestedBy) : null,
+      decided_at: asApprover ? new Date().toISOString() : null,
+      decided_by: asApprover && requestedBy ? Number(requestedBy) : null,
+    }).select('holiday_id').single()
     if (error) throw new Error(error.message)
-    return
+    id = data?.holiday_id ?? null
+  } else {
+    D.holidays = D.holidays || []; D.seq.holiday = D.seq.holiday || 0
+    id = ++D.seq.holiday
+    D.holidays.push({ holiday_id: id, staff_id: Number(staffId), start_date: from, end_date: to, note: note || null, status, requested_by: requestedBy || null })
   }
-  D.holidays = D.holidays || []; D.seq.holiday = D.seq.holiday || 0
-  D.holidays.push({ holiday_id: ++D.seq.holiday, staff_id: Number(staffId), start_date: from, end_date: to, note: note || null })
+  if (status === 'REQUESTED' && id != null) notifyEmail({ kind: 'holiday_requested', ref: id })
+  return { holidayId: id, status }
+}
+
+// Approve or reject. The reason is optional on an approval and worth insisting
+// on for a refusal, which is why the screen asks for one.
+export async function decideHoliday(holidayId, decision, { note = '', decidedBy = null } = {}) {
+  const id = Number(holidayId)
+  const status = decision === 'APPROVED' ? 'APPROVED' : 'REJECTED'
+  if (LIVE) {
+    const { error } = await supabase.from('holiday').update({
+      status, decision_note: note || null,
+      decided_by: decidedBy ? Number(decidedBy) : null, decided_at: new Date().toISOString(),
+    }).eq('holiday_id', id)
+    if (error) throw new Error(error.message)
+  } else {
+    const h = (D.holidays || []).find((x) => x.holiday_id === id)
+    if (h) Object.assign(h, { status, decision_note: note || null, decided_by: decidedBy || null })
+  }
+  notifyEmail({ kind: status === 'APPROVED' ? 'holiday_approved' : 'holiday_rejected', ref: id })
+  return status
 }
 export async function deleteHoliday(holidayId) {
   const id = Number(holidayId)
@@ -1878,8 +1977,9 @@ export async function sendMail({ mailbox = 'crm', to, subject, text, html, kind 
 // the editable templates in Admin → Email settings). That is what lets this
 // work without anybody's password: the browser does not keep one.
 // ─────────────────────────────────────────────────────────────────────────────
-export function notifyEmail({ kind, sessionId, staffId = null, prevStart = null, prevEnd = null }) {
-  if (!kind || sessionId == null) return Promise.resolve({ ok: true, sent: false, skipped: 'no_session' })
+export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = null, prevEnd = null }) {
+  const id = ref != null ? ref : sessionId          // a session, a holiday — whatever it is about
+  if (!kind || id == null) return Promise.resolve({ ok: true, sent: false, skipped: 'nothing_to_send' })
   if (!LIVE) {
     // Demo mode has no mail server. Show it in the log so the Admin screen
     // demonstrates the flow.
@@ -1893,7 +1993,7 @@ export function notifyEmail({ kind, sessionId, staffId = null, prevStart = null,
   return supabase.functions
     .invoke('send-email', {
       body: {
-        notify: kind, session_id: sessionId, staff_id: staffId,
+        notify: kind, ref: id, staff_id: staffId,
         prev_start: prevStart, prev_end: prevEnd,
       },
     })
@@ -1987,18 +2087,42 @@ async function previewSession() {
   return (data || [])[0] || null
 }
 
+const HOLIDAY_KINDS = ['holiday_requested', 'holiday_approved', 'holiday_rejected']
+
+// Something real to render against, chosen by what the email is about.
+async function previewHoliday() {
+  const { data } = await supabase.from('holiday')
+    .select('holiday_id').order('start_date', { ascending: false }).limit(1)
+  return (data || [])[0] || null
+}
+
 // Rendered by the SAME code that will send it — the preview cannot drift from
 // the email, because it is the email, stopped one step short of the mail server.
 export async function previewEmailTemplate(kind, adminAuth) {
   if (!LIVE) return { demo: true }
+
+  if (HOLIDAY_KINDS.includes(kind)) {
+    const h = await previewHoliday()
+    if (!h) return { none: 'holiday' }
+    const { data, error } = await supabase.functions.invoke('send-email', {
+      body: {
+        admin: adminAuth.username, admin_pw: adminAuth.password,
+        notify: kind, ref: h.holiday_id, preview: true,
+      },
+    })
+    if (error) throw await functionError(error, 'Could not build the preview')
+    if (data && data.skipped) return { skipped: data.skipped }
+    return data && data.preview ? data.preview : { skipped: 'no_preview' }
+  }
+
   const s = await previewSession()
-  if (!s) return { none: true }
+  if (!s) return { none: 'course' }
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
       admin: adminAuth.username, admin_pw: adminAuth.password,
       // "Taken off" is about somebody who is no longer on the session, so the
       // caller has to name them. For a preview, that is whoever is on it now.
-      notify: kind, session_id: s.session_id, staff_id: s.trainer_id, preview: true,
+      notify: kind, ref: s.session_id, staff_id: s.trainer_id, preview: true,
       // A move has to have something to have moved from.
       prev_start: '2026-01-05', prev_end: '2026-01-07',
     },

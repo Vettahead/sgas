@@ -4,6 +4,71 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 (later still) — Holiday requests, and one context function for every email
+
+Time off used to be a row somebody typed in. It is now a request with a
+decision on it, and three emails from `holidays@`.
+
+### Approver, with a fallback
+
+Chris picked "a named approver with admins as fallback", and the reason is on
+the record: Simon is in Australia from 11 September, and a single named approver
+would stall every request for a fortnight. So `app_setting`
+(`holiday_approver_staff_id`) names the person, and `canApproveHolidays()`
+returns true for them *or* any admin. Their own time off skips the queue —
+`app_notify_context` returns `approver_is_the_requester` rather than emailing
+somebody to approve themselves.
+
+`app_setting` is a plain key/value table, readable by anyone (the calendar has
+to know who approves before it can decide whether to ask) and writable only
+through an admin-gated RPC.
+
+### One context function, not three
+
+The notify contract changed from `p_session_id` to **`p_ref`** — "the thing this
+email is about". A session for the course emails, a holiday for the holiday
+ones. One function, one door in the Edge Function, and the next kind of email
+is a branch rather than a new mechanism.
+
+The Edge Function still accepts `session_id` as well as `ref`, deliberately: the
+function deploys instantly and the browser does not, so a tab running the
+previous build would otherwise stop notifying until someone reloaded it.
+
+### Placeholders became per-template
+
+`email_template.tokens`. One global list was fine with one kind of email and is
+wrong with two — `{{course}}` means nothing in a holiday email, and offering it
+in the editor only invites somebody to write it. The Admin editor now lists what
+*that* template can use.
+
+Holiday is counted in **working days** (`extract(isodow) < 6` in the context,
+`fmtWorkingDays` in the wording), because that is how the rest of the app counts
+it. A course is still counted in calendar days. Same `{{days}}` placeholder,
+different sums, and the help text says so.
+
+### A rejection carries its reason
+
+`decision_note` goes into the email as `{{reason}}`. A "no" with no reason is
+the one that gets argued about a week later.
+
+### Verified
+
+- all three sent live from `holidays@` against a throwaway approver and
+  requester, both deleted afterwards, with the right recipient each way round:
+  request → approver, decision → the person who asked
+- `approver_is_the_requester`, `no_holiday`, `no_email` all return cleanly
+- `session_id` still routes correctly after the switch to `ref`
+- 13 groups of wording tests, three time zones
+
+### Files
+
+`supabase/migrations/20260829160000_holiday_requests_and_settings.sql`
+(applied), `supabase/functions/send-email/*` (deployed, v5), `src/lib/api.js`
+(holiday requests, settings, `canApproveHolidays`), `src/views/Calendar.jsx`
+(request instead of enter), `src/views/Dashboard.jsx` (the approver's card),
+`src/views/Admin.jsx` (who approves), `src/views/EmailSettings.jsx`
+(per-template placeholders), `tests/wording.mjs`.
+
 ## 2026-08-29 (later) — Admin in tabs, and what "delete a person" actually means
 
 ### The unlock bug, which cost a morning

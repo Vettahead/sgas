@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { listBlocks, listCourses, listStaff, listBookableCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement } from '../lib/api.js'
+import { listBlocks, listCourses, listStaff, listBookableCategories, createBlock, updateBlock, deleteBlock, getPool, loadPool, assignBlockRole, addDelegatesToBlock, returnToPool, setBookingAttendance, listHolidays, createHoliday, deleteHoliday, staffOnHoliday, listEngagements, createEngagement, deleteEngagement, updateHoliday, updateEngagement, getSettings, canApproveHolidays } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 import Modal from '../components/Modal.jsx'
 
@@ -115,14 +115,18 @@ export default function Calendar({ go, isAdmin, user }) {
   const [pool, setPool] = useState([])
   const [categories, setCategories] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [settings, setSettings] = useState(null)
 
 
   async function refresh() {
-    const [b, c, s, cats, hol, eng] = await Promise.all([listBlocks(), listCourses(), listStaff(), listBookableCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId)])
+    const [b, c, s, cats, hol, eng, set] = await Promise.all([listBlocks(), listCourses(), listStaff(), listBookableCategories(), listHolidays(), listEngagements(user?.user_id, user?.staffId), getSettings().catch(() => ({}))])
+    setSettings(set)
     try { await loadPool() } catch { /* pool optional */ }
     const holBlocks = hol.map((h) => ({
       id: 'h' + h.holidayId, holidayId: h.holidayId, isHoliday: true, staffId: h.staffId, staffName: h.staffName, note: h.note,
-      course: '🏖 ' + h.staffName, scheme: 'Holiday', color: '#8a94a6', start: h.start, end: h.end,
+      pending: h.pending, status: h.status,
+      course: '🏖 ' + h.staffName + (h.pending ? ' — waiting for approval' : ''),
+      scheme: 'Holiday', color: h.pending ? '#b7791f' : '#8a94a6', start: h.start, end: h.end,
       trainerId: null, assessorId: null, verifierId: null, trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const engBlocks = eng.map((e) => ({
@@ -264,6 +268,7 @@ export default function Calendar({ go, isAdmin, user }) {
       {creating && (
         <CreateModal
           range={creating} courses={courses} staff={staff} user={user}
+          canApprove={canApproveHolidays(user, settings)}
           onClose={() => setCreating(null)}
           onCreated={async () => { setCreating(null); await refresh() }}
         />
@@ -350,7 +355,7 @@ function Legend({ blocks, colourBy }) {
   )
 }
 
-function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
+function CreateModal({ range, courses, staff, user, canApprove, onClose, onCreated }) {
   const [courseId, setCourseId] = useState(range.engagement ? 'ENGAGEMENT' : '')
   const [staffId, setStaffId] = useState('')
   const [from, setFrom] = useState(range.from)
@@ -369,7 +374,14 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
     try {
       if (isHoliday) {
         if (from > to) { setBusy(false); return toast('Start must be on or before end') }
-        await createHoliday({ staffId, from, to, note }); toast('Holiday added')
+        // Anyone who cannot approve is asking, not telling — and they can only
+        // ask for themselves.
+        const forStaff = canApprove ? staffId : (user?.staffId || staffId)
+        const r = await createHoliday({
+          staffId: forStaff, from, to, note,
+          requestedBy: user?.staffId || null, asApprover: !!canApprove,
+        })
+        toast(r.status === 'APPROVED' ? 'Holiday added' : 'Request sent for approval')
       } else if (isEngagement) {
         await createEngagement({ ownerUserId: user?.user_id, title, date: from, startTime, endTime, memberStaffIds: [...memberIds] }); toast('Added to your calendar')
       } else {
@@ -384,7 +396,7 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
   }
   return (
     <Modal onClose={onClose} dirty={!!courseId || !!title || !!staffId} label="New entry" className="cal-modal-sm">
-        <h3 style={{ margin: '0 0 4px', padding: 0, border: 0 }}>{isHoliday ? 'New holiday' : isEngagement ? 'New calendar entry' : 'New block'}</h3>
+        <h3 style={{ margin: '0 0 4px', padding: 0, border: 0 }}>{isHoliday ? (canApprove ? 'New holiday' : 'Request time off') : isEngagement ? 'New calendar entry' : 'New block'}</h3>
         <p className="muted small">{isEngagement ? 'A personal entry on your calendar.' : `Drag created ${from} → ${to}.`}</p>
         <label className="fld">Type
           <select value={courseId} onChange={(e) => setCourseId(e.target.value)}>
@@ -413,14 +425,20 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
             </label>
           </>
         )}
-        {isHoliday && (
+        {isHoliday && (canApprove ? (
           <label className="fld">Staff member
             <select value={staffId} onChange={(e) => setStaffId(e.target.value)}>
               <option value="">— select —</option>
               {(staff || []).map((st) => <option key={st.staff_id ?? st.id} value={st.staff_id ?? st.id}>{st.name}</option>)}
             </select>
           </label>
-        )}
+        ) : (
+          <div className="fld">
+            <span className="muted small">
+              This will be sent as a request for approval. You can only book time off for yourself.
+            </span>
+          </div>
+        ))}
         {!isEngagement && (
           <div className="cal-dates">
             <label className="fld">Start<input type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></label>
@@ -430,7 +448,7 @@ function CreateModal({ range, courses, staff, user, onClose, onCreated }) {
         {isHoliday && <label className="fld">Note (optional)<input type="text" value={note} onChange={(e) => setNote(e.target.value)} /></label>}
         <div className="modal-foot">
           <button className="btn ghost" onClick={onClose}>Cancel</button>
-          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? 'Add holiday' : isEngagement ? 'Add to calendar' : 'Create block')}</button>
+          <button className="btn" onClick={save} disabled={busy}>{busy ? 'Saving…' : (isHoliday ? (canApprove ? 'Add holiday' : 'Request time off') : isEngagement ? 'Add to calendar' : 'Create block')}</button>
         </div>
     </Modal>
   )

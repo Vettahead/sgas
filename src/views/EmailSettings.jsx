@@ -33,24 +33,33 @@ const PORT_HINT = {
   25: 'Unencrypted — avoid unless the host insists',
 }
 
+// What each placeholder turns into. WHICH ones a template may use comes from
+// the template itself (email_template.tokens) — {{course}} means nothing in a
+// holiday email, and offering it would only invite it into the wording.
 // Kept in step with supabase/functions/send-email/wording.ts, which is what
-// actually fills them in. If you add one there, add it here so it is offered.
-const PLACEHOLDERS = [
-  ['trainer', 'the trainer’s name'],
-  ['course', 'the course name'],
-  ['dates', 'the dates, e.g. Mon 14 – Wed 16 Sep 2026'],
-  ['start', 'the first day only'],
-  ['end', 'the last day only'],
-  ['days', 'how long, e.g. 3 days'],
-  ['room', 'their assigned room, or “to be confirmed”'],
-  ['delegates', 'how many are booked on'],
-  ['old_dates', 'the dates before the change (course moved only)'],
-]
+// actually fills them in.
+const PLACEHOLDER_HELP = {
+  trainer: 'the trainer’s name',
+  course: 'the course name',
+  dates: 'the dates, e.g. Mon 14 – Wed 16 Sep 2026',
+  start: 'the first day only',
+  end: 'the last day only',
+  days: 'how long — working days for holiday, calendar days for a course',
+  room: 'their assigned room, or “to be confirmed”',
+  delegates: 'how many are booked on',
+  old_dates: 'the dates before the change (course moved only)',
+  staff: 'the name of the person the holiday is for',
+  approver: 'whoever approves holidays',
+  note: 'the note they put on the request, or “none given”',
+  reason: 'the reason given for the decision, or “not given”',
+}
 
 // Why nothing was sent. These are ordinary outcomes, not failures, so they are
 // worded as statements rather than errors.
 const SKIP_REASON = {
   template_off: 'This one is switched off, so nothing would be sent.',
+  no_holiday: 'That request no longer exists.',
+  approver_is_the_requester: 'The approver booked it themselves, so there is nobody to ask.',
   no_trainer: 'That course has no trainer on it.',
   no_email: 'That trainer has no email address on their record.',
   no_session: 'That course no longer exists.',
@@ -313,7 +322,8 @@ function Wording({ adminAuth, mailboxes }) {
     setBusy(true); setErr(''); setPreview(null)
     try {
       const r = await previewEmailTemplate(t.key, adminAuth)
-      if (r.demo) setErr('Previews need the live system — the demo has no courses to render against.')
+      if (r.demo) setErr('Previews need the live system — the demo has nothing to render against.')
+      else if (r.none === 'holiday') setErr('No holiday has been booked yet, so there is nothing to preview against.')
       else if (r.none) setErr('No course has a trainer on it yet, so there is nothing to preview against.')
       else if (r.skipped) setErr(SKIP_REASON[r.skipped] || `Nothing to preview (${r.skipped}).`)
       else setPreview({ key: t.key, ...r })
@@ -380,9 +390,9 @@ function Wording({ adminAuth, mailboxes }) {
 
                 <div className="banner">
                   <b className="small">You can use:</b>{' '}
-                  {PLACEHOLDERS.map(([name, what]) => (
+                  {(t.tokens && t.tokens.length ? t.tokens : Object.keys(PLACEHOLDER_HELP)).map((name) => (
                     <span key={name} className="muted small" style={{ display: 'block' }}>
-                      <b>{`{{${name}}}`}</b> — {what}
+                      <b>{`{{${name}}}`}</b> — {PLACEHOLDER_HELP[name] || 'filled in when it sends'}
                     </span>
                   ))}
                 </div>

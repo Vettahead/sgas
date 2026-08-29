@@ -53,7 +53,18 @@ export function render(template: string, tokens: Record<string, string>): string
   })
 }
 
-// Everything a template can refer to. Anything not in here is a typo.
+// Holiday is counted in working days everywhere else in the app, so it is
+// counted in working days here too. The context supplies the number; this only
+// words it.
+export const fmtWorkingDays = (n: number) =>
+  n === 1 ? '1 working day' : `${n} working days`
+
+// Everything a template can refer to. Anything not in here is a typo, and a
+// typo is left standing in the rendered text rather than blanked.
+//
+// One map covers every kind of email. A holiday template referring to
+// {{course}} gets an empty string rather than a crash — the per-template token
+// list in Admin is what stops anyone writing that in the first place.
 export function tokensFor(
   ctx: Record<string, unknown>, prevStart?: unknown, prevEnd?: unknown,
 ): Record<string, string> {
@@ -61,28 +72,42 @@ export function tokensFor(
   const end = parseDay(ctx.end)
   const pStart = parseDay(prevStart)
   const pEnd = parseDay(prevEnd)
+  const working = ctx.working_days == null ? null : Number(ctx.working_days)
   return {
+    // course
     trainer: String(ctx.trainer ?? ''),
-    course: String(ctx.course ?? 'a course'),
-    dates: fmtRange(start, end),
-    start: start ? fmtDay(start) : '',
-    end: end ? fmtDay(end) : '',
-    days: fmtDays(start, end),
+    course: String(ctx.course ?? ''),
     room: ctx.room ? String(ctx.room) : 'to be confirmed',
     delegates: fmtDelegates(Number(ctx.delegates ?? 0)),
     old_dates: pStart ? fmtRange(pStart, pEnd) : 'not recorded',
+    // holiday
+    staff: String(ctx.staff ?? ''),
+    approver: String(ctx.approver ?? 'the office'),
+    note: ctx.note ? String(ctx.note) : 'none given',
+    reason: ctx.reason ? String(ctx.reason) : 'not given',
+    // shared
+    dates: fmtRange(start, end),
+    start: start ? fmtDay(start) : '',
+    end: end ? fmtDay(end) : '',
+    days: working != null ? fmtWorkingDays(working) : fmtDays(start, end),
   }
 }
 
-// The placeholders the Admin editor offers, and what each one turns into.
-export const PLACEHOLDERS = [
-  ['trainer', 'the trainer’s name'],
-  ['course', 'the course name'],
-  ['dates', 'the dates, e.g. Mon 14 – Wed 16 Sep 2026'],
-  ['start', 'the first day only'],
-  ['end', 'the last day only'],
-  ['days', 'how long, e.g. 3 days'],
-  ['room', 'their assigned room, or “to be confirmed”'],
-  ['delegates', 'how many are booked on'],
-  ['old_dates', 'the dates before the change (course moved only)'],
-]
+// What each placeholder turns into. Which ones a given template may use is
+// held per template in email_template.tokens, because {{course}} means nothing
+// in a holiday email.
+export const PLACEHOLDER_HELP: Record<string, string> = {
+  trainer: 'the trainer’s name',
+  course: 'the course name',
+  dates: 'the dates, e.g. Mon 14 – Wed 16 Sep 2026',
+  start: 'the first day only',
+  end: 'the last day only',
+  days: 'how long — working days for holiday, calendar days for a course',
+  room: 'their assigned room, or “to be confirmed”',
+  delegates: 'how many are booked on',
+  old_dates: 'the dates before the change (course moved only)',
+  staff: 'the name of the person the holiday is for',
+  approver: 'whoever approves holidays',
+  note: 'the note they put on the request, or “none given”',
+  reason: 'the reason given for the decision, or “not given”',
+}

@@ -110,9 +110,13 @@ Deno.serve(async (req: Request) => {
 
     // ── a notification composes itself ──────────────────────────────────────
     if (isNotify) {
+      // `ref` is whatever the email is about: a session for the course ones, a
+      // holiday for the holiday ones. session_id is still accepted so that a
+      // browser running the previous build keeps working until it is reloaded.
+      const ref = body?.ref ?? session_id ?? null
       const { data: ctx, error: ctxErr } = await db.rpc('app_notify_context', {
         p_kind: notify,
-        p_session_id: session_id ?? null,
+        p_ref: ref,
         p_staff_id: staff_id ?? null,
       })
       if (ctxErr) return json({ ok: false, error: `Could not read the notification: ${ctxErr.message}` }, 500)
@@ -129,7 +133,7 @@ Deno.serve(async (req: Request) => {
       subject = render(ctx.template?.subject ?? '', tokens)
       text = render(ctx.template?.body ?? '', tokens)
       kind = notify
-      refId = session_id != null ? String(session_id) : null
+      refId = ref != null ? String(ref) : null
 
       if (wantsPreview) return json({ ok: true, sent: false, preview: { to, subject, text, mailbox } })
 

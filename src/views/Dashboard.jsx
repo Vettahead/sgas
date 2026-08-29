@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { MonthView, cal } from './Calendar.jsx'
-import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD } from '../lib/api.js'
+import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { roleLabel } from '../lib/roles.js'
@@ -17,6 +17,7 @@ const MODULES = [
   { id: 'calendar', title: '📅 Your month at a glance', roles: ['ADMIN', 'STANDARD', 'SCHEDULER', 'ASSESSOR'] },
   { id: 'renewals', title: '🔔 Renewal engine', roles: ['ADMIN', 'STANDARD'] },
   { id: 'cold', title: '📞 Cold list', roles: ['ADMIN', 'STANDARD'] },
+  { id: 'holreq', title: '🏖 Holiday requests', roles: ['ADMIN', 'STANDARD', 'SCHEDULER', 'ASSESSOR', 'ACCOUNTS'] },
   { id: 'scheduling', title: '🗓 Blocks awaiting assignment', roles: ['ADMIN', 'SCHEDULER'] },
   { id: 'assessment', title: '✅ Blocks to assess', roles: ['ADMIN', 'ASSESSOR'] },
   { id: 'outstanding', title: '💷 Outstanding to chase', roles: ['ADMIN', 'STANDARD', 'ACCOUNTS'] },
@@ -215,6 +216,9 @@ function renderModule(id, c) {
       </DashCard>
     )
   }
+  if (id === 'holreq') {
+    return <HolidayRequests user={c.user} isOpen={c.isOpen} toggleCard={c.toggleCard} />
+  }
   if (id === 'renewals') {
     const { renewals, isOpen, toggleCard, windowDays, setWindowDays, logKey, openLog, Actions, ContactBadge, go } = c
     return (
@@ -389,6 +393,80 @@ function MonthGlance({ go, user }) {
   )
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Holiday requests, for whoever approves them.
+//
+// Renders NOTHING unless this person can approve and something is waiting —
+// a card that says "no requests" every day of the year is a card people stop
+// reading. Approving or rejecting emails the person who asked; a rejection
+// asks for a reason first, because "no" without one is the thing that gets
+// argued about later.
+// ─────────────────────────────────────────────────────────────────────────────
+function HolidayRequests({ user, isOpen, toggleCard }) {
+  const [rows, setRows] = useState(null)
+  const [can, setCan] = useState(false)
+  const [rejecting, setRejecting] = useState(null)
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const reload = async () => {
+    try { setRows(await listHolidayRequests()) } catch { setRows([]) }
+  }
+
+  const started = useRef(false)
+  if (!started.current) {
+    started.current = true
+    getSettings()
+      .then((s) => { setCan(canApproveHolidays(user, s)); return canApproveHolidays(user, s) ? reload() : null })
+      .catch(() => setCan(false))
+  }
+
+  async function decide(h, decision) {
+    setBusy(true)
+    try {
+      await decideHoliday(h.holidayId, decision, { note: reason, decidedBy: user?.staffId || null })
+      toast(decision === 'APPROVED' ? `${h.staffName}'s holiday approved` : `${h.staffName}'s request turned down`)
+      setRejecting(null); setReason('')
+      await reload()
+    } catch (e) { toast(e.message) } finally { setBusy(false) }
+  }
+
+  if (!can || !rows || rows.length === 0) return null
+
+  return (
+    <DashCard id="holreq" title="🏖 Holiday requests" badge={`${rows.length} waiting`} count={rows.length}
+      open={isOpen('holreq')} onToggle={toggleCard}>
+      <table>
+        <thead><tr><th>Who</th><th>When</th><th>Note</th><th>Actions</th></tr></thead>
+        <tbody>
+          {rows.map((h) => (
+            <tr key={h.holidayId}>
+              <td><b>{h.staffName}</b></td>
+              <td className="muted nowrap">{fmt(h.start)} – {fmt(h.end)}</td>
+              <td className="muted small">{h.note || '—'}</td>
+              <td>
+                {rejecting === h.holidayId ? (
+                  <span className="inrow" style={{ flexWrap: 'wrap', maxWidth: 420 }}>
+                    <input type="text" placeholder="Why not? They will be told." value={reason}
+                      onChange={(e) => setReason(e.target.value)} />
+                    <button className="btn sm" disabled={busy} onClick={() => decide(h, 'REJECTED')}>Send</button>
+                    <button className="btn ghost sm" onClick={() => { setRejecting(null); setReason('') }}>✕</button>
+                  </span>
+                ) : (
+                  <span className="inrow">
+                    <button className="btn sm" disabled={busy} onClick={() => decide(h, 'APPROVED')}>Approve</button>
+                    <button className="btn ghost sm" disabled={busy} onClick={() => { setRejecting(h.holidayId); setReason('') }}>Reject</button>
+                  </span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </DashCard>
+  )
+}
 
 function DashCard({ id, title, badge, count, open, onToggle, children }) {
   return (

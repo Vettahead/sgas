@@ -3,7 +3,7 @@ import { LIVE } from '../lib/supabase.js'
 import {
   listUsers, createUser, updateUser, setUserPassword, deleteUser,
   listStaff, createStaff, updateStaff, setStaffLeft, deleteStaff, staffUsage,
-  listHolidays, weekdayDays,
+  listHolidays, weekdayDays, getSettings, saveSetting,
 } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
@@ -77,13 +77,17 @@ export default function Admin({ currentUser }) {
   // in the list can still show a warning without opening anyone.
   const [accFor, setAccFor] = useState(null)
   const [accCounts, setAccCounts] = useState({})
+  const [approver, setApprover] = useState('')
 
   async function load(auth = adminAuth, opts = {}) {
     const withLeft = 'withLeft' in opts ? opts.withLeft : showLeft
     setLoading(true)
     try {
-      const [u, s, hol] = await Promise.all([listUsers(auth), listStaff({ includeLeft: withLeft }), listHolidays()])
+      const [u, s, hol, set] = await Promise.all([
+        listUsers(auth), listStaff({ includeLeft: withLeft }), listHolidays(), getSettings().catch(() => ({})),
+      ])
       setUsers(u); setStaff(s); setHolidays(hol)
+      setApprover(set.holiday_approver_staff_id == null ? '' : String(set.holiday_approver_staff_id))
     } catch (e) { toast(e.message) } finally { setLoading(false) }
   }
   useEffect(() => { if (!LIVE) load(undefined) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -241,6 +245,14 @@ export default function Admin({ currentUser }) {
   async function reinstate(st) {
     try { await setStaffLeft(st.staff_id, null); toast(`${st.name} is back on the staff list`); load() }
     catch (e) { toast(e.message) }
+  }
+
+  async function saveApprover(v) {
+    setApprover(v)
+    try {
+      await saveSetting('holiday_approver_staff_id', v === '' ? null : Number(v), adminAuth)
+      toast(v === '' ? 'Holiday requests will go to the admins' : 'Holiday approver set')
+    } catch (e) { toast(e.message) }
   }
 
   function toggleShowLeft(v) {
@@ -405,6 +417,27 @@ export default function Admin({ currentUser }) {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+
+      {tab === 'staff' && (
+        <div className="card" style={{ marginTop: 18 }}>
+          <h3>🏖 Who approves holidays</h3>
+          <div className="body">
+            <div className="twocol">
+              <div className="field">
+                <label className="fl">Approver</label>
+                <select value={approver} onChange={(e) => saveApprover(e.target.value)}>
+                  <option value="">Any admin</option>
+                  {current.map((st) => <option key={st.staff_id} value={st.staff_id}>{st.name}</option>)}
+                </select>
+              </div>
+            </div>
+            <span className="muted small">
+              Requests are emailed to this person, and they see them on their dashboard. Any admin can still approve,
+              so nothing waits a fortnight while one person is away. Their own time off goes straight on the calendar.
+            </span>
+          </div>
         </div>
       )}
 
