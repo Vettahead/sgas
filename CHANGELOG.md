@@ -4,6 +4,7 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+<<<<<<< HEAD
 ## 2026-08-29 — The June history, rebuilt from the commits
 
 The in-app Changelog screen (`src/lib/version.js`) had 7 entries for the 104
@@ -36,6 +37,8 @@ so build 1 is not a 7 Jun commit and never will be.
 New entries: 1.2.1 (drag-and-drop board), 1.2.2 (the calendar), 1.3.1 (diary and
 daily tasks), plus additions to 1.0.0 and 1.2.0.
 
+=======
+>>>>>>> 146b27cfd3e90ca1d7113bcddfc4e8ef49f9e2d9
 ## 2026-08-29 — The logo, and the only image there will ever be
 
 `public/email-logo.png` (a copy of `src/assets/sgas-logo-white.png` — the
