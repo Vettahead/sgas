@@ -227,7 +227,7 @@ export default function App() {
           {activeView === 'companies' && <Companies go={go} />}
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
-          {activeView === 'roadmap' && isAdmin && <Roadmap />}
+          {activeView === 'roadmap' && isAdmin && <Roadmap currentUser={user} />}
           {activeView === 'changelog' && isAdmin && <Changelog />}
           {activeView === 'help' && <Help />}
         </div>

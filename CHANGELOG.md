@@ -4,6 +4,69 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — Reading the Access database, and a worklist for the bits a computer should not guess
+
+### What is actually in the file
+
+`NEW SGAS Database 060617.mdb`, read with mdbtools. Nine tables, but only one
+that matters: **`BlankTable2`, 20,980 rows and 159 columns**, plus four tiny
+lookups. No relationships. Three `ExportErrors` tables and an
+`MSysCompactError` sit beside it, which is what a previous failed import leaves
+behind.
+
+Each row is one person's assessment record: their details repeated, then ~122
+yes/no columns, one per qualification code. About 8,300 distinct people.
+
+### Three findings that changed the plan
+
+1. **There is no teaching history to backfill.** The plan assumed the file held
+   who taught and who assessed. Assessor is filled on 60% of rows and Verifier
+   on 59% — but **Trainer on 7%**, and most of those say the literal words
+   "Assesment only". An assessment history is importable; a teaching calendar is
+   not.
+2. **Each row may hold two sittings**, not one: `Assessor`/`Assessor2`,
+   `StDate2`/`EnDate2`, `Exdate2`. Unresolved.
+3. **Three expiry columns** — `Expirydate` (12,336), `Exdate2` (8,417),
+   `expiryfive` (2,970). Whichever we choose drives the renewal engine, so
+   choosing wrong is worse than not importing at all. Waiting on Simon.
+
+### The worklist
+
+`import_mapping`: one row per distinct value in the file that a person has to
+resolve, with Claude's suggestion beside it and a `decision` that only a human
+writes. **Nothing is imported on a guess.**
+
+Seeded with 162 rows: 122 qualification columns (59 match our codes exactly, 25
+near-certain — `OFT201`→`OFTEC201`, `MET1K`→`MET1`, `HTRPL2`→`HTRLP2` — and 32
+with no home, of which `cen1` alone is ticked 1,783 times), and 40 spellings of
+about eleven staff names. "S GASDSDON" (4,972), "S GADSDON" (1,765),
+"S GASDSON" (213) and "S G" (4) are all one man.
+
+### The screen
+
+Progress gained tabs; the second is Data import. **One control per row** — a
+dropdown holding our list, "create this", and "ignore" — because three buttons
+and a text box per row is more flexible and nobody would reach the end of 122 of
+them. Picking saves immediately. "Accept every suggestion" fills in only the
+undecided rows, so it can never overwrite an answer.
+
+It is admin-gated with its own password confirm, like the Admin page: the RPCs
+take admin credentials and the Progress page had no gate of its own.
+
+### Six years
+
+Simon's answer, mid-session. It cuts 20,980 rows to 4,484 — and more usefully
+1,492 employers to **96**, which turns employer matching from impossible into a
+morning. Staff spellings drop 40 → 23. Qualification columns barely move,
+122 → 106, so that list stays as it is.
+
+### Files
+
+`supabase/migrations/20260829200000_import_mapping.sql` (applied; the 162 data
+rows deliberately not in it — they are read out of a file that is not in this
+repo), `src/views/ImportMapping.jsx` (new), `src/views/Roadmap.jsx` (tabs),
+`src/App.jsx`, `src/lib/api.js`.
+
 ## 2026-08-29 (end of day) — Forgotten passwords, account emails, and a ? that works everywhere
 
 ### The reset, and what it deliberately does not do

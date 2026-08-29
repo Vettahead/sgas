@@ -17,6 +17,16 @@
 
 export const RELEASES = [
   {
+    v: '1.21.0', build: 138, date: '29 Aug 2026',
+    title: 'The Access import worklist, on the Progress page',
+    notes: [
+      'Progress now has two tabs. The new one, Data import, is where the old Access database gets matched up to this system \u2014 and it is where you can answer the questions a computer should not answer on its own.',
+      'Twenty years of typing means the file calls Simon four different things and has 122 qualification columns, only 59 of which match our codes exactly. Every one of those is a row on the list with my suggestion beside it: accept the lot in one press, or work down the ones I could not guess.',
+      'Each row is one dropdown: map it to one of ours, create it, or ignore it. Picking saves straight away.',
+      'Nothing is imported on a guess. Creating a qualification or a staff record happens when the import runs, not when you choose it.',
+    ],
+  },
+  {
     v: '1.20.0', build: 136, date: '29 Aug 2026',
     title: 'Forgotten passwords sort themselves out, and every page has a ?',
     notes: [

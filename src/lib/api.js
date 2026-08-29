@@ -2002,6 +2002,44 @@ export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// The Access import worklist.
+//
+// Twenty years of free-text data entry means the file names its qualifications
+// and its staff in ways only a person can resolve: "S GASDSDON", "S GADSDON",
+// "S GASDSON" and "S G" are all Simon. Nothing is imported on a guess, so every
+// distinct value gets a row here and a human decides what it means.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function listImportMappings(adminAuth) {
+  if (!LIVE) return []
+  const { data, error } = await supabase.rpc('app_import_mappings', {
+    p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || []
+}
+
+export async function saveImportMapping({ kind, source, decision, targetCode = null, targetId = null, note = null }, adminAuth) {
+  if (!LIVE) return { ok: true }
+  const { error } = await supabase.rpc('app_import_map_save', {
+    p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+    p_kind: kind, p_source: source, p_decision: decision,
+    p_target_code: targetCode, p_target_id: targetId, p_note: note,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return { ok: true }
+}
+
+// Only fills in rows nobody has decided yet, so it can never overwrite an answer.
+export async function acceptImportProposals(kind, adminAuth) {
+  if (!LIVE) return 0
+  const { data, error } = await supabase.rpc('app_import_accept_proposals', {
+    p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_kind: kind,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || 0
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Account emails.
 //
 // These say something about somebody's login, so they are NOT on the open
