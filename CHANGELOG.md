@@ -4,6 +4,60 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 — The emails get a layout
+
+Plain-text emails were going out looking like a printout. Every send now carries
+an HTML alternative as well, built by `supabase/functions/send-email/layout.ts`.
+
+### The constraint that decided the design
+
+The wording is edited by Chris in a textarea in Admin → Email → Wording. He must
+never have to type a tag, and templates already in the database must keep
+working untouched. So the templates stay plain text and `layout.ts` infers the
+structure from the SHAPE of the text — the shape a person types anyway:
+
+| what is typed | what it becomes |
+|---|---|
+| blank line | new paragraph |
+| `  When:  Mon 14 Sep` (indented, `Label: value`) | a row in the details panel |
+| paragraph OPENING in capitals | amber callout |
+| a line that is only a URL | a button |
+| `SGAS Training Management` on its own | dropped — the footer says it |
+
+Two traps that cost a test each: a sentence containing a colon ("One thing:
+bring ID") must not become a detail row, which is why the label regex demands
+two spaces of indent; and the shout detector matches the OPENING of a paragraph,
+not a whole line, because "PLEASE BRING PHOTOGRAPHIC ID. Without it we cannot
+assess you." is mostly lowercase.
+
+Detail blocks separated only by a blank line are merged into ONE table. Two
+tables meant two label columns of different widths stacked on top of each other,
+which looked like a bug. Caught by screenshotting the output, not by a test.
+
+### Email HTML is not web HTML
+
+600px, tables with `role="presentation"`, every style inline, web-safe font
+stack, `color-scheme` meta plus a `prefers-color-scheme` block, a hidden
+preheader, and **no images at all** — most clients block them by default and a
+blocked image is a broken email. Outlook renders through the Word engine; Gmail
+strips `<link>` and clips above 102KB (the largest template renders at ~6KB).
+
+### Where it is wired
+
+Inside `deliver()` in `index.ts`, so every path gets it for the price of one
+line: `html: d.html ?? (d.text ? toHtml(d.text, subject) : undefined)`. A caller
+that built its own HTML keeps it. The plain text is still sent exactly as typed
+— it is what a text-only client, a screen reader and the Sent log show.
+
+`tests/layout.mjs` — 10 groups, including escaping (`<script>` never reaches the
+inbox as markup), the colon trap, and the Gmail clip threshold.
+`scripts/preview-emails.mjs` writes four rendered samples to `/tmp/sgas-emails/`
+for screenshotting; **look at them before shipping** — that is what caught the
+double table and the over-bolded callout.
+
+**Edge Function v8.** Deployed from the repo files, so the note below about the
+deployed copy having trimmed comments is now closed: deployed and repo match.
+
 ## 2026-08-29 — The first emails that leave the building
 
 Every email so far went to staff. Delegates now get four, from `bookings@`.

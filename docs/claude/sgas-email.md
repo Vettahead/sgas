@@ -167,6 +167,39 @@ Each one is: compose in `api.js`, call `sendMail({mailbox, to, subject, text,
 html, kind, refId})`, and give it a distinct `kind` so `email_log` stays
 readable. Nothing else should ever talk to the Edge Function.
 
+## How they LOOK (added 29 Aug 2026, Edge Function v8)
+
+Every send now carries an HTML alternative as well as the plain text.
+`supabase/functions/send-email/layout.ts` builds it, and `deliver()` calls it in
+one place — `html: d.html ?? (d.text ? toHtml(d.text, subject) : undefined)` —
+so every path gets it and a caller with its own HTML keeps it.
+
+**The templates stay plain text and always will.** Chris edits them in a
+textarea and must never type a tag, so the layout is inferred from the shape of
+what he typed:
+
+| typed | rendered |
+|---|---|
+| blank line | new paragraph |
+| `  When:  Mon 14 Sep` — indented `Label: value` | a row in the details panel |
+| paragraph OPENING in capitals | amber callout |
+| a line that is only a URL | a button |
+| `SGAS Training Management` alone on a line | dropped; the footer says it |
+
+Adjacent detail blocks separated only by a blank line merge into ONE table —
+two tables meant two label columns of different widths, which reads as a bug.
+
+Rules baked in, do not undo them: no images (clients block them by default);
+600px; tables with `role="presentation"`; every style inline; `color-scheme`
+meta plus a `prefers-color-scheme` override block; a hidden preheader. Outlook
+renders through Word, Gmail strips `<link>` and clips above 102KB.
+
+**Before changing layout.ts, look at the output.** `node
+--experimental-strip-types scripts/preview-emails.mjs` writes four samples to
+`/tmp/sgas-emails/`; screenshot them with the container's Chromium at 700px and
+375px. That is what caught the double table and an over-bolded callout —
+`tests/layout.mjs` (10 groups) passed through both.
+
 ## Files
 
 | where | what |
@@ -178,6 +211,10 @@ readable. Nothing else should ever talk to the Edge Function.
 | `supabase/migrations/20260828185532_*` | revoke table grants |
 | `supabase/migrations/20260828211500_*` | `app_smtp_dispatch` / `app_email_log_write` |
 | `supabase/functions/send-email/index.ts` | the only thing that decrypts a password |
+| `supabase/functions/send-email/wording.ts` | placeholders, dates, pluralisation |
+| `supabase/functions/send-email/layout.ts` | plain text → HTML |
+| `tests/wording.mjs` / `tests/layout.mjs` | `node --experimental-strip-types` |
+| `scripts/preview-emails.mjs` | renders samples to `/tmp/sgas-emails/` to look at |
 | `supabase/README.md` | the checks that prove the lock still holds |
 
 ## Security notes carried forward
