@@ -1,5 +1,6 @@
 - [SGAS client meeting 27 Aug 2026](sgas-client-meeting-aug26.md) — READ FIRST: verified live state, October deadlines, next builds, who owes what
 - [SGAS email](sgas-email.md) — SMTP/Vault plumbing, the three auth doors, editable wording, and the trainer notifications that are BUILT
+- [SGAS admin screen](sgas-admin.md) — three tabs; the unlock bug that let a wrong password in; "delete" a staff member = left_on, never DELETE
 - [SGAS UI conventions](sgas-ui-conventions.md) — READ BEFORE WRITING ANY SCREEN: reuse the existing CSS classes, never invent a parallel set
 - [Planner — REJECTED](sgas-planner.md) — an experimental timeline calendar, built and binned 27 Aug 2026; what it taught us
 - [SGAS staff accreditations](sgas-staff-accreditations.md) — accreditations + expiry: schema, API, Admin panel; core BUILT, report/dashboard/alerts still to do

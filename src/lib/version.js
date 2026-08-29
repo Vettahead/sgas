@@ -17,6 +17,18 @@
 
 export const RELEASES = [
   {
+    v: '1.18.0', build: 134, date: '29 Aug 2026',
+    title: 'Admin in three tabs, and people who leave',
+    notes: [
+      'Admin is no longer one long page. Three tabs: Staff, Logins and access, and Email. The staff list is the people \u2014 name, email, room, holidays and what is expiring; everything about accounts moved to its own tab.',
+      'Staff can be removed. Somebody who has taught is marked as having left: they come out of the staff list and out of every trainer and assessor picker, and every course they have ever run keeps their name, because that is the record. Tick \u201cShow past staff\u201d to see them again, and Reinstate to bring them back.',
+      'A made-up record that has never been used \u2014 the four seed staff \u2014 is offered as a straight delete instead.',
+      'If a course still to come had them down to run it, the calendar now flags it as needing a trainer instead of quietly looking covered.',
+      'Logins can be deleted outright, with two guards: never the account you are signed in as, and never the last admin.',
+      'Fixed: a wrong password used to unlock Admin anyway, and then every button on the page failed with \u201cPassword incorrect\u201d against an empty screen. It now refuses properly and says what is actually wrong.',
+    ],
+  },
+  {
     v: '1.17.0', build: 133, date: '29 Aug 2026',
     title: 'The system tells the trainer, and you decide what it says',
     notes: [

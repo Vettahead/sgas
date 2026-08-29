@@ -1,13 +1,39 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import { listUsers, createUser, updateUser, setUserPassword, listStaff, createStaff, updateStaff, listHolidays, weekdayDays } from '../lib/api.js'
+import {
+  listUsers, createUser, updateUser, setUserPassword, deleteUser,
+  listStaff, createStaff, updateStaff, setStaffLeft, deleteStaff, staffUsage,
+  listHolidays, weekdayDays,
+} from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
 import StaffAccreditations from '../components/StaffAccreditations.jsx'
 import EmailSettings from './EmailSettings.jsx'
 import { toast } from '../lib/toast.js'
 
-// Roll a person's accreditation rows up into the counts shown on the closed row.
+// ─────────────────────────────────────────────────────────────────────────────
+// ADMIN — three tabs, because this was one page holding three unrelated jobs.
+//
+//   Staff            the people. Who they are, where they are, what is expiring.
+//   Logins & access  every account. Username, role, in or out, reset, delete.
+//   Email            the mail settings, which carry their own strip.
+//
+// The split is not decoration: the staff table had eight columns and was
+// carrying login management as three of them. Per-person detail belongs on the
+// person's own page (click a name), per-account detail belongs on the accounts
+// tab, and the staff list gets to be a list of people again.
+//
+// LEAVING, NOT DELETING. A staff record cannot be deleted once anyone has been
+// taught by them — the database refuses it, and rightly: that is the history
+// the audit runs on. So "Remove" marks the day they left. They vanish from this
+// list and from every trainer / assessor picker in the app, every course they
+// ever ran keeps their name, and any course still to come that they were down
+// for turns up in the calendar's Needs attention as wanting a trainer. A record
+// with no history at all — a seed row, a mistake — is offered as a real delete,
+// because there is nothing to protect.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Roll a person's accreditation rows up into the counts shown beside their name.
 function summarise(rows) {
   let due = 0, expired = 0
   for (const r of rows) {
@@ -17,9 +43,16 @@ function summarise(rows) {
   return { total: rows.length, due, expired }
 }
 
-// One place for staff: every staff person is assignable (Trainer/Assessor/Verifier)
-// AND has a login with a role. Replaces the old separate Staff tab.
+const TABS = [
+  ['staff', '🎓 Staff'],
+  ['access', '🔑 Logins & access'],
+  ['email', '✉️ Email'],
+]
+
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
+
 export default function Admin({ currentUser }) {
+  const [tab, setTab] = useState('staff')
   const [unlocked, setUnlocked] = useState(!LIVE)
   const [adminAuth, setAdminAuth] = useState(LIVE ? null : undefined)
   const [pw, setPw] = useState('')
@@ -29,6 +62,7 @@ export default function Admin({ currentUser }) {
   const [users, setUsers] = useState([])
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
+  const [showLeft, setShowLeft] = useState(false)
   const [loading, setLoading] = useState(!LIVE)
   const [showAdd, setShowAdd] = useState(false)
   const [nu, setNu] = useState({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
@@ -38,32 +72,51 @@ export default function Admin({ currentUser }) {
   const [loginFor, setLoginFor] = useState(null)
   const [loginForm, setLoginForm] = useState({ username: '', role: 'STANDARD', password: '' })
   const [editId, setEditId] = useState(null)
-  const [editForm, setEditForm] = useState({ name: '', email: '', room: '', role: 'STANDARD' })
-  // Which staff member's accreditations are open, plus a per-person summary so a
-  // closed row still shows a warning.
+  const [editForm, setEditForm] = useState({ name: '', email: '', room: '' })
+  // Which staff member's own page is open, plus a per-person summary so a row
+  // in the list can still show a warning without opening anyone.
   const [accFor, setAccFor] = useState(null)
   const [accCounts, setAccCounts] = useState({})
 
-  async function load(auth) {
+  async function load(auth = adminAuth, opts = {}) {
+    const withLeft = 'withLeft' in opts ? opts.withLeft : showLeft
     setLoading(true)
-    try { const [u, s, hol] = await Promise.all([listUsers(auth), listStaff(), listHolidays()]); setUsers(u); setStaff(s); setHolidays(hol) }
-    catch (e) { toast(e.message) }
-    finally { setLoading(false) }
+    try {
+      const [u, s, hol] = await Promise.all([listUsers(auth), listStaff({ includeLeft: withLeft }), listHolidays()])
+      setUsers(u); setStaff(s); setHolidays(hol)
+    } catch (e) { toast(e.message) } finally { setLoading(false) }
   }
-  useEffect(() => { if (!LIVE) load(undefined) }, [])
+  useEffect(() => { if (!LIVE) load(undefined) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The unlock used to call load(), which swallows its own errors — so a WRONG
+  // password unlocked the page, and every call on it then failed with
+  // "Password incorrect" against an empty screen. That cost a morning. The
+  // check now stands on its own and the failure says which failure it is.
   async function unlock(e) {
     e.preventDefault()
+    if (!pw) { setUnlockErr('Enter your password.'); return }
     setUnlockErr(''); setUnlocking(true)
     const auth = { username: currentUser.username, password: pw }
-    try { await load(auth); setAdminAuth(auth); setUnlocked(true); setPw('') }
-    catch (ex) { setUnlockErr(ex.message || 'Could not unlock') }
-    finally { setUnlocking(false) }
+    try {
+      await listUsers(auth)             // throws unless this really is an admin
+      setAdminAuth(auth); setUnlocked(true); setPw('')
+      load(auth)
+    } catch (ex) {
+      const m = String(ex.message || '')
+      setUnlockErr(
+        /Password incorrect|Not authorized/i.test(m)
+          ? `That password does not match ${currentUser.username}. If the account is not an admin, the password will not open this page whatever you type.`
+          : /fetch|network|Failed to send/i.test(m)
+            ? 'Could not reach the server — check your connection and try again.'
+            : m || 'Could not unlock.'
+      )
+    } finally { setUnlocking(false) }
   }
 
   const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
+
   // One pass over every staff member's accreditations, purely so an expiry can
-  // show as a dot beside the name without opening anyone.
+  // show beside the name without opening anyone.
   useEffect(() => {
     if (!unlocked) return
     let alive = true
@@ -76,7 +129,7 @@ export default function Admin({ currentUser }) {
         for (const id of Object.keys(by)) out[id] = summarise(by[id])
         setAccCounts(out)
       })
-      .catch(() => { /* the dot is a nicety — never block the staff list */ })
+      .catch(() => { /* the badge is a nicety — never block the staff list */ })
     return () => { alive = false }
   }, [unlocked, accFor])
 
@@ -92,9 +145,10 @@ export default function Admin({ currentUser }) {
       toast('Staff member created')
       setCreated({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password })
       setNu({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
-      setShowAdd(false); load(adminAuth)
+      setShowAdd(false); load()
     } catch (e) { toast(e.message) }
   }
+
   async function createLogin(staffId) {
     if (!loginForm.username.trim() || !loginForm.password) return toast('Username and password required')
     const st = staff.find((s) => s.staff_id === staffId)
@@ -102,41 +156,99 @@ export default function Admin({ currentUser }) {
       await createUser({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password, staffId }, adminAuth)
       toast('Login created')
       setCreated({ username: loginForm.username.trim(), name: st?.name, email: st?.email, role: loginForm.role, password: loginForm.password })
-      setLoginFor(null); setLoginForm({ username: '', role: 'STANDARD', password: '' }); load(adminAuth)
+      setLoginFor(null); setLoginForm({ username: '', role: 'STANDARD', password: '' }); load()
     } catch (e) { toast(e.message) }
   }
+
   async function saveEdit(st) {
     try {
       await updateStaff(st.staff_id, { name: editForm.name, email: editForm.email, room: editForm.room })
       const u = userForStaff(st.staff_id)
-      const isSelfEdit = u && currentUser && u.user_id === currentUser.user_id
-      if (u) await updateUser(u.user_id, isSelfEdit ? { name: editForm.name, email: editForm.email } : { name: editForm.name, email: editForm.email, role: editForm.role }, adminAuth)
-      toast('Staff updated'); setEditId(null); load(adminAuth)
+      if (u) await updateUser(u.user_id, { name: editForm.name, email: editForm.email }, adminAuth)
+      toast('Staff updated'); setEditId(null); load()
     } catch (e) { toast(e.message) }
   }
+
   async function changeRole(u, role) {
     if (role === u.role) return
-    try { await updateUser(u.user_id, { role }, adminAuth); load(adminAuth) }
+    try { await updateUser(u.user_id, { role }, adminAuth); load() }
     catch (e) { toast(e.message) }
   }
+
   async function makeStaff(u) {
     try {
       const st = await createStaff({ name: u.name || u.username, email: u.email, room: '' })
       await updateUser(u.user_id, { staffId: st.staff_id }, adminAuth)
       toast(`${u.name || u.username} is now a staff member`)
-      load(adminAuth)
+      load()
     } catch (e) { toast(e.message) }
   }
+
   async function toggleActive(u) {
-    try { await updateUser(u.user_id, { is_active: !u.is_active }, adminAuth); load(adminAuth) }
+    try { await updateUser(u.user_id, { is_active: !u.is_active }, adminAuth); load() }
     catch (e) { toast(e.message) }
   }
+
   async function saveReset(u) {
     if (!resetPw) return toast('Enter a new password')
     try { await setUserPassword(u.user_id, resetPw, adminAuth); toast(`Password reset for ${u.username}`); setResetId(null); setResetPw('') }
     catch (e) { toast(e.message) }
   }
 
+  async function removeUser(u) {
+    if (!window.confirm(`Delete the login "${u.username}"?\n\nThe person's staff record and everything they have taught stay exactly as they are. Only the account goes.`)) return
+    try { await deleteUser(u.user_id, adminAuth); toast(`Login ${u.username} deleted`); load() }
+    catch (e) { toast(e.message) }
+  }
+
+  // Remove = mark the day they left, unless there is genuinely nothing to keep.
+  async function removeStaff(st) {
+    let use = { sessions: 0, upcoming: 0, bookings: 0 }
+    try { use = await staffUsage(st.staff_id) } catch { /* fall through to the safe path */ }
+    const u = userForStaff(st.staff_id)
+    const history = use.sessions > 0 || use.bookings > 0
+
+    if (!history) {
+      const msg = `${st.name} is not on any course or booking, so their record can be deleted outright.\n\n`
+        + (u ? `Their login "${u.username}" will be deleted too.\n\n` : '')
+        + 'Delete permanently?\n\nCancel to mark them as having left instead, which keeps the record.'
+      if (window.confirm(msg)) {
+        try {
+          if (u) await deleteUser(u.user_id, adminAuth)
+          await deleteStaff(st.staff_id)
+          toast(`${st.name} deleted`); load()
+        } catch (e) { toast(e.message) }
+        return
+      }
+    }
+
+    const warn = use.upcoming > 0
+      ? `\n\n${use.upcoming} course${use.upcoming === 1 ? '' : 's'} still to come ${use.upcoming === 1 ? 'has' : 'have'} them down to run it — ${use.upcoming === 1 ? 'it' : 'they'} will show in Needs attention as wanting a trainer.`
+      : ''
+    const msg = `Mark ${st.name} as having left?\n\n`
+      + 'They come out of the staff list and out of every trainer and assessor picker. '
+      + 'Everything they have already taught stays exactly as it is, and so does their record.'
+      + warn
+      + (u ? `\n\nTheir login "${u.username}" will be disabled — delete it separately on the Logins tab if you want it gone.` : '')
+    if (!window.confirm(msg)) return
+    try {
+      await setStaffLeft(st.staff_id)
+      if (u && u.is_active) await updateUser(u.user_id, { is_active: false }, adminAuth)
+      toast(`${st.name} marked as left`); load()
+    } catch (e) { toast(e.message) }
+  }
+
+  async function reinstate(st) {
+    try { await setStaffLeft(st.staff_id, null); toast(`${st.name} is back on the staff list`); load() }
+    catch (e) { toast(e.message) }
+  }
+
+  function toggleShowLeft(v) {
+    setShowLeft(v)
+    load(adminAuth, { withLeft: v })
+  }
+
+  // ── the gate ───────────────────────────────────────────────────────────────
   if (!unlocked) {
     return (
       <div className="login-card" style={{ margin: '20px auto' }}>
@@ -153,9 +265,7 @@ export default function Admin({ currentUser }) {
     )
   }
 
-  const orphanAccounts = users.filter((u) => !u.staffId || !staff.some((s) => s.staff_id === u.staffId))
-
-  // Clicking a name opens that person's own page — the staff list stays clean.
+  // ── one person's own page ──────────────────────────────────────────────────
   const openStaff = staff.find((s) => s.staff_id === accFor)
   if (openStaff) {
     const u = userForStaff(openStaff.staff_id)
@@ -165,6 +275,7 @@ export default function Admin({ currentUser }) {
         <button className="linkbtn" style={{ marginBottom: 14 }} onClick={() => setAccFor(null)}>← All staff</button>
         <div className="card" style={{ marginBottom: 18 }}>
           <h3>👤 {openStaff.name}
+            {openStaff.leftOn && <span className="b pend">Left {fmtDate(openStaff.leftOn)}</span>}
             {u && <span className="tag">{u.username} · {ROLE_LABELS[u.role] || u.role}</span>}
           </h3>
           <div className="body muted small">
@@ -181,182 +292,220 @@ export default function Admin({ currentUser }) {
     )
   }
 
+  const staffWithoutLogin = staff.filter((s) => !s.leftOn && !userForStaff(s.staff_id))
+  const current = staff.filter((s) => !s.leftOn)
+
   return (
     <>
-      <div className="hint">Everyone who delivers or assesses lives here. Adding a staff member creates both their <b>assignable record</b> (Trainer / Assessor / Verifier on a course block) and their <b>login</b> with a role. Logins are verified inside Postgres (bcrypt) and the accounts table is locked so the app key can't read password hashes.</div>
+      <div className="seg-tabs">
+        {TABS.map(([k, label]) => (
+          <button key={k} className={'btn sm' + (tab === k ? '' : ' ghost')} onClick={() => setTab(k)}>{label}</button>
+        ))}
+      </div>
 
-      <div className="card">
-        <h3>🎓 Staff &amp; access <span className="tag">{staff.length} staff</span>
-          <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setShowAdd(!showAdd)}>＋ New staff member</button>
-        </h3>
+      {tab === 'staff' && (
+        <div className="card">
+          <h3>🎓 Staff <span className="tag">{current.length} current</span>
+            <button className="btn sm" style={{ marginLeft: 'auto' }} onClick={() => setShowAdd(!showAdd)}>＋ New staff member</button>
+          </h3>
 
-        {showAdd && (
           <div className="body">
-            <div className="subform">
-              <div className="sfh">New staff member</div>
-              <div className="twocol">
-                <Inp label="Full name" v={nu.name} on={(v) => setNu({ ...nu, name: v })} />
-                <Inp label="Email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
-              </div>
-              <div className="twocol">
-                <Inp label="Room (optional)" v={nu.room} on={(v) => setNu({ ...nu, room: v })} />
-                <Inp label="Username (for login)" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
-              </div>
-              <div className="twocol">
-                <div className="field">
-                  <label className="fl">Role</label>
-                  <select value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}>
-                    {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                  </select>
+            <span className="muted small">
+              Click a name to open their record and their accreditations. Logins and roles are on the next tab.
+            </span>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8 }}>
+              <input type="checkbox" checked={showLeft} onChange={(e) => toggleShowLeft(e.target.checked)} />
+              Show past staff
+            </label>
+          </div>
+
+          {showAdd && (
+            <div className="body">
+              <div className="subform">
+                <div className="sfh">New staff member</div>
+                <div className="twocol">
+                  <Inp label="Full name" v={nu.name} on={(v) => setNu({ ...nu, name: v })} />
+                  <Inp label="Email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
                 </div>
-                <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
-              </div>
-              <div className="inrow">
-                <button className="btn sm" onClick={addStaff}>Create staff member</button>
-                <button className="btn ghost sm" onClick={() => setShowAdd(false)}>Cancel</button>
+                <div className="twocol">
+                  <Inp label="Room (optional)" v={nu.room} on={(v) => setNu({ ...nu, room: v })} />
+                  <Inp label="Username (for login)" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
+                </div>
+                <div className="twocol">
+                  <div className="field">
+                    <label className="fl">Role</label>
+                    <select value={nu.role} onChange={(e) => setNu({ ...nu, role: e.target.value })}>
+                      {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                    </select>
+                  </div>
+                  <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
+                </div>
+                <div className="inrow">
+                  <button className="btn sm" onClick={addStaff}>Create staff member</button>
+                  <button className="btn ghost sm" onClick={() => setShowAdd(false)}>Cancel</button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {loading ? <div className="loading">Loading staff…</div> : (
-          <table>
-            <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Login</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              {staff.length === 0 && <tr><td colSpan={8} className="empty">No staff yet — add the first one above.</td></tr>}
-              {staff.map((st) => {
-                const u = userForStaff(st.staff_id)
-                const isSelf = u && currentUser && u.user_id === currentUser.user_id
-                const editing = editId === st.staff_id
-                return (
-                  <tr key={st.staff_id}>
-                    {editing ? (
-                      <>
-                        <td><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
-                        <td><input type="text" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></td>
-                        <td><input type="text" value={editForm.room} onChange={(e) => setEditForm({ ...editForm, room: e.target.value })} /></td>
-                      </>
-                    ) : (
-                      <>
-                        <td>
-                          <b className="dn-link" onClick={() => setAccFor(st.staff_id)} title="Open this person's record">{st.name}</b>
-                          {isSelf && <span className="muted small"> (you)</span>}
-                          {accCounts[st.staff_id]?.expired > 0
-                            ? <span className="b fail" style={{ marginLeft: 6 }}>{accCounts[st.staff_id].expired} expired</span>
-                            : accCounts[st.staff_id]?.due > 0
-                              ? <span className="b due" style={{ marginLeft: 6 }}>{accCounts[st.staff_id].due} expiring</span>
-                              : null}
-                        </td>
-                        <td className="muted">{st.email || '—'}</td>
-                        <td className="muted small">{st.room || '—'}</td>
-                      </>
-                    )}
-                    <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
-
-                    <td>{u ? <span>{u.username}</span> : <span className="muted small">no login</span>}</td>
-                    <td>{editing && u
-                      ? <select className="rolesel" value={editForm.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}>
-                          {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                        </select>
-                      : u
-                        ? <select className="rolesel" value={u.role} disabled={isSelf} title={isSelf ? "You can't change your own role" : 'Change role'} onChange={(e) => changeRole(u, e.target.value)}>
-                            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                          </select>
-                        : <span className="muted small">needs login</span>}</td>
-                    <td>{u ? (u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>) : <span className="muted small">—</span>}</td>
-                    <td>
+          {loading ? <div className="loading">Loading staff…</div> : (
+            <table>
+              <thead><tr><th>Name</th><th>Email</th><th>Room</th><th>Holidays</th><th>Accreditations</th><th>Actions</th></tr></thead>
+              <tbody>
+                {staff.length === 0 && <tr><td colSpan={6} className="empty">No staff yet — add the first one above.</td></tr>}
+                {staff.map((st) => {
+                  const u = userForStaff(st.staff_id)
+                  const isSelf = u && currentUser && u.user_id === currentUser.user_id
+                  const editing = editId === st.staff_id
+                  const acc = accCounts[st.staff_id]
+                  return (
+                    <tr key={st.staff_id}>
                       {editing ? (
-                        <span className="inrow">
-                          <button className="btn sm" onClick={() => saveEdit(st)}>Save</button>
-                          <button className="btn ghost sm" onClick={() => setEditId(null)}>Cancel</button>
-                        </span>
-                      ) : (<span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <button className="btn ghost sm" onClick={() => { setEditId(st.staff_id); setEditForm({ name: st.name || '', email: st.email || '', room: st.room || '', role: u?.role || 'STANDARD' }) }}>Edit</button>
-                      {u ? (
-                        resetId === u.user_id ? (
-                          <span className="inrow" style={{ maxWidth: 320 }}>
-                            <input type="password" placeholder="new password" value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
-                            <button className="btn sm" onClick={() => saveReset(u)}>Save</button>
-                            <button className="btn ghost sm" onClick={() => { setResetId(null); setResetPw('') }}>✕</button>
+                        <>
+                          <td><input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} /></td>
+                          <td><input type="text" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} /></td>
+                          <td><input type="text" value={editForm.room} onChange={(e) => setEditForm({ ...editForm, room: e.target.value })} /></td>
+                        </>
+                      ) : (
+                        <>
+                          <td>
+                            <b className="dn-link" onClick={() => setAccFor(st.staff_id)} title="Open this person's record">{st.name}</b>
+                            {isSelf && <span className="muted small"> (you)</span>}
+                            {st.leftOn && <span className="b pend" style={{ marginLeft: 6 }}>Left {fmtDate(st.leftOn)}</span>}
+                          </td>
+                          <td className="muted">{st.email || '—'}</td>
+                          <td className="muted small">{st.room || '—'}</td>
+                        </>
+                      )}
+                      <td className="muted small">{holDays(st.staff_id) ? holDays(st.staff_id) + (holDays(st.staff_id) === 1 ? ' day' : ' days') : '—'}</td>
+                      <td>
+                        {acc?.expired > 0 && <span className="b fail">{acc.expired} expired</span>}
+                        {acc?.expired > 0 && acc?.due > 0 && ' '}
+                        {acc?.due > 0 && <span className="b due">{acc.due} expiring</span>}
+                        {!acc?.expired && !acc?.due && <span className="muted small">{acc?.total ? `${acc.total} held` : '—'}</span>}
+                      </td>
+                      <td>
+                        {editing ? (
+                          <span className="inrow">
+                            <button className="btn sm" onClick={() => saveEdit(st)}>Save</button>
+                            <button className="btn ghost sm" onClick={() => setEditId(null)}>Cancel</button>
                           </span>
                         ) : (
                           <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                            <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
-                            <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
+                            <button className="btn ghost sm" onClick={() => { setEditId(st.staff_id); setEditForm({ name: st.name || '', email: st.email || '', room: st.room || '' }) }}>Edit</button>
+                            {st.leftOn
+                              ? <button className="btn ghost sm" onClick={() => reinstate(st)}>Reinstate</button>
+                              : <button className="btn ghost sm" disabled={isSelf} title={isSelf ? 'You cannot remove yourself' : 'Remove from the staff list'} onClick={() => removeStaff(st)}>Remove</button>}
                           </span>
-                        )
-                      ) : (
-                        loginFor === st.staff_id ? (
-                          <span className="inrow" style={{ flexWrap: 'wrap', maxWidth: 380 }}>
-                            <input type="text" placeholder="username" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} style={{ maxWidth: 130 }} />
+                        )}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'access' && (
+        <>
+          <div className="hint">
+            Logins are verified inside Postgres (bcrypt) and the accounts table is locked so the app key cannot read
+            password hashes. <b>Disable</b> keeps the account and shuts the door; <b>Delete</b> removes the account
+            entirely and leaves the person's staff record and history untouched.
+          </div>
+
+          <div className="card">
+            <h3>🔑 Logins <span className="tag">{users.length}</span></h3>
+            {loading ? <div className="loading">Loading accounts…</div> : (
+              <table>
+                <thead><tr><th>Username</th><th>Person</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {users.length === 0 && <tr><td colSpan={5} className="empty">No accounts.</td></tr>}
+                  {users.map((u) => {
+                    const isSelf = currentUser && u.user_id === currentUser.user_id
+                    const st = staff.find((s) => s.staff_id === u.staffId)
+                    return (
+                      <tr key={u.user_id}>
+                        <td><b>{u.username}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
+                        <td>
+                          {st
+                            ? <>{st.name}{st.leftOn && <span className="b pend" style={{ marginLeft: 6 }}>left</span>}</>
+                            : <span className="muted small">{u.name || 'not a staff member'}</span>}
+                        </td>
+                        <td>
+                          <select className="rolesel" value={u.role} disabled={isSelf}
+                            title={isSelf ? 'You cannot change your own role' : 'Change role'}
+                            onChange={(e) => changeRole(u, e.target.value)}>
+                            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
+                          </select>
+                        </td>
+                        <td>{u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>}</td>
+                        <td>
+                          {resetId === u.user_id ? (
+                            <span className="inrow" style={{ maxWidth: 320 }}>
+                              <input type="password" placeholder="new password" value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
+                              <button className="btn sm" onClick={() => saveReset(u)}>Save</button>
+                              <button className="btn ghost sm" onClick={() => { setResetId(null); setResetPw('') }}>✕</button>
+                            </span>
+                          ) : (
+                            <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                              <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
+                              <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
+                              <button className="btn ghost sm" disabled={isSelf} title={isSelf ? 'You cannot delete the account you are signed in as' : 'Delete this login'} onClick={() => removeUser(u)}>Delete</button>
+                              {!st && (
+                                <label className="staffchk" title="Give this account a staff record so they can be assigned to courses, holidays and calendar entries">
+                                  <input type="checkbox" checked={false} onChange={() => makeStaff(u)} /> Staff member
+                                </label>
+                              )}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            )}
+          </div>
+
+          {staffWithoutLogin.length > 0 && (
+            <div className="card" style={{ marginTop: 18 }}>
+              <h3>Staff without a login <span className="tag">{staffWithoutLogin.length}</span></h3>
+              <div className="body"><span className="muted small">They can be put on courses, but they cannot sign in.</span></div>
+              <table>
+                <thead><tr><th>Name</th><th>Email</th><th>Actions</th></tr></thead>
+                <tbody>
+                  {staffWithoutLogin.map((st) => (
+                    <tr key={st.staff_id}>
+                      <td><b>{st.name}</b></td>
+                      <td className="muted">{st.email || '—'}</td>
+                      <td>
+                        {loginFor === st.staff_id ? (
+                          <span className="inrow" style={{ flexWrap: 'wrap', maxWidth: 420 }}>
+                            <input type="text" placeholder="username" value={loginForm.username} onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })} style={{ maxWidth: 140 }} />
                             <select className="rolesel" value={loginForm.role} onChange={(e) => setLoginForm({ ...loginForm, role: e.target.value })}>
                               {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                             </select>
-                            <input type="password" placeholder="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={{ maxWidth: 120 }} />
+                            <input type="password" placeholder="password" value={loginForm.password} onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })} style={{ maxWidth: 130 }} />
                             <button className="btn sm" onClick={() => createLogin(st.staff_id)}>Save</button>
                             <button className="btn ghost sm" onClick={() => setLoginFor(null)}>✕</button>
                           </span>
                         ) : (
                           <button className="btn ghost sm" onClick={() => { setLoginFor(st.staff_id); setLoginForm({ username: (st.email || st.name || '').trim(), role: 'STANDARD', password: '' }) }}>Create login</button>
-                        )
-                      )}
-                      </span>)}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Email settings sit outside the orphan-accounts block on purpose: they
-          are always relevant, whether or not there are stray logins. */}
-      <EmailSettings adminAuth={adminAuth} />
-
-      {orphanAccounts.length > 0 && (
-        <div className="card" style={{ marginTop: 18 }}>
-          <h3>🔑 Other accounts <span className="tag">{orphanAccounts.length}</span></h3>
-          <div className="body" style={{ paddingBottom: 0 }}><span className="muted small">Logins not tied to a staff record (e.g. the original admin). Manage their role and access here.</span></div>
-          <table>
-            <thead><tr><th>Username</th><th>Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              {orphanAccounts.map((u) => {
-                const isSelf = currentUser && u.user_id === currentUser.user_id
-                return (
-                  <tr key={u.user_id}>
-                    <td><b>{u.username}</b>{isSelf && <span className="muted small"> (you)</span>}</td>
-                    <td>{u.name || '—'}</td>
-                    <td>
-                      <select className="rolesel" value={u.role} disabled={isSelf} onChange={(e) => changeRole(u, e.target.value)}>
-                        {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
-                      </select>
-                    </td>
-                    <td>{u.is_active ? <span className="b pass">Active</span> : <span className="b fail">Disabled</span>}</td>
-                    <td>
-                      {resetId === u.user_id ? (
-                        <span className="inrow" style={{ maxWidth: 320 }}>
-                          <input type="password" placeholder="new password" value={resetPw} onChange={(e) => setResetPw(e.target.value)} />
-                          <button className="btn sm" onClick={() => saveReset(u)}>Save</button>
-                          <button className="btn ghost sm" onClick={() => { setResetId(null); setResetPw('') }}>✕</button>
-                        </span>
-                      ) : (
-                        <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                          <button className="btn ghost sm" onClick={() => { setResetId(u.user_id); setResetPw('') }}>Reset password</button>
-                          <button className="btn ghost sm" disabled={isSelf} onClick={() => toggleActive(u)}>{u.is_active ? 'Disable' : 'Enable'}</button>
-                          <label className="staffchk" title="Tick to give this account a staff record so they can be assigned to courses, holidays and calendar entries (keeps their admin role)">
-                            <input type="checkbox" checked={false} onChange={() => makeStaff(u)} /> Staff member
-                          </label>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
+
+      {tab === 'email' && <EmailSettings adminAuth={adminAuth} />}
 
       {created && <CreatedModal u={created} onClose={() => setCreated(null)} />}
     </>

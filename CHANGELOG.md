@@ -4,6 +4,86 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-29 (later) — Admin in tabs, and what "delete a person" actually means
+
+### The unlock bug, which cost a morning
+
+`unlock()` did this:
+
+```js
+try { await load(auth); setAdminAuth(auth); setUnlocked(true) }
+catch (ex) { setUnlockErr(...) }
+```
+
+and `load()` ends `catch (e) { toast(e.message) }`. It never rethrows. So the
+catch in `unlock` was unreachable and **a wrong password unlocked the page** —
+onto an Admin screen where every call then failed. Chris saw an empty staff list
+and an Email card that said nothing but "Password incorrect", and reasonably
+concluded the new email work had broken it. The logs said otherwise:
+`app_list_users` and `app_smtp_get` both returned 400 "Not authorized" in the
+same second, and `app_list_users` has not been touched in weeks.
+
+Two lessons, both in the code now:
+
+1. **A helper that swallows its own errors cannot be used as a check.** The
+   unlock calls `listUsers` directly and stands or falls on that.
+2. **"Password incorrect" was one message covering three different failures** —
+   wrong password, an account that is not an admin, and the server being
+   unreachable. It now says which.
+
+### Removing a person
+
+Chris asked for delete on staff and logins. They are not the same problem.
+
+**A login** has nothing pointing at it, so `app_delete_user` really deletes it.
+Guards: never the account you are signed in as, never the last active admin.
+(The second is defensive rather than reachable — the caller must itself be an
+active admin, so there are always at least two.)
+
+**A staff record** cannot go. `session` and `booking` both reference `assessor`
+with `NO ACTION`, and that is correct: the audit runs on who taught what. So
+`assessor.left_on` marks the day they left. They disappear from `listStaff()` —
+which is the single function every trainer/assessor/verifier picker in the app
+reads, so one change removes them from all of them — and nothing they have
+taught moves. "Show past staff" passes `{ includeLeft: true }`, and Reinstate
+clears the date.
+
+Chris's own framing, kept verbatim in the design: *"all legacy items they taught
+and their file stay in place... if in the future, say they leave and there's a
+course next week, it flags in the calendar that this now needs a trainer, it
+doesn't lock on those ones."* So `block()` computes `trainerGone` — a trainer
+who has left AND a course that has not finished — which feeds `ready`, the
+dashboard's `missing` line, and the calendar's Needs attention. A course that
+has already run keeps its trainer and stays `ready`. Verified all three cases
+against a real row.
+
+A record with **no** history is offered as a real delete, which is exactly the
+four seed staff. The database is the thing enforcing that distinction, not a
+checkbox in the UI.
+
+### Tabs
+
+Staff / Logins & access / Email. The staff table went from eight columns to six
+by moving username, role and status to the accounts tab, which also gave the
+non-staff accounts a home instead of a conditional block at the bottom of the
+page. No new CSS — `.seg-tabs` and `.btn sm` / `.btn sm ghost`, the same pattern
+the Schedule screen uses.
+
+### Verified
+
+- self-delete refused; a normal login deleted; a staff row with history refused
+  by the foreign key (Simon intact, 9 staff and 35 sessions before and after)
+- `left_on` filtering: 9 shown by default, 10 with past staff
+- `trainerGone` against a real future session with a departed trainer: flagged;
+  the same course dated in the past: untouched and still ready
+
+### Files
+
+`supabase/migrations/20260829140000_staff_left_and_delete_user.sql` (applied),
+`src/lib/api.js` (`listStaff({includeLeft})`, `setStaffLeft`, `staffUsage`,
+`deleteStaff`, `deleteUser`, `trainerGone` in `block()`),
+`src/views/Admin.jsx` (rebuilt), `src/views/CalendarNext.jsx` (Needs attention).
+
 ## 2026-08-29 — Three notifications, and the wording moved out of the code
 
 The plumbing built on the 28th could send but nothing used it. It does now.

@@ -258,7 +258,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // Scoped to the month, this hid overdue problems the moment you paged away
   // from them. An alert is only an alert if it follows you.
   const needsWork = useMemo(() => (shown || [])
-    .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || !b.delegates.length))
+    .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || b.trainerGone || !b.delegates.length))
     .sort((a, z) => a.start.localeCompare(z.start)), [shown])
   // What a trainer already has on, so you are not dropping blind.
   const teaching = (id) => {
@@ -776,7 +776,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
               {needsWork.slice(0, 4).map((b) => (
                 <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
                   <i style={{ background: b.color || '#5b6b80' }} />
-                  <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : 'no delegates'} · {fmt(b.start)}</small></span>
+                  <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left \u2014 needs a trainer` : 'no delegates'} · {fmt(b.start)}</small></span>
                 </button>
               ))}
             </RailCard>

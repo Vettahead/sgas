@@ -98,7 +98,7 @@ function blockSummaries(blocks) {
   // Only blocks that have NOT finished yet still need assigning — drop past ones.
   const awaitingBlocks = (blocks || []).filter((b) => !b.ready && (!b.end || b.end >= todayISO())).map((b) => ({
     id: b.id, course: b.course, start: b.start, end: b.end, scheme: b.scheme,
-    missing: [!b.trainerId && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
+    missing: [(!b.trainerId || b.trainerGone) && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
   }))
   const assessBlocks = (blocks || []).filter((b) => b.delegates.length > 0).map((b) => ({
     id: b.id, course: b.course, start: b.start, end: b.end, count: b.delegates.length,
@@ -937,6 +937,27 @@ export async function appLogin(username, password) {
   return sanitizeUser(row)
 }
 
+// Nothing in the database points at a login, so this is a real delete. The
+// guards live in the RPC (never yourself, never the last active admin) because
+// a guard in the browser is a suggestion.
+export async function deleteUser(userId, adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_delete_user', {
+      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_user_id: userId,
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  const i = store.users.findIndex((u) => u.user_id === userId)
+  if (i < 0) throw new Error('That login no longer exists')
+  const u = store.users[i]
+  if (u.role === 'ADMIN' && u.is_active && !store.users.some((x) => x.user_id !== userId && x.role === 'ADMIN' && x.is_active)) {
+    throw new Error('That is the last admin account — make somebody else an admin first')
+  }
+  store.users.splice(i, 1)
+  return { deleted: u.username }
+}
+
 export async function listUsers(adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_list_users', { p_admin: adminAuth.username, p_admin_pw: adminAuth.password })
@@ -1076,12 +1097,83 @@ export async function setIgasEvidence(bookingId, date) {
 
 const ROLE_COL = { trainer: 'trainer_id', assessor: 'assessor_id', verifier: 'verifier_id' }
 
-export async function listStaff() {
+// Current staff by default. Somebody who has left keeps their record and
+// everything they ever taught — they simply stop appearing here, and therefore
+// stop appearing in every trainer / assessor / verifier picker in the app,
+// because they all read this one function. Pass { includeLeft: true } for the
+// Admin list's "Show past staff" tick.
+const staffShape = (s) => ({
+  staff_id: s.assessor_id, name: s.name, room: s.assigned_room, email: s.email,
+  teamup: s.teamup_subcalendar, leftOn: s.left_on || null,
+  color: ASSESSOR_COLOR[s.assessor_id] || '#48566a',
+})
+
+export async function listStaff({ includeLeft = false } = {}) {
   if (LIVE) {
-    const { data } = await supabase.from('assessor').select('*').eq('is_active', true).order('name')
-    return (data || []).map((s) => ({ staff_id: s.assessor_id, name: s.name, room: s.assigned_room, email: s.email, teamup: s.teamup_subcalendar, color: ASSESSOR_COLOR[s.assessor_id] || '#48566a' }))
+    let q = supabase.from('assessor').select('*').eq('is_active', true)
+    if (!includeLeft) q = q.is('left_on', null)
+    const { data } = await q.order('name')
+    return (data || []).map(staffShape)
   }
-  return D.assessors.filter((a) => a.is_active !== false).map((s) => ({ staff_id: s.assessor_id, name: s.name, room: s.assigned_room, email: s.email, teamup: s.teamup_subcalendar, color: ASSESSOR_COLOR[s.assessor_id] || '#48566a' }))
+  return D.assessors
+    .filter((a) => a.is_active !== false && (includeLeft || !a.left_on))
+    .map(staffShape)
+}
+
+// Leaving, and coming back. A date rather than a flag, so "when did Denis
+// leave?" is answerable later.
+export async function setStaffLeft(staffId, leftOn) {
+  const value = leftOn === null ? null : (leftOn || todayISO())
+  if (LIVE) {
+    const { error } = await supabase.from('assessor').update({ left_on: value }).eq('assessor_id', staffId)
+    if (error) throw new Error(error.message)
+    return value
+  }
+  const a = D.assessors.find((x) => x.assessor_id === staffId)
+  if (a) a.left_on = value
+  return value
+}
+
+// What a staff record is attached to. Used to decide whether "remove" means
+// "mark as left" (a real person with a history) or "delete outright" (a seed
+// row nobody has ever used), and to warn about courses still to come.
+export async function staffUsage(staffId) {
+  const today = todayISO()
+  if (LIVE) {
+    const { data: ses } = await supabase.from('session')
+      .select('session_id,end_date,trainer_id,assessor_id,verifier_id')
+      .or(`trainer_id.eq.${staffId},assessor_id.eq.${staffId},verifier_id.eq.${staffId}`)
+    const rows = ses || []
+    const { count: bookings } = await supabase.from('booking')
+      .select('booking_id', { count: 'exact', head: true })
+      .or(`trainer_id.eq.${staffId},verifier_id.eq.${staffId}`)
+    return {
+      sessions: rows.length,
+      upcoming: rows.filter((s) => !s.end_date || s.end_date >= today).length,
+      bookings: bookings || 0,
+    }
+  }
+  const rows = D.sessions.filter((s) => s.trainer_id === staffId || s.assessor_id === staffId || s.verifier_id === staffId)
+  return { sessions: rows.length, upcoming: rows.filter((s) => !s.end_date || s.end_date >= today).length, bookings: 0 }
+}
+
+// Only for a record with no history at all — a seed row, or one added by
+// mistake. The database refuses anything else (session and booking both point
+// at assessor with NO ACTION), which is the guarantee that a real person's
+// history cannot be deleted by accident from this screen.
+export async function deleteStaff(staffId) {
+  if (LIVE) {
+    const { error } = await supabase.from('assessor').delete().eq('assessor_id', staffId)
+    if (error) {
+      if (error.code === '23503') {
+        throw new Error('This person is on courses or bookings, so their record has to stay. Mark them as left instead — their history is kept and they disappear from the lists.')
+      }
+      throw new Error(error.message)
+    }
+    return
+  }
+  const i = D.assessors.findIndex((x) => x.assessor_id === staffId)
+  if (i >= 0) D.assessors.splice(i, 1)
 }
 
 export async function createStaff(d) {
@@ -1264,13 +1356,14 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
       courseId: s.course?.course_id, course: s.course?.name, scheme: s.course?.scheme, color: s.course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
+      trainerLeftOn: s.trainer?.left_on || null,
       delegates: (s.booking || []).map((b) => ({
         bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
         kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment)),
@@ -1289,6 +1382,7 @@ export async function listBlocks() {
       courseId: s.course_id, course: course?.name, scheme: course?.scheme, color: course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
+      trainerLeftOn: asr(s.trainer_id)?.left_on || null,
       delegates: bks.map((b) => ({
         bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
         kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment)),
@@ -1302,10 +1396,16 @@ export async function listBlocks() {
 }
 
 function block(b) {
+  // A course that has already run keeps its trainer's name for the record, even
+  // if that person has since left. One still to come needs somebody who is
+  // actually here — so it counts as unstaffed and shows up in "Needs attention"
+  // rather than quietly looking covered.
+  const over = b.end && b.end < todayISO()
+  const trainerGone = Boolean(b.trainerId && b.trainerLeftOn && !over)
   // A block is schedulable/pushable once it has a Trainer and at least one
   // delegate. Assessor + Verifier are now chosen at the assessment phase.
-  const ready = Boolean(b.trainerId && b.delegates.length)
-  return { ...b, ready }
+  const ready = Boolean(b.trainerId && !trainerGone && b.delegates.length)
+  return { ...b, ready, trainerGone }
 }
 
 export async function assignBlockRole(blockId, role, staffId) {
