@@ -105,11 +105,15 @@ function SessionCheck() {
 
 export default function Admin({ currentUser }) {
   const [tab, setTab] = useState('staff')
-  const [unlocked, setUnlocked] = useState(!LIVE)
-  const [adminAuth, setAdminAuth] = useState(LIVE ? null : undefined)
-  const [pw, setPw] = useState('')
-  const [unlocking, setUnlocking] = useState(false)
-  const [unlockErr, setUnlockErr] = useState('')
+  // No second password. Until the anon lockdown every request reached the
+  // database as `anon`, so re-typing the admin password was the only way to
+  // prove who was asking. The request now carries a signed token naming the
+  // user and app_is_admin() reads app_user from it, so the page can simply ask.
+  //
+  // adminAuth is kept as an argument all the way down to api.js and is always
+  // null here: the RPCs still accept a username and password because the Edge
+  // Function has no token of its own and needs that path.
+  const adminAuth = null
 
   const [users, setUsers] = useState([])
   const [staff, setStaff] = useState([])
@@ -142,39 +146,13 @@ export default function Admin({ currentUser }) {
       setApprover(set.holiday_approver_staff_id == null ? '' : String(set.holiday_approver_staff_id))
     } catch (e) { toast(e.message) } finally { setLoading(false) }
   }
-  useEffect(() => { if (!LIVE) load(undefined) }, [])   // eslint-disable-line react-hooks/exhaustive-deps
-
-  // The unlock used to call load(), which swallows its own errors — so a WRONG
-  // password unlocked the page, and every call on it then failed with
-  // "Password incorrect" against an empty screen. That cost a morning. The
-  // check now stands on its own and the failure says which failure it is.
-  async function unlock(e) {
-    e.preventDefault()
-    if (!pw) { setUnlockErr('Enter your password.'); return }
-    setUnlockErr(''); setUnlocking(true)
-    const auth = { username: currentUser.username, password: pw }
-    try {
-      await listUsers(auth)             // throws unless this really is an admin
-      setAdminAuth(auth); setUnlocked(true); setPw('')
-      load(auth)
-    } catch (ex) {
-      const m = String(ex.message || '')
-      setUnlockErr(
-        /Password incorrect|Not authorized/i.test(m)
-          ? `That password does not match ${currentUser.username}. If the account is not an admin, the password will not open this page whatever you type.`
-          : /fetch|network|Failed to send/i.test(m)
-            ? 'Could not reach the server — check your connection and try again.'
-            : m || 'Could not unlock.'
-      )
-    } finally { setUnlocking(false) }
-  }
+  useEffect(() => { load() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const userForStaff = (staffId) => users.find((u) => u.staffId === staffId)
 
   // One pass over every staff member's accreditations, purely so an expiry can
   // show beside the name without opening anyone.
   useEffect(() => {
-    if (!unlocked) return
     let alive = true
     listStaffAccreditations()
       .then((rows) => {
@@ -187,7 +165,7 @@ export default function Admin({ currentUser }) {
       })
       .catch(() => { /* the badge is a nicety — never block the staff list */ })
     return () => { alive = false }
-  }, [unlocked, accFor])
+  }, [accFor])
 
   const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + weekdayDays(h.start, h.end), 0)
 
@@ -325,22 +303,6 @@ export default function Admin({ currentUser }) {
   }
 
   // ── the gate ───────────────────────────────────────────────────────────────
-  if (!unlocked) {
-    return (
-      <div className="login-card" style={{ margin: '20px auto' }}>
-        <div className="sfh" style={{ marginBottom: 12 }}>Confirm your password to manage staff</div>
-        {unlockErr && <div className="login-err">{unlockErr}</div>}
-        <form onSubmit={unlock}>
-          <div className="field">
-            <label className="fl">Your password ({currentUser.username})</label>
-            <input type="password" value={pw} onChange={(e) => setPw(e.target.value)} autoFocus />
-          </div>
-          <button className="btn" style={{ width: '100%' }} disabled={unlocking}>{unlocking ? 'Checking…' : 'Unlock'}</button>
-        </form>
-      </div>
-    )
-  }
-
   // ── one person's own page ──────────────────────────────────────────────────
   const openStaff = staff.find((s) => s.staff_id === accFor)
   if (openStaff) {

@@ -4,6 +4,33 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — The second password on Admin is gone
+
+It only ever existed because there was nothing else to go on: every request
+arrived as `anon`, so re-typing the admin password was the only way to prove who
+was asking. The lockdown gave the request a signed token naming the user, so the
+question can be answered properly.
+
+**All fourteen admin RPCs funnel through `app_is_admin()`**, so one function was
+the whole server-side change. It now says yes to either the request's token or
+the old username+password — the latter kept because the Edge Function runs as
+the service role and has no token of its own.
+
+**The token path does not trust the claim.** It reads `app_user` by the user id
+in the token, so a demoted or deactivated admin loses access on their next
+click, not whenever their token expires. Tested: a non-admin whose token *claims*
+`app_role: ADMIN` is refused.
+
+Edge Function v10: door 2 now takes the caller's bearer token (verified in the
+database via `app_token_is_admin` — signature, expiry, then a real user lookup)
+and falls back to username+password. The anon key is itself a JWT and arrives
+here signed-out; it verifies, but carries no `app_user_id`, so it fails on the
+only thing that matters.
+
+Net effect on security: stricter. The old box let anyone holding an admin
+password in; the new check is tied to the signed-in account and re-read every
+time.
+
 ## 2026-08-30 — The anon lockdown, applied
 
 The largest risk on the project, closed. Every table carried `p_anon_all`

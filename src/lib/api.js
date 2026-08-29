@@ -979,7 +979,7 @@ export async function appLogin(username, password) {
 export async function deleteUser(userId, adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_delete_user', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_user_id: userId,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_user_id: userId,
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return data
@@ -996,7 +996,7 @@ export async function deleteUser(userId, adminAuth) {
 
 export async function listUsers(adminAuth) {
   if (LIVE) {
-    const { data, error } = await supabase.rpc('app_list_users', { p_admin: adminAuth.username, p_admin_pw: adminAuth.password })
+    const { data, error } = await supabase.rpc('app_list_users', { p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '' })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return (data || []).map(sanitizeUser)
   }
@@ -1009,7 +1009,7 @@ export async function createUser({ username, name, email, role, password, staffI
   if (!password) throw new Error('Password is required')
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_create_user', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
       p_username: uname, p_name: name, p_email: email, p_role: role || 'STANDARD', p_password: password,
       p_staff_id: staffId != null && staffId !== '' ? Number(staffId) : null,
     })
@@ -1027,7 +1027,7 @@ export async function createUser({ username, name, email, role, password, staffI
 export async function updateUser(userId, patch, adminAuth) {
   if (LIVE) {
     const { error } = await supabase.rpc('app_update_user', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_target: userId,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_target: userId,
       p_name: patch.name ?? null, p_email: patch.email ?? null, p_role: patch.role ?? null,
       p_is_active: 'is_active' in patch ? patch.is_active : null,
       p_set_staff: 'staffId' in patch,
@@ -1047,7 +1047,7 @@ export async function setUserPassword(userId, password, adminAuth) {
   if (!password) throw new Error('Password is required')
   if (LIVE) {
     const { error } = await supabase.rpc('app_set_password', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_target: userId, p_password: password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_target: userId, p_password: password,
     })
     if (error) throw new Error(error.message)
     return
@@ -1283,7 +1283,7 @@ export async function getSettings() {
 export async function saveSetting(key, value, adminAuth) {
   if (LIVE) {
     const { error } = await supabase.rpc('app_setting_save', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_key: key, p_value: value,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_key: key, p_value: value,
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return value
@@ -1946,7 +1946,7 @@ const DEMO_SMTP = {
 export async function getSmtpSettings(adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_smtp_get', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return data
@@ -1960,7 +1960,7 @@ export async function getSmtpSettings(adminAuth) {
 export async function saveSmtpSettings({ host, port, secure, mailboxes }, adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_smtp_save', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
       p_host: host, p_port: Number(port) || 465, p_secure: !!secure,
       p_mailboxes: mailboxes,
     })
@@ -2011,7 +2011,7 @@ async function functionError(error, fallback) {
 export async function sendMail({ mailbox = 'crm', to, subject, text, html, kind = 'manual', refId = null }, adminAuth) {
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
-      admin: adminAuth.username, admin_pw: adminAuth.password,
+      admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '',
       mailbox, to, subject, text, html, kind, ref_id: refId,
     },
   })
@@ -2069,7 +2069,7 @@ export function notifyEmail({ kind, ref, sessionId, staffId = null, prevStart = 
 export async function listImportMappings(adminAuth) {
   if (!LIVE) return []
   const { data, error } = await supabase.rpc('app_import_mappings', {
-    p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
   })
   if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
   return data || []
@@ -2078,7 +2078,7 @@ export async function listImportMappings(adminAuth) {
 export async function saveImportMapping({ kind, source, decision, targetCode = null, targetId = null, note = null }, adminAuth) {
   if (!LIVE) return { ok: true }
   const { error } = await supabase.rpc('app_import_map_save', {
-    p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
     p_kind: kind, p_source: source, p_decision: decision,
     p_target_code: targetCode, p_target_id: targetId, p_note: note,
   })
@@ -2090,7 +2090,7 @@ export async function saveImportMapping({ kind, source, decision, targetCode = n
 export async function acceptImportProposals(kind, adminAuth) {
   if (!LIVE) return 0
   const { data, error } = await supabase.rpc('app_import_accept_proposals', {
-    p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_kind: kind,
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_kind: kind,
   })
   if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
   return data || 0
@@ -2119,7 +2119,7 @@ export function notifyAccount({ kind, userId }, adminAuth) {
   }
   return supabase.functions
     .invoke('send-email', {
-      body: { admin: adminAuth.username, admin_pw: adminAuth.password, notify: kind, ref: userId },
+      body: { admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '', notify: kind, ref: userId },
     })
     .then(({ data, error }) => (error ? { ok: false } : data))
     .catch(() => ({ ok: false }))
@@ -2210,7 +2210,7 @@ const DEMO_TEMPLATES = [
 export async function listEmailTemplates(adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_email_templates', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return data || []
@@ -2222,7 +2222,7 @@ export async function listEmailTemplates(adminAuth) {
 export async function saveEmailTemplate({ key, subject, body, enabled, mailbox }, adminAuth) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_email_template_save', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
       p_key: key, p_subject: subject, p_body: body, p_enabled: !!enabled, p_mailbox: mailbox || null,
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
@@ -2264,7 +2264,7 @@ export async function previewEmailTemplate(kind, adminAuth) {
     if (!h) return { none: 'holiday' }
     const { data, error } = await supabase.functions.invoke('send-email', {
       body: {
-        admin: adminAuth.username, admin_pw: adminAuth.password,
+        admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '',
         notify: kind, ref: h.holiday_id, preview: true,
       },
     })
@@ -2277,7 +2277,7 @@ export async function previewEmailTemplate(kind, adminAuth) {
   if (!s) return { none: 'course' }
   const { data, error } = await supabase.functions.invoke('send-email', {
     body: {
-      admin: adminAuth.username, admin_pw: adminAuth.password,
+      admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '',
       // "Taken off" is about somebody who is no longer on the session, so the
       // caller has to name them. For a preview, that is whoever is on it now.
       notify: kind, ref: s.session_id, staff_id: s.trainer_id, preview: true,
@@ -2293,7 +2293,7 @@ export async function previewEmailTemplate(kind, adminAuth) {
 export async function listEmailLog(adminAuth, limit = 50) {
   if (LIVE) {
     const { data, error } = await supabase.rpc('app_email_log', {
-      p_admin: adminAuth.username, p_admin_pw: adminAuth.password, p_limit: limit,
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '', p_limit: limit,
     })
     if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
     return data || []

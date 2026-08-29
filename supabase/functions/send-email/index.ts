@@ -237,11 +237,36 @@ Deno.serve(async (req: Request) => {
     // anything that talks about somebody's account.
     const trusted = INTERNAL_SECRET && internal === INTERNAL_SECRET
     if (!trusted && (!isNotify || wantsPreview || accountKind)) {
-      if (!admin || !admin_pw) return json({ ok: false, error: 'Not authorized' }, 401)
-      const { data: isAdmin, error } = await db.rpc('app_is_admin', { p_user: admin, p_pw: admin_pw })
-      // An RPC that errors and an admin check that says no are different things.
-      if (error) return json({ ok: false, error: `Could not check the admin login: ${error.message}` }, 500)
-      if (isAdmin !== true) return json({ ok: false, error: 'Not authorized' }, 401)
+      // TWO WAYS TO PROVE IT, in this order.
+      //
+      // The signed-in browser's own token, which supabase-js puts in the
+      // Authorization header. This is the normal path since the Admin screen
+      // stopped asking for a second password — there is nothing to type any
+      // more, so there is nothing to send. The token is verified in the
+      // database (signature, expiry, then the user looked up for real), never
+      // here: this function must not hold the signing secret.
+      //
+      // Username and password still work, because pg_cron and anything else
+      // running server-side has no token of its own.
+      let allowed = false
+
+      const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
+      if (bearer) {
+        // The anon key is itself a JWT and arrives here when nobody is signed
+        // in. It verifies, but it carries no app_user_id, so it fails on the
+        // only thing that matters.
+        const { data: tokOk } = await db.rpc('app_token_is_admin', { p_token: bearer })
+        allowed = tokOk === true
+      }
+
+      if (!allowed && admin && admin_pw) {
+        const { data: isAdmin, error } = await db.rpc('app_is_admin', { p_user: admin, p_pw: admin_pw })
+        // An RPC that errors and an admin check that says no are different things.
+        if (error) return json({ ok: false, error: `Could not check the admin login: ${error.message}` }, 500)
+        allowed = isAdmin === true
+      }
+
+      if (!allowed) return json({ ok: false, error: 'Not authorized' }, 401)
     }
 
     // ── a notification composes itself ──────────────────────────────────────

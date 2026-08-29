@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.26.0', build: 155, date: '30 Aug 2026',
+    title: 'No more typing your password twice',
+    notes: [
+      'The Admin page no longer asks for your password again when you open it. It only ever asked because the database had no way of knowing who was on the other end \u2014 now that it does, the page can simply check whether you are an admin and let you in.',
+      'It is not a relaxation. Being an admin is now decided by looking you up in the database on every action, so somebody moved off Admin loses it on their very next click rather than whenever they next sign in. Somebody who is not an admin cannot get in whatever they type, which was never quite true of a password box.',
+      'The email screen works the same way, so testing an email no longer needs the password either.',
+    ],
+  },
+  {
     v: '1.25.0', build: 154, date: '30 Aug 2026',
     title: 'The customer data is behind the lock now',
     notes: [
