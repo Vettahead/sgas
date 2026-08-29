@@ -17,6 +17,17 @@
 
 export const RELEASES = [
   {
+    v: '1.24.0', build: 141, date: '29 Aug 2026',
+    title: 'The emails stop looking like a printout',
+    notes: [
+      'Every email the system sends now arrives laid out properly \u2014 headed, spaced, with the dates and details in a panel rather than run together in a paragraph. It is what a training company\u2019s email should look like when it lands next to everything else in somebody\u2019s inbox.',
+      'You still type plain English in Admin \u2192 Email \u2192 Wording. You never type a tag. The layout is worked out from the shape of what you wrote: indent a line as \u201cWhen: \u2026\u201d and it becomes a row in the details panel, start a paragraph in capitals and it becomes a highlighted warning, put a link on a line of its own and it becomes a button.',
+      'The plain version goes with it, exactly as you typed it. A phone that refuses pictures, an old client, a screen reader \u2014 they all still get a readable email, and that is also what the Sent log shows.',
+      'No images anywhere in them, on purpose. Most mail programs block pictures by default, and an email that is a broken grey box until you press \u201cshow images\u201d is worse than one that never had any.',
+      'It reads on a phone as well as a desktop, and follows dark mode if the person has it on.',
+    ],
+  },
+  {
     v: '1.23.0', build: 140, date: '29 Aug 2026',
     title: 'Delegates finally hear from us',
     notes: [

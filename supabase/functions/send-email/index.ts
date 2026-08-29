@@ -34,6 +34,7 @@
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.6.0/mod.ts'
 import { render, tokensFor } from './wording.ts'
+import { toHtml } from './layout.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -113,8 +114,12 @@ async function deliver(db: ReturnType<typeof createClient>, d: Deliver) {
         to: String(d.to),
         cc: d.cc ? [String(d.cc)] : undefined,
         subject: String(d.subject ?? '(no subject)'),
+        // Both versions, always. The text is exactly what was typed in Admin —
+        // it is what a plain-text client, a screen reader and the Sent log
+        // show. The HTML is that same text laid out (layout.ts); a caller that
+        // built its own HTML keeps it.
         content: d.text ?? undefined,
-        html: d.html ?? undefined,
+        html: d.html ?? (d.text ? toHtml(d.text, String(d.subject ?? '')) : undefined),
       })
       ok = true
     } catch (e) {
