@@ -5,8 +5,9 @@ import {
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
-  getSettings,
+  getSettings, getFormData, getBlockFormData,
 } from '../lib/api.js'
+import { downloadCombined, downloadZip, downloadForm, formFaults } from '../lib/acspdf.js'
 import { todayISO, fmt } from '../lib/util.js'
 
 /* A course runs Monday to Friday. The old calendar snapped every date it was
@@ -211,6 +212,11 @@ export default function CalendarNext({ canWrite, user, go }) {
   const [settings, setSettings] = useState({})
   // Removing anything asks first, in the popover, rather than in a browser box.
   const [confirmDel, setConfirmDel] = useState(null)
+  // ACS application forms. Printing is a READ, so it is not behind canWrite —
+  // reception book people in and chase the paperwork, and gating this on the
+  // right to edit the calendar would take the forms off the people who send them.
+  const [forms, setForms] = useState(null)      // { want, data, label, faults, who }
+  const [formBusy, setFormBusy] = useState(false)
   const [filt, setFilt] = useState(() => {
     try { return { schemes: [], staff: [], hideDone: false, onlyCourses: false, ...JSON.parse(readLS(FILT_KEY, '') || '{}') } }
     catch { return { schemes: [], staff: [], hideDone: false, onlyCourses: false } }
@@ -329,6 +335,58 @@ export default function CalendarNext({ canWrite, user, go }) {
       toast(f2 !== next.from || t2 !== next.to ? 'Dates changed — moved off the weekend' : 'Dates changed')
     } catch (err) { toast(err.message) } finally { setBusy(false) }
   }
+
+  /* ── ACS application forms ───────────────────────────────────────────────
+     This was the last thing keeping the Schedule board on the menu. It lived
+     there and nowhere else, and it is the October audit deliverable.
+
+     What it does that the old buttons did not: it LOOKS BEFORE IT PRINTS.
+     LCL Awards return a form with an empty National Insurance box, and you
+     hear about it a fortnight later. So a set that would print unusable says
+     who is short of what and makes you press "print anyway" on purpose. */
+  useEffect(() => { setForms(null) }, [open?.id])
+  // The panel opens near the bottom of a popover that scrolls, and the footer
+  // is STICKY — so "Print anyway" can sit behind it. A question you cannot see
+  // the answer buttons for is not a question, so scroll them clear by hand.
+  // scrollIntoView is no use here: it counts an element hidden behind a sticky
+  // footer as already visible and does nothing.
+  const gapActRef = useRef(null)
+  useEffect(() => {
+    if (!forms) return
+    const el = gapActRef.current
+    const box = el?.closest('.cx-pop')
+    if (!box) return
+    const foot = box.querySelector('.cx-pop-foot')
+    const floor = foot ? foot.getBoundingClientRect().top : box.getBoundingClientRect().bottom
+    const need = el.getBoundingClientRect().bottom + 10 - floor
+    if (need > 0) box.scrollTo({ top: box.scrollTop + need, behavior: 'smooth' })
+  }, [forms])
+
+  async function emitForms(want, data, label) {
+    if (want === 'zip') await downloadZip(data, label)
+    else if (want === 'one') await downloadForm(data[0])
+    else await downloadCombined(data, label)
+    setForms(null)
+    const n = data.length
+    toast(want === 'one' ? 'Form ready' : `${n} form${n === 1 ? '' : 's'} ready${want === 'zip' ? ' (zip)' : ''}`)
+  }
+
+  // delegate === null means the whole course.
+  async function printForms(want, delegate) {
+    if (!open) return
+    setFormBusy(true)
+    try {
+      const label = `${open.course}_${fmt(open.start)}`
+      const data = delegate
+        ? [await getFormData(delegate.bookingId)].filter(Boolean)
+        : await getBlockFormData(open.id)
+      if (!data.length) { toast('Nobody is booked on this course'); return }
+      const faults = formFaults(data)
+      if (faults.length) { setForms({ want, data, label, faults, who: delegate?.name || null }); return }
+      await emitForms(want, data, label)
+    } catch (err) { toast(err.message) } finally { setFormBusy(false) }
+  }
+
   useEffect(() => { setJumpY(Number(month.slice(0, 4))) }, [month])
   useEffect(() => {
     if (!jump) return
@@ -949,7 +1007,7 @@ export default function CalendarNext({ canWrite, user, go }) {
           ) : view === 'Year' ? (
             <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} canWrite={canWrite}
               onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null}
-              onCellDown={cellDown} inSel={inSel} canWrite={canWrite} dropClass={dropClass} />
+              onCellDown={cellDown} inSel={inSel} dropClass={dropClass} />
           ) : view !== 'Month' ? (
             <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} canWrite={canWrite}
               onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null}
@@ -1339,7 +1397,11 @@ export default function CalendarNext({ canWrite, user, go }) {
             <span className="cx-when-len">{between(open.start, open.end) + 1} days</span>
           </div>
 
-          <div className="cx-rows">
+          {/* The footer is sticky, so the last thing in here normally sits
+              behind it. While the forms warning is up its buttons are the last
+              thing, and a question whose answer buttons you cannot see is not
+              a question — so the rows get room to scroll clear of the footer. */}
+          <div className={'cx-rows' + (forms ? ' room-below' : '')}>
             {/* Quiet rows you fill in as you need them, rather than a form
                 showing every field at once. */}
             <div className={'cx-row2' + (open.trainerId ? '' : ' empty')}>
@@ -1396,6 +1458,7 @@ export default function CalendarNext({ canWrite, user, go }) {
                   ? <span className="cx-rtext">Nobody booked on yet</span>
                   : <ul className="cx-delg">{open.delegates.map((d) => (
                       <Delegate key={d.bookingId} d={d} block={open} canWrite={canWrite} busy={busy}
+                        formBusy={formBusy} onPrint={() => printForms('one', d)}
                         onDragStart={(e) => dragStart('delegate', { ...d, blockId: open.id }, d.name, schemeColour(open.scheme), e)}
                         onSplit={async (f, t) => {
                           setBusy(true)
@@ -1451,6 +1514,63 @@ export default function CalendarNext({ canWrite, user, go }) {
                     </details>
                   )
                 })()}
+              </div>
+            </div>
+
+            {/* ACS application forms — see printForms() above for why this
+                checks before it prints. Deliberately NOT behind canWrite: it
+                reads, it changes nothing, and reception need it. */}
+            <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
+              <span className="cx-ricon" aria-hidden="true">📄</span>
+              <div className="cx-rfill">
+                <span className="cx-rlabel">ACS application forms</span>
+                {open.delegates.length === 0 ? (
+                  <span className="cx-rtext">Nothing to print until somebody is booked on</span>
+                ) : forms ? (
+                  <div className="cx-gaps" role="alert">
+                    <b>
+                      {forms.who
+                        ? `${forms.who}’s form is not complete.`
+                        : forms.faults.length === 1
+                          ? 'One of these forms is not complete.'
+                          : `${forms.faults.length} of these forms are not complete.`}
+                    </b>
+                    <ul>
+                      {forms.faults.slice(0, 6).map((f) => (
+                        <li key={f.name}>
+                          <b>{f.name}</b>
+                          {f.missing.length > 0 && <span> — no {f.missing.join(', no ')}</span>}
+                          {f.unticked.length > 0 && (
+                            <span className="cx-gap-code"> — the form has no box for {f.unticked.join(', ')}, so it prints with nothing ticked for {f.unticked.length === 1 ? 'it' : 'them'}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {forms.faults.length > 6 && <p className="cx-gap-more">…and {forms.faults.length - 6} more.</p>}
+                    <p className="cx-gap-note">
+                      LCL send these back. Where it is a missing detail, fill it in on the delegate’s record first.
+                    </p>
+                    <span className="cx-gap-act" ref={gapActRef}>
+                      <button className="cx-x" disabled={formBusy}
+                        onClick={() => { setFormBusy(true); emitForms(forms.want, forms.data, forms.label).catch((e) => toast(e.message)).finally(() => setFormBusy(false)) }}>
+                        Print anyway
+                      </button>
+                      <button className="cx-x" onClick={() => setForms(null)}>Cancel</button>
+                    </span>
+                  </div>
+                ) : (
+                  <span className="cx-formrow">
+                    <button className="cx-x" disabled={formBusy} onClick={() => printForms('all', null)}
+                      data-tip={`One PDF holding a filled-in ACS form for all ${open.delegates.length} of them, ready to print`}>
+                      Print all {open.delegates.length}
+                    </button>
+                    <button className="cx-x" disabled={formBusy} onClick={() => printForms('zip', null)}
+                      data-tip="A zip with one PDF per person, for sending on separately">
+                      One file each
+                    </button>
+                    {formBusy && <span className="cx-spin" />}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -1657,7 +1777,7 @@ function RailCard({ id, title, count, shut, onToggle, className = '', children }
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, canWrite, busy, onSplit, onRemove, onDragStart }) {
+function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDragStart, onPrint }) {
   const [edit, setEdit] = useState(false)
   const [f, setF] = useState(d.attendFrom || block.start)
   const [t, setT] = useState(d.attendTo || block.end)
@@ -1675,12 +1795,25 @@ function Delegate({ d, block, canWrite, busy, onSplit, onRemove, onDragStart }) 
           {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
         </small>
       </span>
-      {canWrite && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
-      {canWrite && !edit && (
-        <button className="cx-x danger" disabled={busy}
-          onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
-          take off
-        </button>
+      {/* Grouped so the three of them wrap onto their own line TOGETHER when
+          the popover is narrow. Loose, they squeezed the name into a two-line
+          column an inch wide. */}
+      {!edit && (
+        <span className="cx-dacts">
+          {/* Printing one person's form is a read, so everyone who can see the
+              course gets it — not only whoever can edit it. */}
+          {onPrint && (
+            <button className="cx-x" disabled={formBusy} onClick={onPrint}
+              data-tip={`Print ${d.name}’s ACS application form`}>form</button>
+          )}
+          {canWrite && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
+          {canWrite && (
+            <button className="cx-x danger" disabled={busy}
+              onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
+              take off
+            </button>
+          )}
+        </span>
       )}
       {edit && (
         <span className="cx-split">

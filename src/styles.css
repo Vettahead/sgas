@@ -1635,6 +1635,44 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-pchip.already{opacity:.55}
 .cx-pchip.already small{color:var(--cx-warn);font-weight:600}
 
+/* The row actions travel as one group, so a narrow panel drops all three onto
+   their own line rather than crushing the name into a column an inch wide.
+   min-width on the name is what makes the group wrap instead of the name. */
+.cx-dacts{display:flex;flex-wrap:wrap;align-items:center;gap:3px;margin-left:auto}
+.cx-course-pop .cx-dinfo{min-width:148px}
+
+/* ── ACS application forms, in the course panel ────────────────────────────
+   The forms are the paperwork this whole system exists to produce, so they get
+   real buttons rather than the underlined text the small in-row actions use. */
+.cx-formrow{display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-top:5px}
+.cx-formrow .cx-x{margin-left:0;text-decoration:none;border:1px solid var(--cx-line);
+  background:var(--cx-panel);color:var(--cx-ink);border-radius:8px;padding:7px 12px;
+  font-weight:600;font-size:12px;line-height:1;min-height:32px}
+.cx-formrow .cx-x:hover{border-color:var(--cx-brand);background:var(--cx-brand-soft);color:var(--cx-brand)}
+.cx-formrow .cx-x:disabled{opacity:.55;cursor:default}
+.cx-formrow .cx-x:disabled:hover{border-color:var(--cx-line);background:var(--cx-panel);color:var(--cx-ink)}
+
+/* Who is short of what, before anything prints. Amber rather than red: the
+   form can still be printed, and on the day sometimes has to be. */
+.cx-gaps{margin-top:6px;border:1px solid var(--cx-warn);border-radius:10px;
+  background:var(--cx-warn-soft);padding:9px 11px}
+.cx-gaps>b{display:block;font-weight:700;font-size:12px;line-height:1.4;color:var(--cx-ink)}
+.cx-gaps ul{margin:6px 0 0;padding:0;list-style:none;display:grid;gap:4px}
+.cx-gaps li{font-weight:500;font-size:11.5px;line-height:1.45;color:var(--cx-ink)}
+.cx-gaps li b{font-weight:700}
+.cx-gap-code{color:var(--cx-warn);font-weight:600}
+.cx-gap-more,.cx-gap-note{margin:6px 0 0;font-weight:500;font-size:10.5px;line-height:1.5;color:var(--cx-mute)}
+/* .cx-pop-foot is sticky, so the bottom of the panel sits underneath it with
+   nothing left to scroll. room-below gives the rows somewhere to go while the
+   warning is up; CalendarNext does the scrolling. */
+.cx-rows.room-below{padding-bottom:58px}
+.cx-gap-act{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+.cx-gap-act .cx-x{margin-left:0;text-decoration:none;border:1px solid var(--cx-line);
+  background:var(--cx-panel);color:var(--cx-ink);border-radius:8px;padding:6px 11px;
+  font-weight:600;font-size:11.5px;line-height:1;min-height:32px}
+.cx-gap-act .cx-x:first-child{border-color:var(--cx-warn);color:var(--cx-warn)}
+.cx-gap-act .cx-x:hover{background:var(--cx-soft)}
+
 /* Drag across days to book a course — in every grid, not just the month. */
 .cx-band-cell.sel,.cx-ycell.sel{background:var(--cx-brand-soft);
   box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--cx-brand) 45%,transparent)}

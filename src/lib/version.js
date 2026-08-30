@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.32.0', build: 166, date: '30 Aug 2026',
+    title: 'The ACS forms print from the calendar \u2014 and it checks them first',
+    notes: [
+      'The ACS application forms now print from the calendar. Open a course and there is a row for them: one PDF holding a filled-in form for everybody on it, a zip with one file each, or just one person\u2019s from the row with their name on it. Until today the only place this existed at all was the old Schedule board.',
+      'IT LOOKS BEFORE IT PRINTS, which is the new part. A form with an empty National Insurance box, or no date of birth, is not one LCL will accept \u2014 and you find that out a fortnight later when it comes back. It now says who is short of what and makes you press \u201cPrint anyway\u201d on purpose. Nothing is ever blocked: on the day, you can still print it.',
+      'It also catches something nothing could see before. If somebody is booked for a qualification the ACS form has no box for, the form used to print looking perfectly complete with nothing ticked for it. OFTEC101 is one of those, and it is on a booking already.',
+      'Reception can print them. It only reads \u2014 it changes nothing \u2014 and the people who send the paperwork out are not always the people who move courses about, so it is not behind the right to edit the calendar.',
+      'Two things found and fixed while doing it: the small links on a delegate\u2019s row were squeezing their name into a column an inch wide, and the buttons on a warning at the foot of a course panel could sit hidden behind the bar along the bottom.',
+    ],
+  },
+  {
     v: '1.31.0', build: 165, date: '30 Aug 2026',
     title: 'One calendar. The old one has gone.',
     notes: [

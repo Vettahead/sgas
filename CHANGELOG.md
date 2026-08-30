@@ -4,6 +4,64 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (late) — ACS forms on the calendar, with a pre-flight check
+
+The last of the audit blockers that lived only on the Schedule board, and the
+October audit deliverable. `getFormData` / `getBlockFormData` / `downloadForm` /
+`downloadCombined` / `downloadZip` were already generic; nothing about the PDF
+generation changed. What was missing was an entry point outside `Schedule.jsx`.
+
+**In the course popover.** A new `cx-row2` between the delegates and the scheme:
+*Print all N* (one combined PDF) and *One file each* (a zip). Each delegate row
+also carries a `form` button. `printForms(want, delegate)` is the single path —
+`delegate` null means the whole block.
+
+**It checks before it prints.** New in `acspdf.js`:
+
+- `formGaps(d)` — the boxes an LCL application must carry: surname, first name,
+  8-digit DOB, 9-character NI, address, town, postcode, at least one code.
+  Deliberately scoped to *the form*, not to the delegate record, which is why a
+  missing email is not on the list.
+- `unticked` — codes with no entry in `CODE_POS`. This is the nasty one: the
+  form printed looking complete with nothing ticked, and nothing anywhere
+  reported it. `OFTEC101` is in the demo data and hits this today.
+- `formFaults(delegates)` — everyone who would print unusable, and why.
+
+A set with faults renders an amber panel naming who is short of what, with
+*Print anyway* / *Cancel*. Nothing is ever blocked — on the day the form goes
+out regardless — but it is now a deliberate press.
+
+**Not behind `canWrite`.** Both calls are reads. Reception send the paperwork
+and do not schedule; gating this on the right to edit the calendar would take
+the forms off the people who post them. Verified as Admin, Scheduler and
+Reception.
+
+### Two faults fixed on the way
+
+- **The delegate row.** A third action button squeezed `.cx-dinfo` to about
+  90px and wrapped the name over two lines. The buttons now sit in a
+  `.cx-dacts` group so all three wrap together, and `.cx-course-pop .cx-dinfo`
+  gets `min-width:148px` — which is what makes the group wrap rather than the
+  name.
+- **`.cx-pop-foot` is `position:sticky`,** so the bottom of a scrolling popover
+  sits underneath it with nothing left to scroll: *Print anyway* was
+  unreachable. `.cx-rows.room-below` adds 58px of bottom padding while the
+  warning is up, and the view scrolls the buttons clear by hand.
+  `scrollIntoView` is no use here — it counts an element hidden behind a sticky
+  footer as visible and does nothing, `block:'nearest'` and `scroll-margin`
+  included. Both measured at 1512×950, 412×915 and 915×412.
+
+### Housekeeping
+
+- Removed a duplicate `canWrite` prop on `YearGrid` (vite had been warning).
+- `parity.mjs` matched `/Assessor/` case-sensitively against `.cx-rlabel`, which
+  CSS renders in capitals and `innerText` returns as rendered. The app was
+  right. Third time this class of test bug has come up here.
+
+New `acs.mjs` suite: 13 checks across three roles, asserting real PDFs with the
+right page count, the delegates' surnames present via `pdftotext`, one zip entry
+per delegate, and the warning stopping, cancelling and printing anyway.
+
 ## 2026-08-30 (evening) — the old Calendar is out of the menu
 
 Nine of the ten blockers from this morning's audit, closed. `calendar` is gone

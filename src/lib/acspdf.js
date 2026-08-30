@@ -54,6 +54,41 @@ const GN8 = {
 // this for the real lookup when the rule is confirmed.
 export function gn8For(d) { return d.isReassessment ? '1' : '11' }
 
+// ─── What LCL will send back ─────────────────────────────────────────────────
+// A form with an empty National Insurance box is not a form LCL Awards accept,
+// and nobody finds that out until it comes back — by which point the course has
+// run and the audit is a fortnight closer. So the boxes that MUST carry
+// something are checked against the booking before anything prints.
+//
+// This is deliberately about the FORM, not the delegate record in general: it
+// asks only "will this print as a valid application", which is why a missing
+// email address is not on the list and a missing NI number is.
+export function formGaps(d) {
+  const missing = []
+  const has = (s) => !!String(s || '').trim()
+  if (!has(d.surname)) missing.push('surname')
+  if (!has(d.forename)) missing.push('first name')
+  if ((d.dob || '').replace(/\D/g, '').length !== 8) missing.push('date of birth')
+  if ((d.ni || '').replace(/\s/g, '').length !== 9) missing.push('National Insurance number')
+  if (!has(d.house) && !has(d.street)) missing.push('address')
+  if (!has(d.town) && !has(d.city)) missing.push('town')
+  if (!has(d.postcode)) missing.push('postcode')
+  if (!(d.codes || []).length) missing.push('what they are taking')
+  // A code with no box on the template ticks nothing, silently. The form then
+  // prints looking perfectly complete while asking for nothing — the worst of
+  // these failure modes, because it does not look like a failure.
+  const unticked = (d.codes || []).filter((c) => !CODE_POS[c])
+  return { missing, unticked }
+}
+
+// Everyone in a set who would print an unusable form, and why. Empty = all good.
+export function formFaults(delegates) {
+  return (delegates || []).map((d) => {
+    const g = formGaps(d)
+    return { ...g, name: `${d.forename || ''} ${d.surname || ''}`.trim() || 'Delegate with no name on record' }
+  }).filter((f) => f.missing.length || f.unticked.length)
+}
+
 function drawTick(page, cx, top) {
   const y = H - top - 9
   page.drawLine({ start: { x: cx - 4, y: y + 4 }, end: { x: cx - 1, y }, thickness: 1.5, color: rgb(0, 0, 0) })
