@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.28.1', build: 162, date: '30 Aug 2026',
+    title: 'The new calendar on a phone \u2014 and a button that could not be clicked',
+    notes: [
+      'A REAL BUG, worth knowing about: on the little \u201cNew course\u201d panel, the \u201cFull set-up instead\u201d button had floated out of place, was sitting on top of the blue button, and could not be clicked at all. Two different things in the styling had been given the same name \u2014 that button, and the little card that follows your finger when you drag somebody onto a course \u2014 so the button had quietly been told to behave like the floating card. Both are fixed and separated.',
+      'ON A PHONE, the calendar was spending a third of the screen on headings and buttons before you saw a single date. That is down by more than a hundred pixels: the toolbar sits on two tight rows instead of three, \u201cNew course\u201d is a \u002b button, and the paragraph of explanation under the page title no longer repeats on every screen. The whole month now fits on the screen without scrolling.',
+      'Courses show on one line on a phone. The second line \u2014 trainer and how many are booked \u2014 was being cut off to nothing useful in a column an inch wide and was spilling over the dates above it. Tap the course to see the detail. On a laptop it stays as it was.',
+      'Small things: \u201cSign out\u201d and the date no longer break across two lines at the top of a phone screen.',
+    ],
+  },
+  {
     v: '1.28.0', build: 161, date: '30 Aug 2026',
     title: 'The new calendar, properly finished',
     notes: [

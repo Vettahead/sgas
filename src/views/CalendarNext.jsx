@@ -682,7 +682,14 @@ export default function CalendarNext({ isAdmin, user, go }) {
             aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
             {theme === 'dark' ? '☀' : '☾'}
           </button>
-          {isAdmin && <button className="cx-primary" onClick={() => go?.('setup')}>＋ New course</button>}
+          {/* The words go on a phone: they cost about 100px, which is the
+              difference between the toolbar fitting on two rows and spilling
+              onto a third. The ＋ and the tooltip carry it. */}
+          {isAdmin && (
+            <button className="cx-primary" onClick={() => go?.('setup')} title="New course">
+              ＋<span className="cx-lbl">New course</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -704,7 +711,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
       {drag && (
         <>
-          <div className="cx-ghost" style={{ left: drag.x, top: drag.y, '--s': drag.colour }}>
+          <div className="cx-draghost" style={{ left: drag.x, top: drag.y, '--s': drag.colour }}>
             <b>{drag.label}</b>
             {drag.verdict && <small className={drag.verdict.ok ? (drag.verdict.warn ? 'warn' : 'ok') : 'no'}>{drag.verdict.why}</small>}
           </div>

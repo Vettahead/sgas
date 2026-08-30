@@ -4,6 +4,76 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (later) — mobile, and a class-name collision that broke a button
+
+### The bug: `.cx-ghost` defined twice, for two different things
+
+`styles.css` line ~1276 styled `.cx-ghost` as a **ghost button** (border, radius,
+muted text). Line ~1617 styled `.cx-ghost` as the **drag ghost** — the card that
+follows the pointer while dragging someone onto a course:
+
+```css
+.cx-ghost{position:fixed;z-index:400;pointer-events:none;transform:translate(12px,10px); ...}
+```
+
+The second is later in the file, so it wins. Every ghost button in this view was
+therefore `position:fixed; pointer-events:none; z-index:400`. Measured on the
+"New course" popover before the fix:
+
+```
+position: fixed        pointerEvents: none      zIndex: 400
+transform: matrix(1,0,0,1,12,10)
+```
+
+So "Full set-up instead" floated out of the footer, painted on top of the blue
+primary button, and **could not be clicked at all**. Nothing reports a
+class-name collision — the cascade just picks the last one.
+
+The drag ghost is renamed `.cx-draghost` (one JSX use, plus `tests/dnd.mjs` and
+`tests/bugs.mjs`, all updated). The button keeps the generic name, matching the
+app-wide `.btn.ghost` convention. Verified after: `position: static`,
+`pointerEvents: auto`, inside the footer, and `elementFromPoint` at its own
+centre returns the button.
+
+**Audited the rest of the `.cx-` block for the same shape of fault** — bare base
+definitions of the same class appearing twice. Seven names matched; all seven
+are deliberate additive rules on the same element (`cursor:cell`, an animation,
+`position:relative`). `.cx-ghost` was the only genuine collision.
+
+### Mobile
+
+Chris was on an Android phone; the whole point of the redesign was that it works
+there. Measured at 412×915 before: **333px of chrome before the first date**, a
+third of the screen, with the toolbar wrapping to three stacked rows.
+
+- Toolbar to two tight rows: title group and tools group each take a full row,
+  controls at 34px, `+ New course` becomes a `＋` (the label is ~100px, which was
+  the difference between two rows and three).
+- The key toggle's label was wrapping to three lines in the corner; hidden below
+  640px, since the `?` on every screen already explains the marks.
+- `.top .sub` — the page's explanatory paragraph — hidden on phones. It is read
+  once, not on every visit.
+- `.top .right` no longer wraps mid-phrase ("Sign / out", "Sun, 30 Aug / 2026");
+  it stays on one line and scrolls if it must.
+
+Now **206px**, and the whole month fits above the fold.
+
+### Course bars on a phone
+
+The second line is hidden below 640px. A phone column is ~56px: the sub-line
+truncated to `no trainer · 0 boo…` and, at the mobile `--barh` of 20px, two
+lines of text spilled out of the bar and over the day numbers above it. One line
+on a phone, both lines on a laptop; the detail is one tap away either way.
+`--rowmin` 74→66, `--numh` 22→20, `--barh` 20→22.
+
+### Verified on a touch context, not assumed
+
+412×915, `isMobile`, `hasTouch`: toolbar fits two rows, the whole month is above
+the fold, no sideways scroll, bars are one line, **tapping a course opens it**,
+the page still scrolls under a finger, the side panel is reachable below the
+calendar. Desktop re-run unchanged: drag, resize, trainer picker, Week/Day/Year,
+holiday hatching, no runtime errors.
+
 ## 2026-08-30 — Calendar — new look: polish, and 52 dead CSS declarations
 
 Run as a gauntlet against Amie (amie.so): build a piece, screenshot it, hand it

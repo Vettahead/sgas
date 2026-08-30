@@ -477,7 +477,7 @@ if(cross&&!cross.diag){
   console.log('  mid-drag:',JSON.stringify(await p.evaluate(()=>({
     sel:document.querySelectorAll('.cx-ycell.sel').length,
     chip:document.querySelector('.cx-chip-len')?.textContent||null,
-    ghost:!!document.querySelector('.cx-ghost')}))))
+    ghost:!!document.querySelector('.cx-draghost')}))))
   await p.mouse.up();await p.waitForTimeout(900)
   console.log('  after up:',JSON.stringify(await p.evaluate(()=>({
     pop:!!document.querySelector('.cx-pop'),placing:!!document.querySelector('.cx-placing'),

@@ -42,7 +42,7 @@ async function run({name,width,height,touch}){
   const dragTo=async(from,findTarget,{steps=14,hold=260,edge=false}={})=>{
     await p.mouse.move(from.x,from.y);await p.mouse.down()
     await p.mouse.move(from.x+18,from.y+11,{steps:3});await p.waitForTimeout(120)
-    const live=await p.evaluate(()=>!!document.querySelector('.cx-ghost'))
+    const live=await p.evaluate(()=>!!document.querySelector('.cx-draghost'))
     let t=await findTarget()
     // Nothing on screen to aim at: hold near the top edge and let the drag
     // scroll the page — the phone case, where the rail is far below the grid.
@@ -64,7 +64,7 @@ async function run({name,width,height,touch}){
     if(t)console.log('     aim:',JSON.stringify(await p.evaluate(([x,y])=>{const e=document.elementFromPoint(x,y)
       return {x,y,el:e?e.className||e.tagName:'null',bar:!!e?.closest?.('.cx-bar[data-bid]'),
         day:e?.closest?.('[data-d]')?.dataset?.d||null}},[t.x,t.y])))
-    const ghost=await p.evaluate(()=>{const el=document.querySelector('.cx-ghost');if(!el)return null
+    const ghost=await p.evaluate(()=>{const el=document.querySelector('.cx-draghost');if(!el)return null
       return {label:el.querySelector('b')?.textContent,why:el.querySelector('small')?.textContent,
         cls:el.querySelector('small')?.className,
         ok:!!document.querySelector('.drop-ok'),warn:!!document.querySelector('.drop-warn'),

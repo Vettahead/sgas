@@ -970,8 +970,17 @@ select,select option{color:#1d2733;background:#fff}
 }
 @media (max-width:640px){
   .content{padding:14px 12px}
-  .top{padding:10px 12px;gap:10px;flex-wrap:wrap}
-  .top .right{gap:8px;font-size:11.5px}
+  .top{padding:9px 12px;gap:8px;flex-wrap:wrap}
+  /* Every item here was wrapping mid-phrase — "Sign / out", "Sun, 30 Aug /
+     2026" — which reads as broken rather than tight. Let them stay whole and
+     let the row scroll if it has to. */
+  .top .right{gap:10px;font-size:11.5px;flex-wrap:nowrap;overflow-x:auto;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .top .right::-webkit-scrollbar{display:none}
+  .top .right > *{flex:0 0 auto;white-space:nowrap}
+  /* On a phone this is a paragraph of explanation sitting above every screen,
+     every time. It has been read; the ? keeps it available. */
+  .top .sub{display:none}
   .twocol{grid-template-columns:1fr}
   .cal-toolbar,.cal-filters,.cal-chipbar{flex-wrap:wrap}
   .block-grid{grid-template-columns:1fr}
@@ -1035,7 +1044,8 @@ select,select option{color:#1d2733;background:#fff}
   border-radius:7px;cursor:pointer}
 .cx-seg button.on{background:var(--cx-panel);color:var(--cx-ink);box-shadow:0 1px 2px rgba(15,23,41,.1)}
 .cx-primary{height:32px;padding:0 14px;border-radius:9px;border:none;background:var(--cx-brand);color:#fff;
-  font-weight:500;font-size:12.5px;line-height:1;cursor:pointer;box-shadow:none}
+  font-weight:500;font-size:12.5px;line-height:1;cursor:pointer;box-shadow:none;
+  display:inline-flex;align-items:center;gap:6px}
 .cx-primary:hover{filter:brightness(1.08)}
 
 /* layout */
@@ -1206,13 +1216,37 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
   .cx-card{flex:1 1 260px}
 }
 @media (max-width:640px){
-  .cx{margin:-14px -12px;padding:14px 12px}
-  .cx-title{font-size:18px}
-  .cx-bar-top{gap:10px}
-  .cx-dow div{padding:8px 6px;font-size:9.5px}
+  .cx{margin:-14px -12px;padding:12px 10px}
+  .cx-title{font-size:17px}
+  .cx-dow div{padding:7px 4px;font-size:9.5px}
   .cx-cell{padding:4px 5px}
-  .cx{--rowmin:74px;--numh:22px;--barh:20px}
+  .cx{--rowmin:66px;--numh:20px;--barh:22px}
   .cx-bar-t{font-size:10.5px;padding:0 6px 0 8px}
+
+  /* ── the toolbar, on a phone ──────────────────────────────────────────
+     It was wrapping into THREE stacked rows — month, then the view switcher
+     and three icons, then a full-width blue button — and spending a third of
+     a 915px screen before the first date. Two tight rows now. */
+  .cx-bar-top{gap:8px;flex-wrap:wrap;justify-content:flex-start}
+  .cx-title-wrap{flex:1 1 100%;gap:8px}
+  .cx-tools{flex:1 1 100%;gap:6px;justify-content:flex-start}
+  .cx-steps button,.cx-icon,.cx-today,.cx-primary{height:34px}
+  .cx-steps button,.cx-icon{width:34px}
+  .cx-today{padding:0 11px;font-size:12px}
+  .cx-seg button{padding:7px 9px;font-size:11.5px}
+  .cx-primary{margin-left:auto;padding:0;width:34px;justify-content:center;font-size:15px}
+  .cx-primary .cx-lbl{display:none}
+  /* The key is a reference, and its label wrapped to three lines up in the
+     corner. The ? on every screen already explains the marks. */
+  .cx-title-wrap .cx-keybtn{display:none}
+
+  /* ── one line per course ──────────────────────────────────────────────
+     A phone column is about 55px wide. The second line truncates to nothing
+     useful ("no trainer · 0 boo…") and, at the mobile bar height, spilled out
+     of the bar and over the day numbers above it. Tap the course for the
+     detail; the bar just has to say which course it is. */
+  .cx-bar-sub{display:none}
+  .cx-bar-t{justify-content:center}
   /* Back to a column — and .cx-card's flex:1 1 260px must be undone, because
      in a column that 260px is a HEIGHT: every card, folded or not, was 260px
      tall and shrunk to its own text width. */
@@ -1613,16 +1647,22 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-delg li.grabby{cursor:grab;touch-action:none}
 .cx-hintline{margin:-2px 0 8px;padding:0 3px;font-weight:500;font-size:11.5px;line-height:1.45;color:var(--cx-mute)}
 
-/* the thing in your hand */
-.cx-ghost{position:fixed;z-index:400;pointer-events:none;transform:translate(12px,10px);
+/* The thing in your hand while dragging.
+   RENAMED from .cx-ghost 30 Aug 2026 — it collided with the ghost BUTTON
+   defined ~340 lines earlier, and being the later rule it won. So every ghost
+   button in this view was silently given position:fixed, z-index:400 and
+   pointer-events:none: "Full set-up instead" floated out of the popover footer,
+   sat on top of the blue button, and could not be clicked at all. Nothing
+   reports a class-name collision — the cascade just quietly picks the last one. */
+.cx-draghost{position:fixed;z-index:400;pointer-events:none;transform:translate(12px,10px);
   max-width:260px;background:var(--cx-panel);border:1px solid var(--cx-line);
   border-left:4px solid var(--s);border-radius:4px 10px 10px 4px;padding:7px 11px;
   box-shadow:0 10px 26px rgba(15,23,42,.24)}
-.cx-ghost b{display:block;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--cx-ink)}
-.cx-ghost small{display:block;margin-top:3px;font-weight:500;font-size:10.5px;line-height:1.3;color:var(--cx-mute)}
-.cx-ghost small.ok{color:#1f9d55}
-.cx-ghost small.warn{color:var(--cx-warn)}
-.cx-ghost small.no{color:#c0392b}
+.cx-draghost b{display:block;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--cx-ink)}
+.cx-draghost small{display:block;margin-top:3px;font-weight:500;font-size:10.5px;line-height:1.3;color:var(--cx-mute)}
+.cx-draghost small.ok{color:#1f9d55}
+.cx-draghost small.warn{color:var(--cx-warn)}
+.cx-draghost small.no{color:#c0392b}
 
 /* what you are about to drop it on */
 .cx-bar.drop-ok,.cx-ybar.drop-ok{box-shadow:0 0 0 2px #1f9d55,0 2px 8px rgba(15,23,42,.2)}
