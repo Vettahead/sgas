@@ -145,10 +145,17 @@ curl -s -X POST "$URL/functions/v1/send-email" \
 Use a session whose trainer is a throwaway record when testing, and delete it
 afterwards — a real send goes to a real person.
 
-## ⚠ DO NOT REVOKE THE LEGACY JWT SECRET
+## ⚠ DO NOT REVOKE THE LEGACY JWT SECRET — *downgraded 30 Aug 2026, see below*
 
-**Doing so takes the whole app down.** Not degraded — down. Nobody can load any
-screen.
+> **Status as of 30 Aug 2026 (afternoon):** still true, but no longer permanent.
+> Session tokens now exist alongside the JWT and need no signing secret at all
+> (see **Session tokens** at the end of this file). Once every browser has signed
+> in once on the new path, the JWT half comes out and this whole section can be
+> deleted. Until then the warning below stands unchanged, because a browser that
+> has not signed in since this morning is still carrying a JWT.
+
+**Revoking it today takes the whole app down.** Not degraded — down. Nobody who
+has not yet signed in on the new path can load any screen.
 
 Sign-in tokens are signed HS256 with this project's **legacy JWT secret**. The
 project has already migrated to asymmetric signing keys, so new Supabase-issued
@@ -225,3 +232,113 @@ leaving somebody looking signed in with empty screens.
 Admin → Logins & access → "Check this session". It reports the role the request
 actually arrives as. The SQL editor carries no token and always looks healthy —
 which is exactly how you would talk yourself into a lockdown that fails.
+
+## Session tokens (30 Aug 2026) — the replacement for the JWT
+
+**What changed.** `app_login` now also issues a **session token**: 32 random
+bytes, returned once, stored only as a SHA-256 hash in `app_session`. The
+browser sends it on every request as `x-sgas-session`, and the database looks it
+up. There is no signing secret anywhere in that sentence, which is the entire
+point — nothing to retire, nothing to rotate, nothing to leak.
+
+**Both proofs are live at once.** The JWT still works. A browser running
+yesterday's build is not locked out, and nothing had to be deployed in lockstep
+with the migrations. Admin → Logins & access → *Check this connection* reports
+which proof the current browser used (`session` or `jwt`).
+
+**The eight migrations**, in order:
+
+| file | what it does |
+|---|---|
+| `…123228_app_session_table_and_validator.sql` | `app_session`, `app_session_token()`, `app_session_user_id()`, `app_session_valid()`. Nothing enforces it yet. |
+| `…123255_app_login_issues_session_token.sql` | `app_session_issue()`, `app_logout()`, `app_session_revoke_all()`. |
+| `…123342_identity_accepts_session_or_jwt.sql` | `app_user_id()` / `app_role()` / `app_is_signed_in()` / `app_is_admin()` accept either proof. |
+| `…123414_app_login_returns_session_expiry.sql` | The server tells the browser when its session ends. |
+| `…123705_session_pre_request_promotion.sql` | **The important one.** The pre-request hook. Read its header. |
+| `…123906_whoami_reports_session_and_promotion.sql` | `app_whoami()` gains `proof` and `promotion_installed`; `app_active_sessions()`. |
+| `…123935_app_role_must_be_security_definer.sql` | Fixes a fault introduced an hour earlier — see below. |
+| `…124216_changing_a_password_ends_the_sessions.sql` | Password change / reset / disable now actually put people out. |
+
+### Why the request is *promoted* rather than the tables reopened
+
+The obvious way to make session tokens work is to grant the eighteen tables back
+to `anon` and let RLS do all the deciding. That works, it is ordinary Supabase
+practice — and **it would undo half of the lockdown.** Today there are two
+independent barriers: `anon` holds no GRANT at all, so Postgres refuses before
+RLS is consulted, and the policies on top. Granting anon back leaves one.
+
+So instead a PostgREST `db-pre-request` hook (`public.app_pre_request`) runs
+inside each request's own transaction, resolves the session token, and issues
+`SET LOCAL ROLE authenticated`. That is permitted because the *session* user is
+`authenticator`, which is a member of both roles. Grants stay revoked, the
+eighteen policies are untouched, and only the means of proof has changed.
+
+**It fails closed.** No token, a wrong token, an expired or revoked one, a hook
+that errors, or a hook a platform restore dropped — every one of those leaves the
+request as `anon`, which holds no grants, so screens come back empty. There is no
+failure mode of this design that opens data up.
+
+**The one thing that can go missing.** The hook is wired by a role setting, not
+by a table, so a platform restore can lose it:
+
+```sql
+select rolconfig from pg_roles where rolname = 'authenticator';
+-- expect pgrst.db_pre_request=public.app_pre_request
+```
+
+If it is gone, every screen is empty for everyone. The in-app connection check
+says so in plain English. Re-apply by re-running the last two statements of
+`…123705_session_pre_request_promotion.sql`. To turn it off deliberately —
+returning the system to the JWT-only behaviour of 29 Aug, with no data change and
+no deploy:
+
+```sql
+alter role authenticator reset pgrst.db_pre_request;
+notify pgrst, 'reload config';
+```
+
+### Verified live over HTTP, 30 Aug 2026
+
+Not `set local role` in the SQL editor — the real endpoint with the real
+publishable key, which is the only check that counts:
+
+```
+no session header      -> 401 permission denied for table client
+valid session header   -> 200 rows
+bogus session header   -> 401 permission denied
+the reporting view     -> same, both ways
+app_session itself     -> 401 even when signed in
+legacy JWT, no header  -> 200 rows        (nobody is locked out)
+revoked session        -> 401 on the very next request
+```
+
+### What this buys besides surviving the deprecation
+
+- **Sign out everywhere.** `revoked_at` and the session is dead on the next
+  request. Changing or resetting a password, and disabling an account, now do
+  this — previously a disabled account kept working for up to twelve hours,
+  because a JWT already issued could not be recalled.
+- **"Who is signed in right now"**, in Admin → Logins & access. The JWT design
+  could not answer this at any price: it issued tokens and forgot them.
+- **Nothing to keep secret.** No signing key to leak, rotate or lose.
+
+### The mistake worth keeping
+
+`app_role()` was written SECURITY INVOKER and had to read `app_user`, which since
+the lockdown is granted to nobody. It threw `permission denied for table
+app_user` and took `app_whoami` with it — the one screen people open when things
+look broken. Caught within minutes only because `app_whoami` was curled on both
+paths after the migration rather than assumed to work.
+
+**The rule that falls out of it:** after the lockdown, any new function that
+reads a locked table must be SECURITY DEFINER, and nothing will tell you it
+isn't — not the migration, not the build. Only calling it will.
+
+### Still to do
+
+1. Watch `app_whoami().proof` over the next few days. Once nobody reports `jwt`,
+   drop the JWT half: `app_mint_token`, `app_jwt_secret`, the `sgas_jwt_secret`
+   Vault entry, `app_tokens_enabled`, and the warning section above.
+2. Separately, and after that: the app is already on a publishable key
+   (`sb_publishable_…`), so the anon-key half of the end-of-2026 deprecation is
+   effectively done. Confirm and close it off.

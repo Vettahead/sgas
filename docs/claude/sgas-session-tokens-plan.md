@@ -1,6 +1,13 @@
 # Replacing the JWT with a session token — the plan
 
-**Priority: next session (agreed 30 Aug). Do not let this drift.**
+**DONE 30 Aug 2026 — see `sgas-session-tokens.md` for what was actually built.**
+
+> This plan is kept as the record of the thinking. ONE THING WENT DIFFERENTLY:
+> Chris asked which option was more secure, so the trade-off below (grants back
+> to `anon`, RLS alone enforcing) was NOT accepted. A PostgREST pre-request hook
+> promotes a valid session to the `authenticated` role instead, which keeps both
+> layers. Read the sections headed "The honest trade-off" and step 6 as
+> superseded.
 
 ## Why
 

@@ -500,10 +500,32 @@ export const SECTIONS = [
         ],
       },
       {
-        q: 'It says “Password incorrect” and the page is empty.',
+        q: 'The Admin page is empty, or says I am not allowed in.',
         a: [
-          'The Admin page asks you to confirm your own password before it opens. If that is refused, nothing on the page can load.',
-          'Check you are signed in as an account with Admin access — a Standard or Scheduler account will be refused however right the password is.',
+          'It no longer asks for your password a second time — it checks who you are signed in as. So the usual cause is simply that the account you are signed in as is not an Admin one: a Standard or Scheduler account is refused whatever you type.',
+          'If you ARE an admin and the page is still empty, use “Check this connection” on the Logins & access tab. It will tell you whether you just need to sign out and back in, or whether something is genuinely wrong.',
+        ],
+      },
+      {
+        q: 'How can I see who is signed in right now?',
+        a: [
+          'Admin → Logins & access → “Show who is signed in”. It lists every session open on every machine, what kind of machine it is, when it was last used and when it ends.',
+          'Useful for “is that PC in the training room still logged in” — and for spotting a sign-in from somewhere nobody recognises.',
+          'Sessions last twelve hours and end when somebody signs out.',
+        ],
+      },
+      {
+        q: 'Somebody has left, or a password has been shared. How do I shut them out now?',
+        a: [
+          'Change their password, or untick Active, on the Logins & access tab. Either one ends every session that account has open, on every machine, straight away.',
+          'This used not to be true: until 30 August 2026 somebody could carry on working for up to twelve hours after being disabled. If you shut an account down before that date and are unsure, it is worth checking “who is signed in”.',
+        ],
+      },
+      {
+        q: 'Somebody says every screen is loading empty.',
+        a: [
+          'Go to that machine, open Admin → Logins & access and press “Check this connection”. It has to be pressed on the affected machine — pressed anywhere else it will say everything is fine, because it is reporting on the browser it is running in.',
+          'Almost always the answer is that their sign-in has run out and they need to sign out and back in. If it is something else, it says so and what to do about it.',
         ],
       },
     ],

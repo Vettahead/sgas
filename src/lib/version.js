@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.27.0', build: 160, date: '30 Aug 2026',
+    title: 'Signing in no longer depends on a key that is being retired',
+    notes: [
+      'Signing in used to work by the system issuing you a signed pass, and the signature relied on one of Supabase\u2019s older keys \u2014 which they are retiring by the end of this year. On the day that key went, nobody at SGAS would have been able to load a single screen. That dependency is gone: signing in now creates a record in the database instead of a signed pass, so there is no key left to retire.',
+      'Nothing to do at your end. Both methods work at once during the changeover, so nobody is thrown out mid-afternoon. The next time each person signs in they move across on their own.',
+      'Three things you could not do before, and now can. Signing out actually ends the session at the database rather than just forgetting it on that machine. Changing somebody\u2019s password \u2014 or disabling their account \u2014 puts them out immediately, everywhere; previously they could carry on for up to twelve hours. And Admin \u2192 Logins & access can now show you who is signed in right now, on what kind of machine, and when they last used it.',
+      'The security put in place yesterday has not been loosened by any of this. Both of the barriers around the customer data are still there \u2014 which took a less obvious route than the usual one, deliberately, because the easy way would have removed one of them.',
+    ],
+  },
+  {
     v: '1.26.0', build: 156, date: '30 Aug 2026',
     title: 'No more typing your password twice',
     notes: [

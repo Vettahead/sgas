@@ -23,8 +23,8 @@ import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
 import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
-import { clearToken, getToken } from './lib/session.js'
-import { tokensEnabled } from './lib/api.js'
+import { hasToken } from './lib/session.js'
+import { tokensEnabled, appLogout } from './lib/api.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -116,7 +116,10 @@ export default function App() {
   }
   function signOut() {
     localStorage.removeItem(SESSION_KEY)
-    clearToken()          // stop sending the JWT the moment they sign out
+    // Ends the session at the database as well as forgetting it here, so the
+    // token cannot be replayed from anywhere else. Fire and forget: it never
+    // throws, and the screen must not wait on the network to let somebody out.
+    appLogout()
     setUser(null)
   }
 
@@ -133,7 +136,7 @@ export default function App() {
   // genuinely over.
   const [expired, setExpired] = useState(false)
   useEffect(() => {
-    if (!LIVE || !user || getToken()) return
+    if (!LIVE || !user || hasToken()) return
     let cancelled = false
     tokensEnabled().then((on) => {
       if (!cancelled && on) { signOut(); setExpired(true) }

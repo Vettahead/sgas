@@ -3,7 +3,7 @@ import { LIVE } from '../lib/supabase.js'
 import {
   listUsers, createUser, updateUser, setUserPassword, deleteUser,
   listStaff, createStaff, updateStaff, setStaffLeft, deleteStaff, staffUsage,
-  listHolidays, weekdayDays, getSettings, saveSetting, notifyAccount, whoami,
+  listHolidays, weekdayDays, getSettings, saveSetting, notifyAccount, whoami, activeSessions,
 } from '../lib/api.js'
 import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
@@ -94,11 +94,102 @@ function SessionCheck() {
       {res && (
         <div className="pc-msg" style={{ color: good ? '#1a8a4b' : '#b42318' }}>
           <b>{good ? '✓ ' : '⚠ '}{res.verdict}</b>
-          {res.app_role ? (
-            <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>Signed in as {String(res.app_role)}</div>
-          ) : null}
+          <div style={{ marginTop: 4, fontSize: 12, opacity: 0.8 }}>
+            {res.app_role ? <>Signed in as {String(res.app_role)}. </> : null}
+            {/* Which of the two proofs this browser used. During the changeover
+                both work, and "old way" is information rather than a fault. */}
+            {res.proof === 'session' ? 'Signed in with a session token.'
+              : res.proof === 'jwt' ? 'Signed in the old way — signing out and back in moves this browser across.'
+              : null}
+            {/* The one part of the design that lives in server configuration
+                rather than in a table, so the one part a restore can lose. */}
+            {res.promotion_installed === false
+              ? ' The database is not promoting signed-in requests — see supabase/README.md.'
+              : null}
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────────
+// WHO IS SIGNED IN RIGHT NOW.
+//
+// A question the old design could not answer at any price. A JWT is handed out
+// and then forgotten — nothing records that it exists, nothing can withdraw it,
+// and it stays good for its full twelve hours whatever happens to the account
+// afterwards. Sessions are rows, so they can be listed, and they can be ended.
+//
+// Deliberately read-only for the moment. Ending somebody else's session is a
+// real action with real consequences on a Tuesday afternoon, and it should be
+// added when there is a reason to, not because it was easy.
+// ─────────────────────────────────────────────────────────────────────────────────
+function SignedInNow({ adminAuth }) {
+  const [rows, setRows] = useState(null)
+  const [err, setErr] = useState(null)
+  const [busy, setBusy] = useState(false)
+
+  async function load() {
+    setBusy(true); setErr(null)
+    try { setRows(await activeSessions(adminAuth)) } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  // Browsers report themselves at absurd length. Nobody reading this screen
+  // wants the version string — they want to recognise the machine.
+  const device = (ua) => {
+    if (!ua) return '—'
+    const os = /Windows/.test(ua) ? 'Windows' : /iPhone|iPad/.test(ua) ? 'iPhone or iPad'
+      : /Android/.test(ua) ? 'Android' : /Mac OS X/.test(ua) ? 'Mac' : 'Other'
+    const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome'
+      : /Safari\//.test(ua) ? 'Safari' : /Firefox\//.test(ua) ? 'Firefox' : ''
+    return br ? os + ' · ' + br : os
+  }
+
+  const when = (t) => {
+    if (!t) return '—'
+    const mins = Math.round((Date.now() - new Date(t).getTime()) / 60000)
+    if (mins < 2) return 'just now'
+    if (mins < 60) return mins + ' min ago'
+    const h = Math.round(mins / 60)
+    return h + (h === 1 ? ' hour ago' : ' hours ago')
+  }
+
+  return (
+    <div className="subform" style={{ marginBottom: 16 }}>
+      <div className="sfh">Signed in now</div>
+      <div className="hint">
+        Every session currently open, on every machine. Sessions last 12 hours and end when somebody
+        signs out. Useful for "is Keith still logged in on the training room PC" — and for spotting a
+        sign-in from somewhere nobody recognises.
+      </div>
+      <div className="inrow">
+        <button className="btn sm" onClick={load} disabled={busy}>
+          {busy ? 'Checking…' : rows ? 'Refresh' : 'Show who is signed in'}
+        </button>
+      </div>
+      {err && <div className="pc-msg" style={{ color: '#b42318' }}><b>{err}</b></div>}
+      {rows && (rows.length === 0
+        ? <div className="pc-msg"><b>Nobody is signed in.</b> Anyone still on an older sign-in will
+            appear here once they next sign in.</div>
+        : (
+          <div className="tablewrap">
+            <table>
+              <thead><tr><th>Person</th><th>Role</th><th>Device</th><th>Last used</th><th>Ends</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.name || r.username}</td>
+                    <td>{r.role}</td>
+                    <td className="muted small">{device(r.user_agent)}</td>
+                    <td className="muted small">{when(r.last_seen_at || r.signed_in_at)}</td>
+                    <td className="muted small">{new Date(r.expires_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
     </div>
   )
 }
@@ -476,6 +567,8 @@ export default function Admin({ currentUser }) {
           </div>
 
           <SessionCheck />
+
+          <SignedInNow adminAuth={adminAuth} />
 
           <div className="card">
             <h3>🔑 Logins <span className="tag">{users.length}</span></h3>

@@ -1,4 +1,5 @@
 - [SGAS client meeting 27 Aug 2026](sgas-client-meeting-aug26.md) — READ FIRST: verified live state, October deadlines, next builds, who owes what
+- [SGAS session tokens](sgas-session-tokens.md) — SECURITY: how sign-in works now; the ONE role setting a restore can lose and empties every screen
 - [SGAS email](sgas-email.md) — SMTP/Vault plumbing, the three auth doors, editable wording, and the trainer notifications that are BUILT
 - [SGAS admin screen](sgas-admin.md) — three tabs; the unlock bug that let a wrong password in; "delete" a staff member = left_on, never DELETE
 - [SGAS UI conventions](sgas-ui-conventions.md) — READ BEFORE WRITING ANY SCREEN: reuse the existing CSS classes, never invent a parallel set

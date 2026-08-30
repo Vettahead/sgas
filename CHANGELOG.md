@@ -4,6 +4,88 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — Session tokens replace the self-signed JWT
+
+Sign-in tokens were JWTs minted by `app_mint_token` and signed HS256 with this
+project's **legacy JWT secret**. Supabase is retiring the legacy keys by the end
+of 2026, and the natural last step of that migration — revoking the secret —
+would have taken sign-in down for the whole company. `app_login` now also issues
+a **session token**: 32 random bytes, returned once, stored only as a SHA-256
+hash in `app_session`, sent by the browser as `x-sgas-session`. No signing secret
+anywhere, so nothing left to retire.
+
+**Both proofs are live at once.** The JWT still works; a browser on yesterday's
+build is not locked out and nothing had to deploy in lockstep with the
+migrations. `app_whoami().proof` reports which one a browser used, so the JWT
+half can be dropped on evidence rather than on a guess.
+
+### The decision worth recording: promote the request, don't reopen the tables
+
+The straightforward implementation grants the eighteen tables back to `anon` and
+lets RLS do the deciding — ordinary Supabase practice, and it would have undone
+half of yesterday's lockdown. Two independent barriers exist today (`anon` holds
+no GRANT, *and* the policies); that approach leaves one.
+
+Instead a PostgREST `db-pre-request` hook (`public.app_pre_request`) runs inside
+each request's transaction, resolves the token, and issues
+`SET LOCAL ROLE authenticated` — permitted because the session user is
+`authenticator`, a member of both roles. Grants stay revoked, the eighteen
+policies are untouched, and only the means of proof changed.
+
+**It fails closed.** No token, wrong token, expired, revoked, hook errors, hook
+missing — all leave the request as `anon` with no grants, so screens go empty.
+No failure mode of this design opens data up.
+
+**The cost, stated plainly:** the hook is wired by a role setting rather than a
+table, so a platform restore can drop it. `app_promotion_installed()` detects
+that and the in-app connection check names it. Re-apply = re-run the last two
+statements of `…123705_session_pre_request_promotion.sql`.
+
+### Verified live over HTTP, not in the SQL editor
+
+no header → 401 · valid token → rows · bogus token → 401 · the reporting view →
+same both ways · `app_session` itself → 401 even signed in · legacy JWT with no
+header → rows (nobody locked out) · revoked session → 401 on the next request.
+
+### Revocation, finally used
+
+`app_password_reset_complete`, `app_set_password` and `app_update_user`
+(deactivation) now call `app_session_revoke_all`. Previously a changed password
+or a disabled account left the person working for up to twelve hours, because a
+JWT already issued could not be recalled. `app_delete_user` needed no change —
+`app_session` cascades.
+
+### One fault, caught and worth keeping
+
+`app_role()` was written SECURITY INVOKER and reads `app_user`, which since the
+lockdown is granted to nobody. It threw `permission denied for table app_user`
+and took `app_whoami` down with it — the one screen people open when things look
+broken. Found within minutes because `app_whoami` was curled on both paths after
+the migration instead of being assumed to work.
+
+**Rule:** after the lockdown, any new function reading a locked table must be
+SECURITY DEFINER. Nothing warns you — not the migration, not the build. Only
+calling it does.
+
+### Frontend
+
+- `src/lib/session.js` rewritten to hold both proofs, each with its own expiry.
+- `src/lib/supabase.js` gains a custom `fetch` injecting the header from module
+  state, read fresh per request so sign-in and sign-out take effect immediately.
+  CORS checked first: Supabase echoes `x-sgas-session` in
+  `access-control-allow-headers`.
+- `appLogout()` ends the session server-side; never throws, because a sign-out
+  that fails on a dropped connection would be worse than useless.
+- Admin → Logins & access: connection check reports proof and promotion state; a
+  new **Signed in now** card lists live sessions.
+
+### Still to do
+
+1. Watch `proof` for a few days, then drop the JWT half (`app_mint_token`,
+   `app_jwt_secret`, the Vault entry, `app_tokens_enabled`, the README warning).
+2. The app is already on a publishable key, so the anon-key half of the
+   end-of-2026 deprecation is effectively done — confirm and close it.
+
 ## 2026-08-30 — The second password on Admin is gone
 
 It only ever existed because there was nothing else to go on: every request

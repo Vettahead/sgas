@@ -1,7 +1,7 @@
 // Source-agnostic data access layer.
 // Every function returns the SAME view-friendly shape whether the data comes
 // from live Supabase or the bundled seed store. Views never touch raw tables.
-import { setToken, clearToken } from './session.js'
+import { setTokens, clearTokens } from './session.js'
 
 import { supabase, LIVE } from './supabase.js'
 import { store, ASSESSOR_COLOR } from './core.js'
@@ -942,6 +942,20 @@ export async function whoami() {
   return data
 }
 
+// Every session open right now, across every machine. Admin-only, enforced in
+// the RPC: a guard in the browser is a suggestion.
+//
+// The old design could not answer this at all — a JWT is issued and then
+// forgotten, so there was nothing to list and nothing to withdraw.
+export async function activeSessions(adminAuth) {
+  if (!LIVE) return []
+  const { data, error } = await supabase.rpc('app_active_sessions', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Admins only' : error.message)
+  return data || []
+}
+
 export async function tokensEnabled() {
   if (!LIVE) return false
   try {
@@ -960,10 +974,16 @@ export async function appLogin(username, password) {
     if (error) throw new Error('Could not reach the server')
     const row = (data || [])[0]
     if (!row) throw new Error('Invalid username or password')
-    // The token is what makes this browser `authenticated` rather than `anon`
-    // for every request after this one. It is null until the signing secret is
-    // in Vault, and the app works either way — see lib/session.js.
-    setToken(row.token || null)
+    // Two proofs, both stored, either one accepted by the database: the
+    // session token we are moving to, and the legacy-signed JWT we are moving
+    // off. Either may come back null — an older database issues no session
+    // token, and the JWT is null when the signing secret is absent — and the
+    // app works on whichever it has. See lib/session.js.
+    setTokens({
+      token: row.token || null,
+      sessionToken: row.session_token || null,
+      sessionExpires: row.session_expires || null,
+    })
     return sanitizeUser(row)
   }
   const row = store.users.find((u) => u.username.toLowerCase() === uname.toLowerCase())
@@ -971,6 +991,24 @@ export async function appLogin(username, password) {
   const ok = await verifyPassword(password, row.password_salt, row.password_hash)
   if (!ok) throw new Error('Invalid username or password')
   return sanitizeUser(row)
+}
+
+// Signing out now ends the session AT THE DATABASE, not just in this browser.
+// That is the thing a JWT could never do: one already issued stayed valid for
+// its full twelve hours whatever happened afterwards, so "sign out" was only
+// ever a promise the browser made to itself.
+//
+// Deliberately never throws. Whether or not the server can be reached, the
+// tokens leave this machine — a sign-out that fails because the wifi dropped
+// would be worse than useless.
+export async function appLogout() {
+  try {
+    if (LIVE) await supabase.rpc('app_logout')
+  } catch {
+    /* the local half below is the part that must happen regardless */
+  } finally {
+    clearTokens()
+  }
 }
 
 // Nothing in the database points at a login, so this is a real delete. The
