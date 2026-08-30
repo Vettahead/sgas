@@ -4,6 +4,64 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (night, later) — FOUND IT: `.cx-pop` was inheriting `.top`
+
+Not a paint bug. Not the placement maths. A **class-name collision**, proven
+live on Chris's own machine.
+
+`Popover.jsx` wrote its chosen side onto the panel as a BARE class name:
+
+    className={'cx-pop' + ... + (pos ? ' ' + (pos.side || '') : '') + ...}
+
+`side` is one of `bottom` / `top` / `left` / `right` / `centre`. And `.top` is
+already a class in this stylesheet — line 33, the page header strip on every
+screen:
+
+    .top{background:var(--panel);border-bottom:1px solid var(--line);
+         padding:14px 28px;display:flex;align-items:center;gap:16px}
+
+So a panel that opened ABOVE its course became `display:flex` with
+`align-items:center` and 28px of side padding: its header, date block, rows and
+footer were laid out in a ROW, squeezed into columns, and overflowed
+horizontally. `align-items:center` is why the header floats at mid-height in the
+video. The caret takes the same class, so a 13px arrow got 28px of padding each
+side and drew as a ~69px lozenge — which measured out of the video frame at
+about 70px, before the cause was known.
+
+Measured on the live site, one class removed by hand:
+
+    before  cx-pop top cx-course-pop   display:flex   padding:14px 28px   sw 483 / cw 374
+    after   cx-pop cx-course-pop       display:block  padding:0px         sw 374 / cw 374
+
+**Fix:** the side class is namespaced — `cx-side-top` and friends, in
+`Popover.jsx` for both the panel and the caret, and in the four `.cx-pop.*` and
+four `.cx-pop-caret.*` rules.
+
+**Why it survived everything.** `place()` only picks `top` when there is no room
+BELOW the anchor and there is room above — a course low on the screen. The demo
+seed data has four courses, all high in the month, so no headless run at any
+viewport ever produced `side === 'top'`. Chris's live data has eight, two of them
+in the last week of the grid.
+
+New `side.mjs`. It sweeps six viewports, but the part that matters does not
+depend on the data: with a panel open it applies each of the five side classes
+in turn and asserts `display:block`, `padding:0px`, no overflow — and then
+applies the BARE class it replaced and asserts that one still breaks
+(`display:flex`, `padding:14px 28px`, 178px of overflow). A test that cannot
+fail is a test that has stopped meaning anything.
+
+**Second collision of this kind** — `.cx-ghost` (drag ghost vs. a popover button)
+made a button unclickable in v1.28.1. Generic class names in a single global
+stylesheet, nothing reporting the clash, and a fault that only appears in the one
+state that triggers it.
+
+### What v1.32.2 was, then
+
+Wrong diagnosis, but the change stands: the panel is still moved with
+`transform` rather than `left`/`top`, which is the right way to move a fixed,
+scrolling, shadowed box on every scroll frame. The opacity-only entrance is
+required by that and stays.
+
 ## 2026-08-30 (night) — the popover is translated, not positioned
 
 Chris filmed it. Two frames out of the clip show the course popover with the

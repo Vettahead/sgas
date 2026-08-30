@@ -185,15 +185,26 @@ export default function Popover({ at, onClose, dirty = false, label, className =
   return (
     <>
       {sheet && <div className="cx-pop-scrim" onPointerDown={tryClose} />}
+      {/* THE SIDE CLASS IS NAMESPACED: cx-side-top, never a bare `top`.
+          It used to write the side straight on as a class name — and `.top` is
+          already a class in this app, the page header strip at the top of every
+          screen. So a panel that opened ABOVE its course silently inherited
+          display:flex, align-items:center, 14px/28px padding and a border: it
+          laid its own header, dates, rows and footer out in a ROW, squeezed
+          them into columns and grew a horizontal scrollbar. The caret got the
+          same class and 28px of side padding, which is why a 13px arrow drew as
+          a 69px lozenge. Nothing anywhere reports a collision like this, and it
+          only appears when there is no room below the course — which is why it
+          survived every test until it was filmed. */}
       <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="false" aria-label={label}
-        className={'cx-pop' + (sheet ? ' sheet' : '') + (pos ? ' ' + (pos.side || '') : '') + (className ? ' ' + className : '')}
+        className={'cx-pop' + (sheet ? ' sheet' : '') + (pos?.side ? ' cx-side-' + pos.side : '') + (className ? ' ' + className : '')}
         style={style}>
         {children}
       </div>
       {/* The caret lives outside the panel: the panel scrolls, and anything
           hanging off a scrolling box gets clipped. */}
       {!sheet && pos && !pos.sheet && pos.side !== 'centre' && (
-        <span className={'cx-pop-caret ' + pos.side} aria-hidden="true"
+        <span className={'cx-pop-caret cx-side-' + pos.side} aria-hidden="true"
           style={pos.side === 'bottom' || pos.side === 'top'
             ? { left: pos.left + pos.cx, top: pos.side === 'bottom' ? pos.top : pos.top + pos.h }
             : { top: pos.top + pos.cy, left: pos.side === 'right' ? pos.left : pos.left + pos.w }} />

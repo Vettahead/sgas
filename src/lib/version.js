@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.32.3', build: 169, date: '30 Aug 2026',
+    title: 'Found it: the course panel was borrowing the page header\u2019s styling',
+    notes: [
+      'THE ACTUAL FAULT, caught on your own screen. When a course sits low enough that its panel has to open ABOVE it rather than below, the panel was quietly picking up the styling of the strip across the top of every page \u2014 the one with the page name in it. That strip lays its contents out in a row, so the panel did too: the dates vanished, the writing was squeezed into a narrow column, and a scrollbar appeared along the bottom. The little arrow pointing back at the course was doing the same thing, which is why it drew as a big white lozenge.',
+      'The cause is one word. The panel labels itself with which side it opened on \u2014 top, bottom, left or right \u2014 and \u201ctop\u201d was already the name of the page header. Nothing anywhere warns you about that, and it only ever showed on a course near the bottom of the screen, which is why it survived every test until you filmed it. The labels are now named so they cannot clash with anything else.',
+      'This is the second one of these: the same kind of name clash made a button unclickable back in 1.28.1. There is now a test that catches it \u2014 it checks the panel inherits nothing from any of its four labels, AND that the old name really did break it, so the test cannot quietly stop meaning anything.',
+      'If the screen still goes white when you resize the window with a panel open, tell me \u2014 that may well have been the same fault, but I have not been able to prove it.',
+    ],
+  },
+  {
     v: '1.32.2', build: 168, date: '30 Aug 2026',
     title: 'The course panel drawing itself in pieces',
     notes: [

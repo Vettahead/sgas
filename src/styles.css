@@ -1476,10 +1476,18 @@ button.cx-title:hover i{opacity:1}
    fixed, scrolling, shadowed box is one of the things that provokes the
    repaint fault this move was made to avoid. */
 @keyframes cx-pop-in{from{opacity:0}to{opacity:1}}
-.cx-pop.left{transform-origin:right center}
-.cx-pop.right{transform-origin:left center}
-.cx-pop.bottom{transform-origin:top center}
-.cx-pop.top{transform-origin:bottom center}
+/* NAMESPACED. These used to be the bare classes `left`, `right`, `bottom` and
+   `top`, written straight onto the panel by Popover.jsx. `.top` is ALREADY a
+   class in this stylesheet — it is the page header strip at line 33 — so a
+   panel that opened ABOVE its course silently inherited display:flex,
+   align-items:center, padding:14px 28px and a border, laid its contents out in
+   a row and grew a horizontal scrollbar. Same fault as the .cx-ghost collision
+   in v1.28.1: a generic class name, no warning from anything, and it only
+   shows in the one case that triggers it. Namespace them. */
+.cx-pop.cx-side-left{transform-origin:right center}
+.cx-pop.cx-side-right{transform-origin:left center}
+.cx-pop.cx-side-bottom{transform-origin:top center}
+.cx-pop.cx-side-top{transform-origin:bottom center}
 @media (prefers-reduced-motion:reduce){.cx-pop{animation:none}}
 
 /* Under 720px "beside it" means nothing — it becomes a sheet off the bottom. */
@@ -1551,10 +1559,10 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-pop-caret{position:fixed;z-index:221;width:13px;height:13px;background:var(--cx-panel);
   border:1px solid var(--cx-line);transform:rotate(45deg);pointer-events:none;
   animation:cx-pop-in .16s cubic-bezier(.2,.9,.3,1)}
-.cx-pop-caret.bottom{margin:-6.5px 0 0 -6.5px;border-right:0;border-bottom:0}
-.cx-pop-caret.top{margin:-6.5px 0 0 -6.5px;border-left:0;border-top:0}
-.cx-pop-caret.right{margin:-6.5px 0 0 -6.5px;border-right:0;border-top:0}
-.cx-pop-caret.left{margin:-6.5px 0 0 -6.5px;border-left:0;border-bottom:0}
+.cx-pop-caret.cx-side-bottom{margin:-6.5px 0 0 -6.5px;border-right:0;border-bottom:0}
+.cx-pop-caret.cx-side-top{margin:-6.5px 0 0 -6.5px;border-left:0;border-top:0}
+.cx-pop-caret.cx-side-right{margin:-6.5px 0 0 -6.5px;border-right:0;border-top:0}
+.cx-pop-caret.cx-side-left{margin:-6.5px 0 0 -6.5px;border-left:0;border-bottom:0}
 
 /* Every row says what it is — an icon on its own is a guess. */
 .cx-row2{position:relative}
