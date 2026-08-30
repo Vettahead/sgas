@@ -4,6 +4,99 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — Calendar — new look: polish, and 52 dead CSS declarations
+
+Run as a gauntlet against Amie (amie.so): build a piece, screenshot it, hand it
+to a fresh critic with no context beside the real thing with the labels off, act
+on the single gap it names, repeat. The app was built in demo mode and driven by
+a headless Chromium so a round cost seconds rather than a deploy.
+
+### The finding that mattered most
+
+`src/styles.css` used `font: <weight> <size>/<line-height> inherit` in **52
+places**. `inherit` is a CSS-wide keyword and cannot stand in as the family
+inside the `font` shorthand, so the browser discards the whole declaration.
+Measured, not guessed:
+
+```
+.cx-card h3   asked for 500 11.5px   rendered 700 16.38px   (UA default h3)
+.cx-dow div   asked for 600 11px     rendered 400 14px
+.cx-num       asked for 600 12.5px   rendered 400 14px
+.cx-hintline  asked for 500 11.5px   rendered 400 14px
+```
+
+So most of the typography on this screen had never applied — headings 43%
+oversized and two weights heavy, day numbers wrong, the weekday row wrong.
+Rewritten as longhands (`font-weight` / `font-size` / `line-height`), which is
+what should have been there: the family inherits on its own. **Nothing reports
+this** — not the build, not the linter. Only reading a computed style does.
+`font:inherit` alone is valid and was left as-is; the 18 uses of that are fine.
+
+### The course bar
+
+`.cx-mix` drew one 3px segment per delegate across the full width of a bar. On a
+one-delegate course that is a solid line indistinguishable from a border — which
+is what the "dots on a course" legend existed to explain. Replaced with actual
+dots: one per **distinct** reason, capped at four, so a mixed course reads at a
+glance and an ordinary one stays quiet.
+
+The bar is now an object rather than an outlined field: no left cap, a committed
+34% tint, 10px radius, and two type steps inside it — course name at 13px/500 in
+a darkened version of its own hue, then trainer and booked count at 11px/62%.
+The count badge (a solid pill of course colour with white text — the heaviest
+mark on the bar for the least important number) is gone; the second line says it
+in words. `--barh` 24→38, `--rowmin` 94→78, so rows hug their content.
+
+### The side panel
+
+Card chrome removed entirely — no borders, shadows, capitals, or badge around
+each count. Groups are separated by space; headings sit *lighter* than the items
+under them, which is the hierarchy a side panel needs and the inverse of what it
+had. Colour survives only as a 6px course dot and the warning triangle the grid
+already uses. The amber-filled "Needs attention" panel is gone: two rows should
+not be the loudest object on the screen.
+
+Dates shortened for a 300px column — `span()` gives `6–10 Jul`, not
+`06 Jul 2026 – 10 Jul 2026`, so the second line never wraps and doubles a row.
+
+### Chrome
+
+The two permanent legend rows (~90px on every laptop) are behind a *What the
+marks mean* toggle in the toolbar. Comfortable/Compact was a second segmented
+control identical in appearance to Day/Week/Month/Year but on a different axis —
+it is an icon toggle now, beside the other two preferences. Title 26→20px,
+controls 36→32px, primary button unshadowed.
+
+Grid rules dropped to ~3% (measured `rgb(247,248,250)` on white); weekends are
+no longer filled grey — a weekend is not a disabled day, so the number is muted
+instead. Applied to Week and Day's header band too.
+
+### Bug found in dark mode
+
+`button.cx-title` set no colour, and a `<button>` does not inherit one — so the
+month title rendered as the UA's black on the dark background. Invisible, and
+only findable by looking.
+
+### Verified, not assumed
+
+Headless run after the changes: bars render, grab and resize handles present,
+**drag moves a course**, **resize changes its length**, clicking opens the panel
+with its trainer picker, Week/Day/Year all render, the key toggle works, holiday
+bars still hatch. No runtime errors.
+
+### On the gauntlet itself
+
+The rail won its round — two independent fresh critics picked it over Amie's
+real side panel. The full grid did not; critics kept choosing Amie. But by the
+last two rounds they were describing "a 1px stroke on every event bar" and
+"full-strength column rules" that **provably do not exist** — the DOM shows
+`border: 0px`, `box-shadow: none`, and the rules measure a 3% grey. Once a judge
+is inventing its evidence it has stopped being a judge, so the loop was stopped
+there rather than grinding rounds against confabulation. The bar was also not
+like-for-like: Amie's `/calendar` is a chrome-free page with five photographic
+cards, against a working month grid that must carry 35 days, spans, trainers,
+warnings and drag targets.
+
 ## 2026-08-30 — Session tokens replace the self-signed JWT
 
 Sign-in tokens were JWTs minted by `app_mint_token` and signed HS256 with this

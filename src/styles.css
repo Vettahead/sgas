@@ -833,7 +833,7 @@ select,select option{color:#1d2733;background:#fff}
 /* ── Version badge (sidebar foot) + Changelog screen ─────────────────────── */
 .side .foot{display:flex;flex-direction:column;gap:7px}
 .verbadge{display:inline-flex;align-items:center;gap:6px;align-self:flex-start;
-  font:600 11px/1 inherit;letter-spacing:.02em;color:#9fb2d0;background:#152238;
+  font-weight:600;font-size:11px;line-height:1;letter-spacing:.02em;color:#9fb2d0;background:#152238;
   border:1px solid #24374f;border-radius:999px;padding:5px 10px;cursor:pointer}
 .verbadge:hover{color:#fff;background:#1d2f4c;border-color:#36527a}
 .verbadge.static{cursor:default}
@@ -1000,43 +1000,50 @@ select,select option{color:#1d2733;background:#fff}
   --cx-bg:#f6f8fb; --cx-panel:#fff; --cx-ink:#0f1729; --cx-mute:#66748c;
   --cx-line:#e4e9f0; --cx-soft:#f1f4f9; --cx-brand:#2563eb; --cx-brand-soft:#e8efff;
   --cx-warn:#b45309; --cx-warn-soft:#fef3e2; --cx-shadow:0 1px 2px rgba(15,23,41,.05),0 8px 24px -8px rgba(15,23,41,.12);
-  --numh:26px; --barh:24px; --rowmin:112px;
+  --numh:26px; --barh:38px; --rowmin:84px;
   color:var(--cx-ink);
 }
-.cx.cx-dense{--numh:20px; --barh:19px; --rowmin:78px}
+.cx.cx-dense{--numh:20px; --barh:21px; --rowmin:60px}
+.cx.cx-dense .cx-bar-sub{display:none}
 .cx.cx-dark{
   --cx-bg:#0e1117; --cx-panel:#161b24; --cx-ink:#e8ecf3; --cx-mute:#93a0b5;
   --cx-line:#242c39; --cx-soft:#1b2029; --cx-brand:#5b8cff; --cx-brand-soft:#1b2740;
   --cx-warn:#f0b357; --cx-warn-soft:#2c2313; --cx-shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -10px rgba(0,0,0,.6);
 }
 .cx{background:var(--cx-bg);margin:-24px -28px;padding:22px 26px;min-height:calc(100vh - 62px)}
+/* One hairline, two strengths: the week rule has to be readable because bars
+   run along it; the day rule only has to hint. */
+.cx{--cx-line-soft:color-mix(in srgb,var(--cx-line) 55%,transparent);
+  --cx-line-faint:color-mix(in srgb,var(--cx-line) 30%,transparent)}
+.cx-dark{--cx-line-faint:color-mix(in srgb,var(--cx-line) 55%,transparent)}
 
 /* toolbar */
 .cx-bar-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
 .cx-title-wrap{display:flex;align-items:center;gap:14px}
-.cx-title{margin:0;font-size:26px;font-weight:700;letter-spacing:-.022em}
+.cx-title{margin:0;font-size:20px;font-weight:600;letter-spacing:-.018em}
 .cx-steps{display:flex;gap:2px}
-.cx-steps button,.cx-icon{width:36px;height:36px;border-radius:10px;border:1px solid var(--cx-line);
+.cx-steps button,.cx-icon{width:32px;height:32px;border-radius:9px;border:1px solid var(--cx-line);
   background:var(--cx-panel);color:var(--cx-ink);font-size:17px;line-height:1;cursor:pointer;
   display:inline-flex;align-items:center;justify-content:center;transition:background .15s,border-color .15s}
 .cx-steps button:hover,.cx-icon:hover{background:var(--cx-soft);border-color:var(--cx-brand)}
-.cx-today{height:36px;padding:0 15px;border-radius:10px;border:1px solid var(--cx-line);background:var(--cx-panel);
-  color:var(--cx-ink);font:600 13px/1 inherit;cursor:pointer}
+.cx-today{height:32px;padding:0 13px;border-radius:9px;border:1px solid var(--cx-line);background:var(--cx-panel);
+  color:var(--cx-ink);font-weight:600;font-size:13px;line-height:1;cursor:pointer}
 .cx-today:hover{background:var(--cx-soft)}
 .cx-tools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.cx-seg{display:inline-flex;background:var(--cx-soft);border-radius:10px;padding:3px;gap:2px}
-.cx-seg button{border:none;background:none;color:var(--cx-mute);font:600 12px/1 inherit;padding:8px 12px;
-  border-radius:8px;cursor:pointer}
+.cx-seg{display:inline-flex;background:var(--cx-soft);border-radius:9px;padding:2px;gap:2px}
+.cx-seg button{border:none;background:none;color:var(--cx-mute);font-weight:500;font-size:12px;line-height:1;padding:7px 11px;
+  border-radius:7px;cursor:pointer}
 .cx-seg button.on{background:var(--cx-panel);color:var(--cx-ink);box-shadow:0 1px 2px rgba(15,23,41,.1)}
-.cx-primary{height:36px;padding:0 16px;border-radius:10px;border:none;background:var(--cx-brand);color:#fff;
-  font:600 13px/1 inherit;cursor:pointer;box-shadow:0 1px 2px rgba(37,99,235,.35)}
+.cx-primary{height:32px;padding:0 14px;border-radius:9px;border:none;background:var(--cx-brand);color:#fff;
+  font-weight:500;font-size:12.5px;line-height:1;cursor:pointer;box-shadow:none}
 .cx-primary:hover{filter:brightness(1.08)}
 
 /* layout */
 .cx-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
 .cx-cal{background:var(--cx-panel);border:1px solid var(--cx-line);border-radius:16px;overflow:hidden;box-shadow:var(--cx-shadow)}
-.cx-dow{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--cx-line)}
-.cx-dow div{padding:11px 12px;font:600 11px/1 inherit;letter-spacing:.06em;text-transform:uppercase;color:var(--cx-mute)}
+.cx-dow{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--cx-line-soft)}
+.cx-dow div{padding:12px 12px 8px;font-weight:500;font-size:10.5px;line-height:1;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--cx-mute);opacity:.7}
 
 /* grid + month transition */
 .cx-grid.fade{animation:cxfade .22s ease-out}
@@ -1045,35 +1052,56 @@ select,select option{color:#1d2733;background:#fff}
 @keyframes cxfade{from{opacity:0}to{opacity:1}}
 @keyframes cxright{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 @keyframes cxleft{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
-.cx-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--cx-line);
-  min-height:max(var(--rowmin), calc(var(--numh) + (var(--lanes) * (var(--barh) + 3px)) + 10px))}
-.cx-week:last-child{border-bottom:none}
-.cx-cell{border-right:1px solid var(--cx-line);padding:6px 8px;touch-action:pan-y;transition:background .12s}
+.cx-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--cx-line-faint);
+  min-height:max(var(--rowmin), calc(var(--numh) + (var(--lanes) * (var(--barh) + 3px)) + 12px))}
+.cx-cell{border-right:1px solid var(--cx-line-faint);padding:6px 8px;touch-action:pan-y;transition:background .12s}
 .cx-cell:last-child{border-right:none}
-.cx-cell.wknd{background:var(--cx-soft)}
+/* A weekend is not a disabled day. Filling it flat grey said "you cannot use
+   this"; muting the number says "this one is Saturday". */
+.cx-cell.wknd{background:none}
+.cx-cell.wknd .cx-num{opacity:.5}
 .cx-cell.out{opacity:.42}
 .cx-cell.sel{background:var(--cx-brand-soft);box-shadow:inset 0 0 0 2px var(--cx-brand)}
-.cx-num{font:600 12.5px/1 inherit;color:var(--cx-mute)}
+.cx-num{font-weight:500;font-size:12.5px;line-height:1;color:var(--cx-ink);opacity:.75}
 .cx-cell.today .cx-num b{display:inline-flex;align-items:center;justify-content:center;min-width:24px;height:24px;
   padding:0 6px;border-radius:99px;background:var(--cx-brand);color:#fff;font-weight:700}
 
 /* bars */
-.cx-bar{position:absolute;height:var(--barh);border:none;border-radius:8px;cursor:pointer;overflow:hidden;
+.cx-bar{position:absolute;height:var(--barh);border:none;border-radius:10px;cursor:pointer;overflow:hidden;
   display:flex;align-items:center;padding:0;text-align:left;font:inherit;touch-action:none;
-  background:color-mix(in srgb,var(--c) 16%,var(--cx-panel));
-  box-shadow:inset 3px 0 0 var(--c);color:var(--cx-ink);
-  transition:transform .14s cubic-bezier(.22,1,.36,1),box-shadow .14s,filter .14s}
-.cx-dark .cx-bar{background:color-mix(in srgb,var(--c) 30%,var(--cx-panel))}
-.cx-bar:hover{transform:translateY(-1px);box-shadow:inset 3px 0 0 var(--c),0 6px 16px -4px rgba(15,23,41,.28);z-index:5}
+  background:color-mix(in srgb,var(--c) 34%,var(--cx-panel));
+  box-shadow:none;color:color-mix(in srgb,var(--c) 52%,var(--cx-ink));
+  transition:transform .14s cubic-bezier(.22,1,.36,1),box-shadow .14s,background .14s}
+.cx-dark .cx-bar{background:color-mix(in srgb,var(--c) 32%,var(--cx-panel));color:var(--cx-ink)}
+.cx-bar:hover{transform:translateY(-1px);background:color-mix(in srgb,var(--c) 40%,var(--cx-panel));
+  box-shadow:0 6px 16px -6px rgba(15,23,41,.3);z-index:5}
 .cx-bar.hol{background:repeating-linear-gradient(135deg,var(--cx-soft) 0 7px,transparent 7px 14px),var(--cx-soft);
-  box-shadow:inset 3px 0 0 var(--cx-mute)}
+  color:var(--cx-mute)}
 .cx-bar.flash{animation:cxflash .8s ease-out}
-@keyframes cxflash{0%{box-shadow:inset 3px 0 0 var(--c),0 0 0 0 rgba(37,99,235,.5)}
-                  100%{box-shadow:inset 3px 0 0 var(--c),0 0 0 14px rgba(37,99,235,0)}}
-.cx-bar-t{display:flex;align-items:center;gap:7px;padding:0 10px 0 12px;font:600 12px/1 inherit;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;width:100%}
-.cx-bar-t em{margin-left:auto;font-style:normal;font-size:10.5px;font-weight:700;background:var(--c);color:#fff;
-  border-radius:99px;padding:2px 7px;flex:none}
+@keyframes cxflash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}
+                  100%{box-shadow:0 0 0 14px rgba(37,99,235,0)}}
+.cx-bar-t{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 11px 0 13px;
+  font-weight:500;font-size:13px;line-height:1.15;
+  white-space:nowrap;overflow:hidden;pointer-events:none;width:100%}
+.cx-bar-r1{display:flex;align-items:center;gap:7px;min-width:0;width:100%}
+.cx-bar-sub{font-size:11px;line-height:1.1;opacity:.62;font-weight:400;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-bar-t em{font-style:normal;font-size:11px;font-weight:600;background:none;color:inherit;opacity:.7;
+  border-radius:0;padding:0;flex:none;font-variant-numeric:tabular-nums}
+
+/* Why people are on this course, as the dots the legend has always promised.
+   It used to be a 3px strip across the whole width of the bar with one segment
+   per delegate — which, on a course with one delegate, is a solid line
+   indistinguishable from a border, and on a course with ten is a smear. One
+   dot per DISTINCT reason says the same thing in a shape a person can read. */
+.cx-kinds{display:flex;align-items:center;gap:3px;flex:none;margin-left:auto}
+.cx-kinds i{width:5px;height:5px;border-radius:50%;flex:none}
+.cx-kinds + em{margin-left:0}
+.cx-bar-t > em:first-of-type:not(.cx-kinds + em){margin-left:auto}
+/* The warning now sits in the row rather than floating over the count. */
+.cx-bar-t .cx-warnflag{flex:none;width:0;height:0;font-style:normal;
+  border-left:4.5px solid transparent;border-right:4.5px solid transparent;
+  border-bottom:8px solid var(--cx-warn)}
 .cx-dot{position:absolute;right:6px;top:6px;width:0;height:0;border-radius:0;background:none;
   border-left:5px solid transparent;border-right:5px solid transparent;
   border-bottom:9px solid var(--cx-warn);filter:drop-shadow(0 0 1px var(--cx-panel));
@@ -1098,23 +1126,53 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-skel div:nth-child(5n){animation-delay:.3s}
 @keyframes cxpulse{0%,100%{opacity:1}50%{opacity:.55}}
 
-/* rail */
-.cx-rail{display:flex;flex-direction:column;gap:14px}
-.cx-card{background:var(--cx-panel);border:1px solid var(--cx-line);border-radius:14px;padding:14px;box-shadow:var(--cx-shadow)}
-.cx-card h3{margin:0 0 10px;font:700 12px/1 inherit;letter-spacing:.05em;text-transform:uppercase;color:var(--cx-mute);
-  display:flex;align-items:center;gap:8px}
-.cx-card h3 span{margin-left:auto;background:var(--cx-soft);border-radius:99px;padding:3px 9px;font-size:11px;color:var(--cx-ink)}
-.cx-warn h3{color:var(--cx-warn)}
-.cx-warn{background:var(--cx-warn-soft);border-color:color-mix(in srgb,var(--cx-warn) 30%,transparent)}
-.cx-row{display:flex;align-items:flex-start;gap:10px;width:100%;text-align:left;background:none;border:none;
-  padding:8px;border-radius:10px;cursor:pointer;font:inherit;color:var(--cx-ink);transition:background .12s}
+/* ── rail ────────────────────────────────────────────────────────────────
+   A side panel next to a calendar should be almost invisible. The calendar is
+   the thing being read; the rail is a list of what to do next, and the moment
+   it competes it stops helping.
+   So: no card, no border, no shadow, no tint behind every row, no badge round
+   every count, and nothing set in capitals. A group is a faint label with a
+   lot of air above it, and its rows are quiet lines with a small dot of the
+   course's own colour — the same colour its bar carries on the grid, so the
+   eye can travel between the two without a legend.
+   The one place weight is spent is a row's title, because that is the only
+   part anyone actually reads. */
+.cx-rail{display:flex;flex-direction:column;gap:22px}
+
+.cx-card{background:none;border:0;border-radius:0;padding:0;box-shadow:none}
+.cx-card h3{margin:0 0 5px;font-weight:400;font-size:11.5px;line-height:1.2;letter-spacing:0;text-transform:none;
+  color:var(--cx-mute);display:flex;align-items:center;gap:6px;padding:0 8px;opacity:.9}
+/* The count is information, not a badge. */
+.cx-card h3 span{margin-left:auto;background:none;border-radius:0;padding:0;
+  font-weight:500;font-size:11.5px;line-height:1;color:var(--cx-mute);font-variant-numeric:tabular-nums;opacity:.75}
+.cx-cardbody{display:flex;flex-direction:column;gap:1px}
+
+/* "Needs attention" was a whole amber panel, which made the loudest thing on
+   the screen a list of two. A coloured label and the same warning triangle the
+   grid uses carry it perfectly well. */
+.cx-warn{background:none;border:0}
+/* The heading is NOT coloured. Amber survives on the warning triangles alone,
+   which is where it means something — a coloured heading made the whole group
+   the loudest object on the screen for the sake of two rows. */
+
+.cx-row{display:flex;align-items:flex-start;gap:9px;width:100%;text-align:left;border:0;
+  padding:5px 8px;border-radius:7px;cursor:pointer;font:inherit;color:var(--cx-ink);
+  background:none;transition:background .12s}
 .cx-row:hover{background:var(--cx-soft)}
 .cx-row.static{cursor:default}
-.cx-row i{width:4px;align-self:stretch;min-height:30px;border-radius:99px;flex:none}
-.cx-row span{display:flex;flex-direction:column;gap:2px;min-width:0}
-.cx-row b{font-size:13px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cx-row small{font-size:11.5px;color:var(--cx-mute)}
-.cx-empty{margin:0;font-size:12.5px;color:var(--cx-mute)}
+/* 6px, level with the first line of text rather than centred on a two-line
+   row — centred, it drifts away from the name it belongs to. */
+.cx-row i{width:6px;height:6px;min-height:0;border-radius:50%;flex:none;margin-top:5px;
+  background:var(--c,var(--cx-mute))}
+.cx-row span{display:flex;flex-direction:column;gap:0;min-width:0;flex:1}
+.cx-row b{font-size:12.5px;font-weight:450;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-row small{font-size:10.5px;color:var(--cx-mute);opacity:.9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* The same triangle the calendar puts on a course that needs a trainer, so the
+   rail and the grid are visibly talking about the same thing. */
+.cx-row em.cx-flag{margin-left:auto;flex:none;margin-top:5px;font-style:normal;width:0;height:0;
+  border-left:4.5px solid transparent;border-right:4.5px solid transparent;
+  border-bottom:8px solid var(--cx-warn)}
+.cx-empty{margin:0;padding:3px 8px;font-size:11.5px;color:var(--cx-mute)}
 
 /* modal */
 .cx-modal{border-radius:16px;padding:0;overflow:hidden;max-width:560px}
@@ -1123,7 +1181,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-mhead h3{margin:0;font-size:19px;font-weight:700;letter-spacing:-.015em}
 .cx-mhead p{margin:4px 0 0;font-size:12.5px;color:var(--cx-mute)}
 .cx-mbody{padding:18px 22px 22px;display:flex;flex-direction:column;gap:18px}
-.cx-field label{display:flex;align-items:center;gap:8px;font:600 11.5px/1 inherit;letter-spacing:.05em;
+.cx-field label{display:flex;align-items:center;gap:8px;font-weight:600;font-size:11.5px;line-height:1;letter-spacing:.05em;
   text-transform:uppercase;color:var(--cx-mute);margin-bottom:8px}
 .cx-count{background:var(--cx-soft);border-radius:99px;padding:3px 8px;font-size:11px;color:var(--cx-ink)}
 .cx-field p{margin:0;font-size:13.5px}
@@ -1135,7 +1193,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-x:hover{color:var(--cx-warn)}
 .cx-chips{display:flex;flex-wrap:wrap;gap:7px}
 .cx-chip{border:1px dashed var(--cx-line);background:var(--cx-panel);color:var(--cx-ink);border-radius:99px;
-  padding:8px 13px;font:600 12.5px/1 inherit;cursor:pointer;transition:.14s}
+  padding:8px 13px;font-weight:600;font-size:12.5px;line-height:1;cursor:pointer;transition:.14s}
 .cx-chip:hover{border-style:solid;border-color:var(--cx-brand);background:var(--cx-brand-soft)}
 
 @media (max-width:1000px){
@@ -1149,7 +1207,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 }
 @media (max-width:640px){
   .cx{margin:-14px -12px;padding:14px 12px}
-  .cx-title{font-size:21px}
+  .cx-title{font-size:18px}
   .cx-bar-top{gap:10px}
   .cx-dow div{padding:8px 6px;font-size:9.5px}
   .cx-cell{padding:4px 5px}
@@ -1178,13 +1236,21 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-dark .cx-grab::after,.cx-dark .cx-resize::after{background:#0e1117}
 
 /* the delegate-mix stripe along the bottom of a bar */
-.cx-mix{position:absolute;left:0;right:0;bottom:0;height:3px;display:flex;gap:1px;pointer-events:none;
+.cx-mix{display:none;position:absolute;left:0;right:0;bottom:0;height:3px;gap:1px;pointer-events:none;
   border-bottom-left-radius:8px;border-bottom-right-radius:8px;overflow:hidden}
 .cx-mix i{flex:1}
 .cx-part{font-size:11px;opacity:.75;flex:none}
 
 /* legend */
-.cx-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 2px 12px;
+.cx-keyrow{display:none}
+.cx-title-wrap .cx-keybtn{margin-left:4px}
+.cx-keybtn{display:inline-flex;align-items:center;gap:7px;border:0;background:none;padding:2px 0;
+  cursor:pointer;color:var(--cx-mute);font-weight:400;font-size:11.5px;line-height:1.2}
+.cx-keybtn:hover{color:var(--cx-ink)}
+.cx-keybtn .cx-chev{transform:rotate(-90deg);opacity:.4}
+.cx-keybtn[aria-expanded="true"] .cx-chev{transform:none;opacity:.6}
+.cx-keybtn:focus-visible{outline:2px solid var(--cx-brand);outline-offset:3px;border-radius:6px}
+.cx-legend{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:-4px 2px 12px;
   font-size:11.5px;color:var(--cx-mute)}
 .cx-legend span{display:inline-flex;align-items:center;gap:6px}
 .cx-legend i{width:10px;height:10px;border-radius:3px;flex:none}
@@ -1193,7 +1259,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-l-warn{background:none!important;width:0!important;height:0!important;border-radius:0!important;
   border-left:5px solid transparent!important;border-right:5px solid transparent!important;
   border-bottom:9px solid var(--cx-warn)!important}
-.cx-legend b{font:700 10.5px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.04em}
+.cx-legend b{font-weight:500;font-size:10.5px;line-height:1;color:var(--cx-mute);text-transform:none;letter-spacing:0}
 .cx-l-course{background:linear-gradient(90deg,#1f9d55,#2f6fd0,#7b2ff2)}
 .cx-l-sep{width:1px;height:14px;background:var(--cx-line)}
 
@@ -1208,7 +1274,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-split input[type=date]{width:auto;padding:7px 9px;font-size:12px}
 .cx-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .cx-ghost{background:none;border:1px solid var(--cx-line);color:var(--cx-mute);border-radius:10px;
-  padding:10px 14px;font:600 12.5px/1 inherit;cursor:pointer}
+  padding:10px 14px;font-weight:600;font-size:12.5px;line-height:1;cursor:pointer}
 .cx-ghost:hover{color:var(--cx-ink);border-color:var(--cx-brand)}
 
 /* Dragging a course. The transition has to go while the pointer is down or the
@@ -1220,14 +1286,14 @@ body.cx-dragging{user-select:none;cursor:grabbing}
 body.cx-dragging *{cursor:inherit!important}
 .cx-chip-len{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;
   pointer-events:none;white-space:nowrap;background:var(--cx-ink);color:var(--cx-bg);
-  font:600 11px/1 inherit;padding:5px 9px;border-radius:99px;box-shadow:0 2px 8px rgba(15,23,42,.3);
+  font-weight:600;font-size:11px;line-height:1;padding:5px 9px;border-radius:99px;box-shadow:0 2px 8px rgba(15,23,42,.3);
   animation:cx-pop .14s cubic-bezier(.2,1.4,.4,1)}
 .cx-dark .cx-chip-len{background:#e8ecf3;color:#0e1117}
 @keyframes cx-pop{from{opacity:0;transform:translate(-50%,-50%) scale(.86)}to{opacity:1;transform:translate(-50%,-50%) scale(1)}}
 /* the bar must not clip its own chip while you drag */
 body.cx-dragging .cx-bar{overflow:visible}
 .cx-hint{position:fixed;z-index:200;pointer-events:none;background:var(--cx-ink);color:var(--cx-bg);
-  font:600 12px/1 inherit;padding:7px 11px;border-radius:8px;white-space:nowrap;
+  font-weight:600;font-size:12px;line-height:1;padding:7px 11px;border-radius:8px;white-space:nowrap;
   box-shadow:0 6px 18px rgba(15,23,41,.35)}
 .cx-dark .cx-hint{background:#e8ecf3;color:#0e1117}
 /* A wider, more findable grab area now that only the ends carry one. */
@@ -1237,25 +1303,27 @@ body.cx-dragging .cx-bar{overflow:visible}
 .cx-days{display:flex;flex-direction:column}
 .cx-days-head,.cx-band-wrap,.cx-time{display:flex}
 .cx-gutter{flex:0 0 66px;border-right:1px solid var(--cx-line);position:relative}
-.cx-band-wrap .cx-gutter span{display:block;padding:10px 10px 0;font:600 10.5px/1 inherit;
+.cx-band-wrap .cx-gutter span{display:block;padding:10px 10px 0;font-weight:600;font-size:10.5px;line-height:1;
   text-transform:uppercase;letter-spacing:.05em;color:var(--cx-mute);text-align:right}
 .cx-days-head{border-bottom:1px solid var(--cx-line)}
-.cx-dhead{flex:1;text-align:center;padding:10px 4px;border-right:1px solid var(--cx-line)}
+.cx-dhead{flex:1;text-align:center;padding:10px 4px;border-right:1px solid var(--cx-line-faint)}
 .cx-dhead:last-child{border-right:none}
-.cx-dhead.wknd{background:var(--cx-soft)}
-.cx-dhead span{display:block;font:600 10.5px/1 inherit;text-transform:uppercase;letter-spacing:.06em;color:var(--cx-mute)}
+.cx-dhead.wknd{background:none}
+.cx-dhead.wknd span,.cx-dhead.wknd b{opacity:.55}
+.cx-dhead span{display:block;font-weight:500;font-size:10.5px;line-height:1;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--cx-mute);opacity:.7}
 .cx-dhead b{display:inline-flex;align-items:center;justify-content:center;min-width:32px;height:32px;
   margin-top:5px;border-radius:99px;font-size:17px;font-weight:600}
 .cx-dhead.today b{background:var(--cx-brand);color:#fff}
-.cx-band-wrap{border-bottom:1px solid var(--cx-line);background:var(--cx-panel)}
+.cx-band-wrap{border-bottom:1px solid var(--cx-line-soft);background:var(--cx-panel)}
 .cx-band{position:relative;flex:1;display:flex}
-.cx-band-cell{flex:1;border-right:1px solid var(--cx-line)}
+.cx-band-cell{flex:1;border-right:1px solid var(--cx-line-faint)}
 .cx-band-cell:last-child{border-right:none}
-.cx-band-cell.wknd{background:var(--cx-soft)}
+.cx-band-cell.wknd{background:none}
 .cx-time{overflow:auto;max-height:56vh;padding-top:9px}
 .cx-hour:first-child span{top:0}
 .cx-hours-toggle{width:100%;padding:11px;border:0;background:transparent;cursor:pointer;
-  font:500 12px/1 inherit;color:var(--cx-mute);border-top:1px solid var(--cx-line)}
+  font-weight:500;font-size:12px;line-height:1;color:var(--cx-mute);border-top:1px solid var(--cx-line)}
 .cx-hours-toggle:hover{background:var(--cx-soft);color:var(--cx-ink)}
 
 /* Day view roster — who is on it and who is teaching it */
@@ -1263,21 +1331,22 @@ body.cx-dragging .cx-bar{overflow:visible}
 .cx-rcard{border:1px solid var(--cx-line);border-left:4px solid var(--c);border-radius:10px;
   padding:11px 13px;background:var(--cx-panel)}
 .cx-rcard header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
-.cx-rname{border:0;background:none;padding:0;cursor:pointer;font:700 14px/1.3 inherit;color:var(--cx-ink);text-align:left}
+.cx-rname{border:0;background:none;padding:0;cursor:pointer;font-weight:700;font-size:14px;line-height:1.3;color:var(--cx-ink);text-align:left}
 .cx-rname:hover{text-decoration:underline}
-.cx-rdate{font:500 11.5px/1 inherit;color:var(--cx-mute)}
-.cx-rtrainer{margin:5px 0 0;font:600 12px/1.4 inherit;color:var(--cx-ink)}
+.cx-rdate{font-weight:500;font-size:11.5px;line-height:1;color:var(--cx-mute)}
+.cx-rtrainer{margin:5px 0 0;font-weight:600;font-size:12px;line-height:1.4;color:var(--cx-ink)}
 .cx-rtrainer.none{color:#b7791f}
-.cx-rnone{margin:6px 0 0;font:500 12px/1.4 inherit;color:var(--cx-mute)}
+.cx-rnone{margin:6px 0 0;font-weight:500;font-size:12px;line-height:1.4;color:var(--cx-mute)}
 .cx-rlist{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:4px}
-.cx-rlist li{display:flex;align-items:center;gap:8px;font:500 12px/1.4 inherit}
+.cx-rlist li{display:flex;align-items:center;gap:8px;font-weight:500;font-size:12px;line-height:1.4}
 .cx-rlist i{width:9px;height:9px;border-radius:50%;flex:0 0 9px}
 .cx-rlist b{font-weight:600;color:var(--cx-ink)}
 .cx-rlist span{color:var(--cx-mute)}
 
 /* Jump to a month */
 .cx-title-wrap{position:relative}
-button.cx-title{border:0;background:none;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:7px}
+button.cx-title{border:0;background:none;padding:0;cursor:pointer;display:inline-flex;align-items:center;gap:7px;
+  color:var(--cx-ink)}
 button.cx-title i{width:0;height:0;border:5px solid transparent;border-top-color:currentColor;
   margin-top:5px;opacity:.5}
 button.cx-title:hover i{opacity:1}
@@ -1285,17 +1354,17 @@ button.cx-title:hover i{opacity:1}
   background:var(--cx-panel);border:1px solid var(--cx-line);border-radius:12px;
   box-shadow:0 12px 32px rgba(15,23,42,.16);width:250px}
 .cx-jump-y{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-.cx-jump-y b{font:700 13px/1 inherit}
+.cx-jump-y b{font-weight:700;font-size:13px;line-height:1}
 .cx-jump-y button{border:1px solid var(--cx-line);background:var(--cx-panel);border-radius:8px;
   width:28px;height:28px;cursor:pointer;color:var(--cx-ink)}
 .cx-jump-g{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .cx-jump-g button{border:1px solid var(--cx-line);background:var(--cx-panel);border-radius:8px;
-  padding:8px 0;cursor:pointer;font:600 12px/1 inherit;color:var(--cx-ink)}
+  padding:8px 0;cursor:pointer;font-weight:600;font-size:12px;line-height:1;color:var(--cx-ink)}
 .cx-jump-g button:hover{background:var(--cx-soft)}
 .cx-jump-g button.on{background:var(--cx-brand);border-color:var(--cx-brand);color:#fff}
 .cx-time .cx-gutter{flex:0 0 66px}
 .cx-hour{position:relative}
-.cx-hour span{position:absolute;top:-7px;right:9px;font:500 11px/1 inherit;color:var(--cx-mute);background:var(--cx-panel);padding:0 2px}
+.cx-hour span{position:absolute;top:-7px;right:9px;font-weight:500;font-size:11px;line-height:1;color:var(--cx-mute);background:var(--cx-panel);padding:0 2px}
 .cx-cols{display:flex;flex:1}
 .cx-col{position:relative;flex:1;border-right:1px solid var(--cx-line)}
 .cx-col:last-child{border-right:none}
@@ -1309,25 +1378,27 @@ button.cx-title:hover i{opacity:1}
 .cx-now{position:absolute;left:0;right:0;height:2px;background:#e5484d;z-index:6;pointer-events:none}
 .cx-now i{position:absolute;left:-5px;top:-4px;width:10px;height:10px;border-radius:99px;background:#e5484d}
 .cx-now b{position:absolute;left:4px;top:-9px;background:#e5484d;color:#fff;
-  font:700 10.5px/1 inherit;padding:4px 6px;border-radius:5px;white-space:nowrap}
+  font-weight:700;font-size:10.5px;line-height:1;padding:4px 6px;border-radius:5px;white-space:nowrap}
 .cx-days.one .cx-dhead{text-align:left;padding-left:14px}
 
 /* ── Calendar (new look): Year ───────────────────────────────────────────── */
 .cx-year{padding:6px 0}
 .cx-yhead{display:flex;align-items:flex-end;padding-bottom:4px;border-bottom:1px solid var(--cx-line);margin-bottom:4px}
 .cx-yhead .cx-ytrack{height:15px}
-.cx-ytick{position:absolute;top:0;text-align:center;font:600 9.5px/1 inherit;color:var(--cx-mute)}
+.cx-ytick{position:absolute;top:0;text-align:center;font-weight:600;font-size:9.5px;line-height:1;color:var(--cx-mute)}
 .cx-ytick.on::after{content:'';position:absolute;left:50%;bottom:-5px;width:1px;height:4px;background:var(--cx-line)}
 .cx-yrow{display:flex;align-items:stretch;border-bottom:1px solid var(--cx-line)}
 .cx-yrow:last-child{border-bottom:none}
 .cx-ylabel{flex:0 0 52px;display:flex;align-items:center;padding-left:14px;
-  font:700 11.5px/1 inherit;text-transform:uppercase;letter-spacing:.05em;color:var(--cx-mute)}
+  font-weight:700;font-size:11.5px;line-height:1;text-transform:uppercase;letter-spacing:.05em;color:var(--cx-mute)}
 .cx-ytrack{position:relative;flex:1;margin-right:10px}
 .cx-ycell{position:absolute;top:0;bottom:0;border-right:1px solid var(--cx-line)}
 .cx-ycell.wknd{background:var(--cx-soft)}
 .cx-ycell.today{background:var(--cx-brand-soft);box-shadow:inset 0 0 0 1px var(--cx-brand)}
 .cx-ybar{border-radius:5px;overflow:hidden}
-.cx-ybar .cx-bar-t{font-size:10.5px;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-ybar .cx-bar-t{font-size:10.5px;padding:0 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  flex-direction:row;align-items:center;gap:6px}
+.cx-ybar .cx-bar-sub{display:none}
 .cx-ydead{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,
   var(--cx-soft) 0 4px,transparent 4px 8px);border-left:1px solid var(--cx-line);pointer-events:none}
 .cx-ybar .cx-grab,.cx-ybar .cx-resize{width:10px}
@@ -1367,7 +1438,7 @@ button.cx-title:hover i{opacity:1}
 .cx-pop-head{display:flex;align-items:center;gap:9px;padding:13px 12px 11px 14px;
   border-bottom:1px solid var(--cx-line);position:sticky;top:0;background:var(--cx-panel);z-index:2}
 .cx-pop-dot{width:11px;height:11px;border-radius:99px;background:var(--c);flex:0 0 11px}
-.cx-pop-title{flex:1;min-width:0;margin:0;font:700 19px/1.25 inherit;color:var(--cx-ink);
+.cx-pop-title{flex:1;min-width:0;margin:0;font-weight:700;font-size:19px;line-height:1.25;color:var(--cx-ink);
   border:1px solid transparent;background:none;border-radius:9px;padding:3px 6px;
   cursor:pointer;appearance:none;text-overflow:ellipsis;
   transition:background .12s ease,border-color .12s ease}
@@ -1382,15 +1453,15 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
   transition:background .12s ease}
 .cx-when-b:hover{background:var(--cx-soft)}
 .cx-when-b:focus-within{background:var(--cx-brand-soft);box-shadow:inset 0 0 0 2px var(--cx-brand)}
-.cx-when-b small{display:block;font:600 10px/1 inherit;color:var(--cx-mute);
+.cx-when-b small{display:block;font-weight:600;font-size:10px;line-height:1;color:var(--cx-mute);
   text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.cx-when-b b{display:block;font:700 14px/1.2 inherit;color:var(--cx-ink)}
+.cx-when-b b{display:block;font-weight:700;font-size:14px;line-height:1.2;color:var(--cx-ink)}
 /* the real input sits over the block, invisible, so the whole block is the hit area */
 .cx-when-b input{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0}
 .cx-when-b input:disabled{cursor:default}
 .cx-when-arrow{color:var(--cx-mute);font-size:18px;line-height:1;flex:0 0 auto;
   align-self:center;padding:0 2px}
-.cx-when-len{flex:0 0 auto;align-self:center;font:600 11px/1 inherit;color:var(--cx-mute);
+.cx-when-len{flex:0 0 auto;align-self:center;font-weight:600;font-size:11px;line-height:1;color:var(--cx-mute);
   padding:0 12px;border-left:1px solid var(--cx-line);align-content:center}
 
 /* Quiet rows you fill in as you need them, not a form showing every field. */
@@ -1402,17 +1473,17 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-ricon{flex:0 0 22px;text-align:center;font-size:14px;opacity:.75;line-height:22px}
 .cx-row2.empty .cx-ricon{opacity:.4}
 .cx-row2 select{flex:1;min-width:0;border:1px solid transparent;background:none;border-radius:8px;
-  padding:5px 6px;font:500 13px/1.3 inherit;color:var(--cx-ink);appearance:none;cursor:pointer}
+  padding:5px 6px;font-weight:500;font-size:13px;line-height:1.3;color:var(--cx-ink);appearance:none;cursor:pointer}
 .cx-row2 select:hover{border-color:var(--cx-line);background:var(--cx-panel)}
 .cx-row2 select:focus{outline:none;border-color:var(--cx-brand);box-shadow:0 0 0 3px var(--cx-brand-soft)}
 .cx-row2.empty select{color:var(--cx-mute)}
-.cx-rtext{flex:1;min-width:0;font:500 13px/1.4 inherit;color:var(--cx-ink);padding:5px 6px}
+.cx-rtext{flex:1;min-width:0;font-weight:500;font-size:13px;line-height:1.4;color:var(--cx-ink);padding:5px 6px}
 .cx-row2.empty .cx-rtext{color:var(--cx-mute)}
 .cx-rfill{flex:1;min-width:0;padding-top:3px}
 .cx-course-pop .cx-delg{margin:0;padding:0}
 .cx-add{margin-top:7px}
 .cx-add summary{display:flex;align-items:center;gap:7px;cursor:pointer;list-style:none;
-  font:600 12px/1 inherit;color:var(--cx-brand);padding:6px 4px;border-radius:8px}
+  font-weight:600;font-size:12px;line-height:1;color:var(--cx-brand);padding:6px 4px;border-radius:8px}
 .cx-add summary::-webkit-details-marker{display:none}
 .cx-add summary::before{content:'＋';font-size:13px;line-height:1}
 .cx-add summary:hover{background:var(--cx-brand-soft)}
@@ -1433,7 +1504,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 /* Every row says what it is — an icon on its own is a guess. */
 .cx-row2{position:relative}
 .cx-rlabel{position:absolute;right:10px;top:50%;transform:translateY(-50%);
-  font:600 10px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em;
+  font-weight:600;font-size:10px;line-height:1;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em;
   opacity:0;transition:opacity .12s ease;pointer-events:none}
 .cx-rlabel.top{position:static;transform:none;display:block;opacity:1;margin:0 0 5px 6px}
 .cx-row2:hover .cx-rlabel,.cx-row2:focus-within .cx-rlabel{opacity:1}
@@ -1441,7 +1512,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 
 /* No Save button, so say so. */
 .cx-pop-foot{display:flex;align-items:center;gap:7px;padding:9px 14px;
-  border-top:1px solid var(--cx-line);font:500 11.5px/1 inherit;color:var(--cx-mute);
+  border-top:1px solid var(--cx-line);font-weight:500;font-size:11.5px;line-height:1;color:var(--cx-mute);
   position:sticky;bottom:0;background:var(--cx-panel)}
 .cx-spin{width:11px;height:11px;border-radius:99px;border:2px solid var(--cx-line);
   border-top-color:var(--cx-brand);animation:cx-spin .7s linear infinite}
@@ -1452,9 +1523,9 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
    are lines of text — so they opt out. */
 .cx .cx-pop{text-align:left}
 .cx .cx-pop select.cx-pop-title{border-color:transparent;background:none;padding:3px 6px;
-  font:700 19px/1.25 inherit;height:auto}
+  font-weight:700;font-size:19px;line-height:1.25;height:auto}
 .cx .cx-pop select.cx-pop-title:hover{border-color:var(--cx-line);background:var(--cx-soft)}
-.cx .cx-pop .cx-row2 select{border-color:transparent;background:none;font:500 13px/1.4 inherit;
+.cx .cx-pop .cx-row2 select{border-color:transparent;background:none;font-weight:500;font-size:13px;line-height:1.4;
   padding:5px 6px;height:auto}
 .cx .cx-pop .cx-row2:hover select{border-color:var(--cx-line);background:var(--cx-panel)}
 .cx .cx-pop .cx-rtext,.cx .cx-pop .cx-rlabel{text-align:left}
@@ -1467,14 +1538,14 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-bar:not(.cx-ybar):has(.cx-resize) .cx-bar-t{padding-right:16px}
 
 /* The title is the heading; the dates support it. */
-.cx .cx-pop select.cx-pop-title,.cx .cx-pop h3.cx-pop-title{font:700 18px/1.25 inherit}
-.cx-when-b b{font:600 14.5px/1.2 inherit}
+.cx .cx-pop select.cx-pop-title,.cx .cx-pop h3.cx-pop-title{font-weight:700;font-size:18px;line-height:1.25}
+.cx-when-b b{font-weight:600;font-size:14.5px;line-height:1.2}
 .cx-pop-head .cx-icon{border-color:transparent;background:none;color:var(--cx-mute)}
 .cx-pop-head .cx-icon:hover{border-color:var(--cx-line);background:var(--cx-soft);color:var(--cx-ink)}
 
 /* Every row names itself, always — not only on hover. */
 .cx-rlabel{position:static;transform:none;display:block;opacity:1;margin:0 0 3px 6px;
-  font:600 10px/1 inherit;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em}
+  font-weight:600;font-size:10px;line-height:1;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em}
 .cx-row2{align-items:flex-start}
 .cx-row2 .cx-ricon{margin-top:14px}
 .cx-rwrap{flex:1;min-width:0;display:block}
@@ -1495,9 +1566,9 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 /* .cx-rail sets display:flex, which beats the [hidden] attribute on its own. */
 .cx-rail[hidden]{display:none}
 .cx-railbtn{position:relative}
-.cx-railbtn.on{background:var(--cx-brand-soft);border-color:var(--cx-brand);color:var(--cx-brand)}
+.cx-railbtn.on,.cx-icon.on{background:var(--cx-brand-soft);border-color:var(--cx-brand);color:var(--cx-brand)}
 .cx-railbtn em{position:absolute;top:-5px;right:-5px;min-width:16px;height:16px;padding:0 4px;
-  border-radius:99px;background:var(--cx-warn);color:#fff;font:700 10px/16px inherit;
+  border-radius:99px;background:var(--cx-warn);color:#fff;font-weight:700;font-size:10px;line-height:16px;
   font-style:normal;text-align:center}
 .cx-rail{animation:cx-rail-in .18s cubic-bezier(.2,.9,.3,1)}
 @keyframes cx-rail-in{from{opacity:0;transform:translateX(10px)}to{opacity:1;transform:none}}
@@ -1507,12 +1578,12 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-pchip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;
   padding:7px 11px 7px 12px;border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;
   text-align:left;line-height:1.25}
-.cx-pchip b{font:600 12.5px/1.2 inherit;color:var(--cx-ink)}
-.cx-pchip small{font:500 10.5px/1 inherit;color:var(--cx-mute)}
+.cx-pchip b{font-weight:600;font-size:12.5px;line-height:1.2;color:var(--cx-ink)}
+.cx-pchip small{font-weight:500;font-size:10.5px;line-height:1;color:var(--cx-mute)}
 .cx-pchip.fits{background:color-mix(in srgb,var(--s) 10%,var(--cx-panel));
   border-color:var(--s);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--s) 35%,transparent)}
 .cx-pchip:hover:not(:disabled){background:color-mix(in srgb,var(--s) 16%,var(--cx-panel))}
-.cx-addnote{margin:8px 0 2px 6px;font:500 10.5px/1.5 inherit;color:var(--cx-mute)}
+.cx-addnote{margin:8px 0 2px 6px;font-weight:500;font-size:10.5px;line-height:1.5;color:var(--cx-mute)}
 .cx-addnote b{font-weight:700;color:var(--cx-ink)}
 .cx-add .cx-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .cx-course-pop .cx-delg li{border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;padding-left:10px}
@@ -1540,15 +1611,15 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-row.grabby:hover{background:var(--cx-soft)}
 .cx-row.grabby:active{cursor:grabbing}
 .cx-delg li.grabby{cursor:grab;touch-action:none}
-.cx-hintline{margin:0 0 8px;font:500 10.5px/1.4 inherit;color:var(--cx-mute)}
+.cx-hintline{margin:-2px 0 8px;padding:0 3px;font-weight:500;font-size:11.5px;line-height:1.45;color:var(--cx-mute)}
 
 /* the thing in your hand */
 .cx-ghost{position:fixed;z-index:400;pointer-events:none;transform:translate(12px,10px);
   max-width:260px;background:var(--cx-panel);border:1px solid var(--cx-line);
   border-left:4px solid var(--s);border-radius:4px 10px 10px 4px;padding:7px 11px;
   box-shadow:0 10px 26px rgba(15,23,42,.24)}
-.cx-ghost b{display:block;font:600 12.5px/1.2 inherit;color:var(--cx-ink)}
-.cx-ghost small{display:block;margin-top:3px;font:500 10.5px/1.3 inherit;color:var(--cx-mute)}
+.cx-ghost b{display:block;font-weight:600;font-size:12.5px;line-height:1.2;color:var(--cx-ink)}
+.cx-ghost small{display:block;margin-top:3px;font-weight:500;font-size:10.5px;line-height:1.3;color:var(--cx-mute)}
 .cx-ghost small.ok{color:#1f9d55}
 .cx-ghost small.warn{color:var(--cx-warn)}
 .cx-ghost small.no{color:#c0392b}
@@ -1562,10 +1633,12 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-cell.drop-no,.cx-ycell.drop-no,.cx-band-cell.drop-no{box-shadow:inset 0 0 0 2px #c0392b}
 
 /* dropping somebody back onto the waiting list */
-.cx-droppool.armed{border-style:dashed;border-color:var(--cx-brand)}
-.cx-droppool.on{background:var(--cx-brand-soft);box-shadow:0 0 0 2px var(--cx-brand)}
+/* The card has no border to dash any more, so the "you can drop here" ring is
+   an outline offset outside the group instead. */
+.cx-droppool.armed{outline:1.5px dashed var(--cx-brand);outline-offset:7px;border-radius:12px}
+.cx-droppool.on{outline-style:solid;background:var(--cx-brand-soft)}
 .cx-dropnote{margin:8px 0 0;padding:9px;border:1px dashed var(--cx-brand);border-radius:9px;
-  text-align:center;font:600 11px/1.3 inherit;color:var(--cx-brand)}
+  text-align:center;font-weight:600;font-size:11px;line-height:1.3;color:var(--cx-brand)}
 
 /* While a drag is in flight nothing may intercept the hit-test — the popover
    sits above the rail, so dragging somebody out of a course landed on the
@@ -1588,8 +1661,8 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-dark .cx-placing{background:#e8ecf3;color:#0e1117}
 .cx-placing-who{display:flex;align-items:center;gap:8px;min-width:0;flex:0 1 auto}
 .cx-placing-dot{width:10px;height:10px;border-radius:99px;flex:0 0 10px}
-.cx-placing b{font:700 12.5px/1.25 inherit;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.cx-placing-what{flex:1 1 auto;min-width:0;font:500 11.5px/1.35 inherit;opacity:.8}
+.cx-placing b{font-weight:700;font-size:12.5px;line-height:1.25;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cx-placing-what{flex:1 1 auto;min-width:0;font-weight:500;font-size:11.5px;line-height:1.35;opacity:.8}
 .cx-placing .cx-x{margin-left:auto;color:inherit;border:1px solid currentColor;opacity:.75;
   padding:6px 11px;border-radius:9px;font-size:11.5px;background:none;cursor:pointer;white-space:nowrap}
 .cx-placing .cx-x:hover{opacity:1}
@@ -1609,16 +1682,17 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
   font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit}
 .cx-cardtoggle:hover{color:var(--cx-ink)}
 .cx-cardtoggle:focus-visible{outline:2px solid var(--cx-brand);outline-offset:3px;border-radius:6px}
-.cx-chev{width:0;height:0;flex:0 0 auto;border:4.5px solid transparent;
-  border-top-color:currentColor;margin-top:3px;opacity:.65;
-  transition:transform .14s ease}
+.cx-chev{width:0;height:0;flex:0 0 auto;border:4px solid transparent;
+  border-top-color:currentColor;margin-top:3px;opacity:.3;
+  transition:transform .14s ease,opacity .14s ease}
+.cx-card h3:hover .cx-chev,.cx-cardtoggle:focus-visible .cx-chev{opacity:.75}
 .cx-card.shut .cx-chev{transform:rotate(-90deg);margin-top:0}
 .cx-card.shut h3{margin-bottom:0}
 .cx-cardbody{animation:cx-unfold .16s ease}
 @keyframes cx-unfold{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.cx-cardbody{animation:none}}
 /* a folded card is still somewhere to drop — it springs open when you arrive */
-.cx-card.shut.cx-droppool.armed{border-style:dashed;border-color:var(--cx-brand)}
+.cx-card.shut.cx-droppool.armed{outline:1.5px dashed var(--cx-brand);outline-offset:7px}
 
 /* ── Nothing may paint outside its own course bar ──────────────────────────
    The bar's width IS the course's dates, so anything spilling past it says the

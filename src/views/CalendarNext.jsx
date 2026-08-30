@@ -5,6 +5,21 @@ import {
   createBlock, setBookingAttendance,
 } from '../lib/api.js'
 import { todayISO, fmt } from '../lib/util.js'
+
+/* Dates for the rail, where the column is 300px and a wrapped second line
+   doubles a row's height. fmt() gives "01 Jul 2026", which is the year twice
+   in a range that almost never crosses one. */
+const shortDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—')
+const span = (a, b) => {
+  if (!a) return '—'
+  if (!b || a === b) return shortDate(a)
+  const [d1, d2] = [new Date(a), new Date(b)]
+  // Same month: "6–10 Jul" rather than "6 Jul – 10 Jul".
+  if (d1.getMonth() === d2.getMonth() && d1.getFullYear() === d2.getFullYear()) {
+    return `${d1.getDate()}\u2013${shortDate(b)}`
+  }
+  return `${shortDate(a)}\u2009\u2013\u2009${shortDate(b)}`
+}
 import { toast } from '../lib/toast.js'
 import Popover from '../components/Popover.jsx'
 
@@ -40,6 +55,17 @@ const KIND = {
   NO_SHOW:  { c: '#c0392b', label: 'No-show' },
 }
 const kindOf = (k) => KIND[k] || KIND.NEW
+
+/* The distinct reasons people are on a course, in the catalogue's own order.
+   The bar used to draw one segment per delegate across its whole width, which
+   on a one-delegate course is a solid line nobody reads as information and on
+   a ten-delegate course is a smear. What anyone actually wants to know is
+   whether this course is all one thing or a mixture. */
+const kindsOn = (delegates) => {
+  const seen = new Set()
+  for (const d of delegates || []) seen.add(kindOf(d.kind).c)
+  return [...seen].slice(0, 4)
+}
 // A delegate doing only part of a course — the "split" case.
 const isPart = (d) => !!(d.attendFrom || d.attendTo)
 
@@ -117,6 +143,8 @@ export default function CalendarNext({ isAdmin, user, go }) {
   })
   const toggleCard = (id) => setShut((c) => ({ ...c, [id]: c[id] ? 0 : 1 }))
   const [jump, setJump] = useState(false)
+  // Off by default: the key is a reference, not part of reading the calendar.
+  const [showKey, setShowKey] = useState(false)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
   async function load() {
@@ -630,6 +658,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <button onClick={() => step(1)} aria-label="Next month">›</button>
           </div>
           <button className="cx-today" onClick={goToday}>Today</button>
+          {/* Beside the controls, not in a band of its own above the grid. */}
+          <button type="button" className="cx-keybtn" aria-expanded={showKey}
+            onClick={() => setShowKey((k) => !k)}>
+            <i className="cx-chev" aria-hidden="true" />What the marks mean
+          </button>
         </div>
         <div className="cx-tools">
           <div className="cx-seg" role="group" aria-label="View">
@@ -637,10 +670,9 @@ export default function CalendarNext({ isAdmin, user, go }) {
               <button key={v} className={view === v ? 'on' : ''} onClick={() => { setDir(0); setView(v) }}>{v}</button>
             ))}
           </div>
-          <div className="cx-seg" role="group" aria-label="Density">
-            <button className={dense ? '' : 'on'} onClick={() => setDense(false)}>Comfortable</button>
-            <button className={dense ? 'on' : ''} onClick={() => setDense(true)}>Compact</button>
-          </div>
+          <button className={'cx-icon' + (dense ? ' on' : '')} onClick={() => setDense(!dense)}
+            aria-pressed={dense} title={dense ? 'Roomier rows' : 'Fit more in'}
+            aria-label={dense ? 'Roomier rows' : 'Fit more in'}>{dense ? '\u2637' : '\u2630'}</button>
           <button className={'cx-icon cx-railbtn' + (rail ? ' on' : '')} onClick={() => setRail((r) => !r)}
             aria-pressed={rail} aria-label={rail ? 'Hide the side panel' : 'Show the side panel'}
             title={rail ? 'Hide the side panel' : 'Show the side panel'}>
@@ -654,17 +686,21 @@ export default function CalendarNext({ isAdmin, user, go }) {
         </div>
       </header>
 
-      <div className="cx-legend">
-        <b>Dots on a course — why each person is there:</b>
-        {Object.entries(KIND).filter(([k]) => k !== 'MIXED').map(([k, v]) => (
-          <span key={k}><i style={{ background: v.c }} />{v.label}</span>
-        ))}
-        <span><i className="cx-l-part" />Doing part of it</span>
-        <span className="cx-l-sep" />
-        <b>The bar itself:</b>
-        <span><i className="cx-l-course" />Coloured by course</span>
-        <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
-      </div>
+      {/* The key used to be two permanent rows of capitals above the calendar —
+          about 90px of a laptop screen spent explaining marks that most people
+          need explained once. It is a click away instead, and the calendar
+          starts 90px higher. */}
+      {showKey && (
+        <div className="cx-legend">
+          <b>Dots on a course — why people are on it:</b>
+          {Object.entries(KIND).filter(([k]) => k !== 'MIXED').map(([k, v]) => (
+            <span key={k}><i style={{ background: v.c }} />{v.label}</span>
+          ))}
+          <span><i className="cx-l-part" />Doing part of it</span>
+          <span className="cx-l-sep" />
+          <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
+        </div>
+      )}
 
       {drag && (
         <>
@@ -743,21 +779,30 @@ export default function CalendarNext({ isAdmin, user, go }) {
                       }}
                       onClick={(e) => openAt(s.b, e)}>
                       {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
+                      {/* Two lines, not one. A course is an object with a name
+                          and a second fact about it — who is teaching it and how
+                          many people are on it. Encoding that in a dot and a
+                          count badge made every bar need a legend. The second
+                          line is dropped in Compact, where the height is not
+                          there to carry it. */}
                       <span className="cx-bar-t">
-                        <span className="cx-bar-n">{s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}</span>
-                        {s.head && s.b.delegates?.some(isPart) && <span className="cx-part" title="Somebody is doing only part of this course">◧</span>}
-                        {s.head && s.b.delegates?.length > 0 && <em>{s.b.delegates.length}</em>}
-                      </span>
-                      {/* One segment per delegate, coloured by what they are
-                          here for — a mixed course reads without opening it. */}
-                      {s.head && s.b.delegates?.length > 0 && (
-                        <span className="cx-mix" aria-hidden="true">
-                          {s.b.delegates.slice(0, 10).map((d) => (
-                            <i key={d.bookingId} style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />
-                          ))}
+                        <span className="cx-bar-r1">
+                          <span className="cx-bar-n">{s.head ? (s.b.course || s.b.title) : '↳ ' + (s.b.course || '')}</span>
+                          {s.head && s.b.delegates?.some(isPart) && <span className="cx-part" title="Somebody is doing only part of this course">◧</span>}
+                          {s.head && s.b.delegates?.length > 0 && (
+                            <span className="cx-kinds" aria-hidden="true">
+                              {kindsOn(s.b.delegates).map((c) => <i key={c} style={{ background: c }} />)}
+                            </span>
+                          )}
+                          {s.head && !s.b.ready && !s.b.isHoliday &&
+                            <em className="cx-warnflag" title="Needs a trainer or delegates" />}
                         </span>
-                      )}
-                      {s.head && !s.b.ready && !s.b.isHoliday && <span className="cx-dot" title="Needs a trainer or delegates" />}
+                        {s.head && !s.b.isHoliday && (
+                          <span className="cx-bar-sub">
+                            {s.b.trainer || 'no trainer'} · {s.b.delegates?.length || 0} booked
+                          </span>
+                        )}
+                      </span>
                       {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" title="Drag to change how many days it runs" />}
                       {hint && preview?.id === s.b.id && s.head && <span className="cx-chip-len">{hint}</span>}
                     </button>
@@ -774,9 +819,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
             <RailCard id="needs" title="Needs attention" count={needsWork.length}
               shut={shut} onToggle={toggleCard} className="cx-warn">
               {needsWork.slice(0, 4).map((b) => (
-                <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
-                  <i style={{ background: b.color || '#5b6b80' }} />
-                  <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left \u2014 needs a trainer` : 'no delegates'} · {fmt(b.start)}</small></span>
+                <button key={b.id} className="cx-row" data-bid={b.id} style={{ '--c': b.color || '#5b6b80' }}
+                  onClick={(e) => openAt(b, e)}>
+                  <i />
+                  <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left` : 'no delegates'} · {shortDate(b.start)}</small></span>
+                  <em className="cx-flag" aria-hidden="true" />
                 </button>
               ))}
             </RailCard>
@@ -786,11 +833,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
             shut={shut} onToggle={toggleCard}>
             {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
             {thisMonth.slice(0, 7).map((b) => (
-              <button key={b.id} className="cx-row" data-bid={b.id} onClick={(e) => openAt(b, e)}>
-                <i style={{ background: b.color || '#5b6b80' }} />
+              <button key={b.id} className="cx-row" data-bid={b.id} style={{ '--c': b.color || '#5b6b80' }}
+                onClick={(e) => openAt(b, e)}>
+                <i />
                 <span>
                   <b>{b.course}</b>
-                  <small>{fmt(b.start)} – {fmt(b.end)} · {b.trainer || 'no trainer'} · {b.delegates.length} on it</small>
+                  <small>{span(b.start, b.end)} · {b.trainer || 'no trainer'} · {b.delegates.length} booked</small>
                 </span>
               </button>
             ))}
@@ -800,12 +848,13 @@ export default function CalendarNext({ isAdmin, user, go }) {
             shut={shut} onToggle={toggleCard}
             className={'cx-droppool' + (drag?.kind === 'delegate' || placing?.kind === 'delegate' ? ' armed' : '')
               + (drag?.over?.type === 'pool' ? ' on' : '')}>
-            {isAdmin && <p className="cx-hintline">Drag anybody onto a course, or onto empty days to book one. Tapping picks them up too.</p>}
+            {isAdmin && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
             {pool.slice(0, 6).map((p) => (
               <div key={p.id} className={'cx-row' + (isAdmin ? ' grabby' : ' static')}
+                style={{ '--c': schemeColour(p.scheme) }}
                 onPointerDown={(e) => dragStart('pool', p, p.name, schemeColour(p.scheme), e)}>
-                <i style={{ background: schemeColour(p.scheme) }} />
+                <i />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
               </div>
             ))}
@@ -815,11 +864,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
           {isAdmin && staff.length > 0 && (
             <RailCard id="trainers" title="Trainers" count={staff.length} shut={shut} onToggle={toggleCard}>
-              <p className="cx-hintline">Drag or tap one, then put them on a course.</p>
+              <p className="cx-hintline">Drag or tap one onto a course.</p>
               {staff.slice(0, 8).map((t) => (
-                <div key={t.staff_id} className="cx-row grabby"
+                <div key={t.staff_id} className="cx-row grabby" style={{ '--c': '#334155' }}
                   onPointerDown={(e) => dragStart('staff', t, t.name, '#334155', e)}>
-                  <i style={{ background: '#334155' }} />
+                  <i />
                   <span><b>{t.name}</b><small>{teaching(t.staff_id)}</small></span>
                 </div>
               ))}
@@ -1189,12 +1238,13 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
               <span className="cx-bar-t">
                 <span className="cx-bar-n">{b.course || b.title}</span>
                 {b.delegates?.some(isPart) && <span className="cx-part">◧</span>}
+                {b.delegates?.length > 0 && (
+                  <span className="cx-kinds" aria-hidden="true">
+                    {kindsOn(b.delegates).map((c) => <i key={c} style={{ background: c }} />)}
+                  </span>
+                )}
                 {b.delegates?.length > 0 && <em>{b.delegates.length}</em>}
               </span>
-              {b.delegates?.length > 0 && (
-                <span className="cx-mix">{b.delegates.slice(0, 10).map((d) => (
-                  <i key={d.bookingId} style={{ background: kindOf(d.kind).c, opacity: isPart(d) ? 0.5 : 1 }} />))}</span>
-              )}
               {isAdmin && !b.isHoliday && b.end <= last && <span className="cx-resize" title="Drag to change the length" />}
               {chip && String(chip.id) === String(b.id) && <span className="cx-chip-len">{chip.text}</span>}
             </button>

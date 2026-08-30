@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.28.0', build: 161, date: '30 Aug 2026',
+    title: 'The new calendar, properly finished',
+    notes: [
+      'The new calendar looked unfinished and the panel down the right-hand side was hard work. Both are done. A course is now a proper block on the day it runs, with its name and, underneath, who is teaching it and how many people are booked \u2014 so you can read a month without opening anything.',
+      'A REAL FAULT WAS FOUND WHILE DOING IT. Roughly fifty of the instructions telling this screen what size and weight to draw its text were written in a form the browser silently throws away. Every heading, every date, every day number on the new calendar has been rendering at the browser\u2019s own default rather than the size it was meant to be \u2014 which is most of why it looked unfinished. That is now fixed, and it is worth knowing because nothing anywhere reports it: the page just quietly draws the wrong thing.',
+      'The side panel has stopped shouting. No boxes, no capitals, no coloured badge around every number \u2014 headings sit back and the courses and people stand out, which is the right way round for something that lives next to the calendar rather than in front of it.',
+      'The two rows explaining what the dots and colours mean are gone from above the calendar and are behind a \u201cWhat the marks mean\u201d link instead. That is about an inch of screen back on every laptop, every time anyone opens it.',
+      'Also: the grid lines are far fainter so the courses stand out rather than the table; weekends are no longer shaded grey, which made them look switched off; and the month title was invisible in dark mode \u2014 black text on a black background \u2014 which is now fixed.',
+    ],
+  },
+  {
     v: '1.27.0', build: 160, date: '30 Aug 2026',
     title: 'Signing in no longer depends on a key that is being retired',
     notes: [
