@@ -1207,7 +1207,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-count{background:var(--cx-soft);border-radius:99px;padding:3px 8px;font-size:11px;color:var(--cx-ink)}
 .cx-field p{margin:0;font-size:13.5px}
 .cx-delg{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
-.cx-delg li{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:9px;background:var(--cx-soft);font-size:13.5px}
+.cx-delg li{display:flex;align-items:center;gap:2px 8px;padding:6px 9px;border-radius:9px;background:var(--cx-soft);font-size:13.5px}
 .cx-delg small{color:var(--cx-mute)}
 .cx-x{margin-left:auto;background:none;border:none;color:var(--cx-mute);font:inherit;font-size:12px;
   cursor:pointer;text-decoration:underline}
@@ -1311,10 +1311,12 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 /* delegate rows */
 .cx-delg li{flex-wrap:wrap}
 .cx-delg li.part{background:color-mix(in srgb,var(--cx-warn) 9%,var(--cx-soft))}
-.cx-kind{width:9px;height:30px;border-radius:3px;flex:none}
-.cx-dinfo{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-.cx-dinfo b{font-size:13px;font-weight:650}
-.cx-dinfo small{font-size:11.5px;color:var(--cx-mute)}
+.cx-kind{width:9px;min-height:26px;border-radius:3px;flex:none}
+/* A delegate is exactly two lines: name + actions, then the detail beneath. */
+.cx-dname{flex:1 1 auto;min-width:0;font-size:13px;font-weight:650;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-dsub{flex:0 0 100%;font-size:11.5px;line-height:1.35;color:var(--cx-mute);margin-top:1px}
+.cx-kind{align-self:stretch}
 .cx-split{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:8px}
 .cx-split input[type=date]{width:auto;padding:7px 9px;font-size:12px}
 .cx-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
@@ -1464,8 +1466,8 @@ button.cx-title:hover i{opacity:1}
    shadowed box on every frame. will-change gives it its own layer up front so
    the first move is not the one that has to build it. */
 .cx-pop{position:fixed;left:0;top:0;will-change:transform;
-  z-index:220;width:376px;max-width:calc(100vw - 24px);
-  max-height:min(78vh,660px);overflow:auto;background:var(--cx-panel);
+  z-index:220;width:460px;max-width:calc(100vw - 24px);
+  max-height:min(80vh,720px);overflow:auto;background:var(--cx-panel);
   border:1px solid var(--cx-line);border-radius:16px;
   box-shadow:0 18px 48px rgba(15,23,42,.20),0 3px 10px rgba(15,23,42,.08);
   animation:cx-pop-in .16s cubic-bezier(.2,.9,.3,1)}
@@ -1529,7 +1531,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 
 /* Quiet rows you fill in as you need them, not a form showing every field. */
 .cx-rows{padding:6px 6px 10px}
-.cx-row2{display:flex;align-items:center;gap:10px;padding:8px;border-radius:11px;
+.cx-row2{display:flex;align-items:center;gap:10px;padding:4px 8px;border-radius:11px;
   transition:background .12s ease}
 .cx-row2.top{align-items:flex-start}
 .cx-row2:hover{background:var(--cx-soft)}
@@ -1569,7 +1571,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-rlabel{position:absolute;right:10px;top:50%;transform:translateY(-50%);
   font-weight:600;font-size:10px;line-height:1;color:var(--cx-mute);text-transform:uppercase;letter-spacing:.05em;
   opacity:0;transition:opacity .12s ease;pointer-events:none}
-.cx-rlabel.top{position:static;transform:none;display:block;opacity:1;margin:0 0 5px 6px}
+.cx-rlabel.top{position:static;transform:none;display:block;opacity:1;margin:0 0 2px 6px}
 .cx-row2:hover .cx-rlabel,.cx-row2:focus-within .cx-rlabel{opacity:1}
 .cx-row2.empty .cx-rlabel{opacity:1}
 
@@ -1620,7 +1622,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-pop.sheet{padding-bottom:env(safe-area-inset-bottom,0px)}
 
 /* "remove" is destructive and there is no undo — give it a real target. */
-.cx-delg .cx-x{padding:5px 8px;border-radius:7px;font-size:11.5px;min-height:28px}
+.cx-delg .cx-x{padding:3px 7px;border-radius:7px;font-size:11.5px;min-height:24px}
 .cx-delg .cx-x:hover{background:var(--cx-soft)}
 .cx-delg .cx-x.danger:hover{background:var(--cx-warn-soft);color:var(--cx-warn)}
 
@@ -1656,7 +1658,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
    same amber and red the course bars already use for these two. */
 .cx-resit-tag{display:inline-block;font-style:normal;font-weight:700;font-size:9px;
   line-height:1;letter-spacing:.04em;text-transform:uppercase;color:#fff;
-  background:var(--k,var(--cx-warn));border-radius:99px;padding:3px 6px;margin-right:6px}
+  background:var(--k,var(--cx-warn));border-radius:99px;padding:2px 5px;margin-right:5px}
 .cx-pchip .cx-resit-tag{margin:0 0 0 6px;vertical-align:1px}
 .cx-row.cx-resit small{opacity:1}
 .cx-alsoresit{font-style:normal;color:var(--cx-warn);font-weight:600}
@@ -1668,7 +1670,7 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
    their own line rather than crushing the name into a column an inch wide.
    min-width on the name is what makes the group wrap instead of the name. */
 .cx-dacts{display:flex;flex-wrap:wrap;align-items:center;gap:3px;margin-left:auto}
-.cx-course-pop .cx-dinfo{min-width:148px}
+/* .cx-dinfo is gone — the name and the detail are separate children now. */
 
 /* ── ACS application forms, in the course panel ────────────────────────────
    The forms are the paperwork this whole system exists to produce, so they get

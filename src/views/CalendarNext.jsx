@@ -1882,19 +1882,12 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
       onPointerDown={(e) => { if (!e.target.closest('button, input')) onDragStart?.(e) }}>
       <span className="cx-kind" style={{ background: k.c }}
         title={d.resit ? `Re-sitting \u2014 ${k.label.toLowerCase()} last time` : k.label} />
-      <span className="cx-dinfo">
-        <b>{d.name}</b>
-        <small>
-          {/* The amber/red follows them onto the course. Before booking.resat_kind
-              existed, a re-sit arrived here as a plain green "New" and the whole
-              reason they were on the course was lost the moment they were put on it. */}
-          {d.resit
-            ? <><em className="cx-resit-tag" style={{ '--k': k.c }}>{resitWord(d)}</em>Re-sitting</>
-            : k.label}
-          {d.codes?.length ? ' · ' + d.codes.join(', ') : ''}
-          {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
-        </small>
-      </span>
+      {/* NAME AND ACTIONS SHARE A LINE, and the detail runs full width beneath.
+          Stacked the old way, the buttons could not fit beside a two-line block
+          and wrapped onto a third line of their own — 84px a delegate, so three
+          people pushed the panel past its height and made you scroll for the
+          rows underneath. This is two lines, always. */}
+      <b className="cx-dname">{d.name}</b>
       {/* Grouped so the three of them wrap onto their own line TOGETHER when
           the popover is narrow. Loose, they squeezed the name into a two-line
           column an inch wide. */}
@@ -1906,7 +1899,7 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
             <button className="cx-x" disabled={formBusy} onClick={onPrint}
               data-tip={`Print ${d.name}’s ACS application form`}>form</button>
           )}
-          {canWrite && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
+          {canWrite && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'some days'}</button>}
           {canWrite && (
             <button className="cx-x danger" disabled={busy}
               onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
@@ -1915,6 +1908,16 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
           )}
         </span>
       )}
+      <small className="cx-dsub">
+        {/* The amber/red follows them onto the course. Before booking.resat_kind
+            existed, a re-sit arrived here as a plain green "New" and the whole
+            reason they were on the course was lost the moment they were placed. */}
+        {d.resit
+          ? <><em className="cx-resit-tag" style={{ '--k': k.c }}>{resitWord(d)}</em>Re-sitting</>
+          : k.label}
+        {d.codes?.length ? ' · ' + d.codes.join(', ') : ''}
+        {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
+      </small>
       {edit && (
         <span className="cx-split">
           <input type="date" value={f} min={block.start} max={block.end} onChange={(e) => setF(e.target.value)} />

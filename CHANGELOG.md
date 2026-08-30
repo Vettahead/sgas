@@ -4,6 +4,43 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — the course panel: wider, and a third off every delegate
+
+Measured first. With three delegates at 1512x950: panel 376px wide, each
+`.cx-delg li` **94px**, content 762 against 658 visible — 104px of scroll, and
+the ACS row and Scheme row were below the fold.
+
+Where the 94px went: `Delegate` stacked the name and the detail in a
+`.cx-dinfo` column, so the three action buttons could not fit beside a two-line
+block and `.cx-dacts` wrapped onto a third line of its own. Every delegate cost
+a whole extra row. (That wrap was introduced in v1.32.0 to stop the name being
+crushed into a 90px column — the right fix then, at 376px.)
+
+- **`.cx-pop` 376px → 458px.** Most of the win: names, code lists and date
+  ranges stop wrapping. `max-width:calc(100vw - 24px)` still protects narrow
+  windows and the sheet still takes over under 720px.
+- **`Delegate` restructured to two lines, always.** `.cx-dinfo` is gone; the
+  name (`.cx-dname`) and `.cx-dacts` share line one, and `.cx-dsub` runs full
+  width beneath with `flex:0 0 100%`. `.cx-kind` is `align-self:stretch` so the
+  colour bar spans both.
+- **`.cx-delg li` `gap:8px` → `gap:2px 8px`.** With `flex-wrap`, that 8px was
+  also the ROW gap — 8px of dead space under every name, on every delegate.
+- Paddings pulled in: `.cx-row2` 8px → 4px 8px, `.cx-rlabel.top` margin 5 → 2,
+  `.cx-delg li` 9/10 → 6/9, `.cx-delg .cx-x` min-height 28 → 24,
+  `.cx-resit-tag` 3/6 → 2/5.
+- `max-height` `min(78vh,660px)` → `min(80vh,720px)`. The vh half is what
+  protects a short window; the px half only bites on a tall one.
+- "only some days" → "some days".
+
+Result, three delegates: rows **94px → 57px**, and at 1512x950 and above the
+panel does not scroll at all. 1508x780 (Chris's own window): 46px. 1280x720:
+94px — down from what would have been well over 200.
+
+New `panelfit.mjs` guards it across four viewports: every delegate row ≤60px
+(the ceiling two lines buys) and the panel ≥440px wide. It closes the "Add
+someone" chip grid before measuring, so it measures the panel as it sits when
+you click a course rather than mid-task.
+
 ## 2026-08-30 — `booking.resat_from` / `resat_kind`: a re-sit stays a re-sit
 
 Closes the gap left open in v1.33.0 an hour earlier.

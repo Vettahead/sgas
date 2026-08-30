@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.33.2', build: 172, date: '30 Aug 2026',
+    title: 'The course panel is wider, and the people on it take a third less room',
+    notes: [
+      'A course with three people on it no longer scrolls on a normal laptop. It did, and you had to scroll past the delegates to reach the forms and the scheme underneath.',
+      'THE PANEL IS WIDER \u2014 376 pixels to 458 \u2014 which is most of it: names, qualification codes and dates stop wrapping onto extra lines.',
+      'EACH PERSON ON THE COURSE now takes two lines instead of three, and is a third shorter: 94 pixels down to 57. Their name sits on the same line as the three little links beside it, and what they are there for runs underneath at full width. Before, the links could not fit next to a two-line block and dropped onto a line of their own, so every single person cost you an extra row.',
+      '\u201conly some days\u201d is now just \u201csome days\u201d, and the spacing throughout the panel has been pulled in.',
+      'On a shorter screen it still scrolls, but far less \u2014 about a fifth of what it was.',
+    ],
+  },
+  {
     v: '1.33.1', build: 171, date: '30 Aug 2026',
     title: 'A re-sit still looks like a re-sit once it is on the course',
     notes: [
