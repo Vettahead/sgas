@@ -1183,6 +1183,11 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
   border-left:4.5px solid transparent;border-right:4.5px solid transparent;
   border-bottom:8px solid var(--cx-warn)}
 .cx-empty{margin:0;padding:3px 8px;font-size:11.5px;color:var(--cx-mute)}
+/* The way to the rest of a list the heading has already counted. */
+.cx-more{margin:2px 0 0;padding:5px 8px;border:0;background:none;cursor:pointer;text-align:left;
+  font-weight:400;font-size:11.5px;line-height:1.3;color:var(--cx-brand);border-radius:7px}
+.cx-more:hover{background:var(--cx-soft)}
+.cx-more:focus-visible{outline:2px solid var(--cx-brand);outline-offset:2px}
 
 /* modal */
 .cx-modal{border-radius:16px;padding:0;overflow:hidden;max-width:560px}
@@ -1757,3 +1762,28 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
    is the small grey footnote under the form. */
 .login-info{background:#eef4ff;color:#1e3a8a;border:1px solid #c7dbff;border-radius:8px;
   padding:10px 12px;margin:0 0 12px;font-size:14px;line-height:1.4;text-align:left}
+
+
+/* ═══ HOVER TIPS ═══════════════════════════════════════════════════════════
+   One element, positioned by components/Tip.jsx. Dark on light and light on
+   dark, so it reads as a layer above the page rather than another panel in it —
+   which is also how it stays legible over a coloured course bar. */
+.tip{
+  position:fixed; z-index:900; transform:translate(-50%,-100%);
+  max-width:280px; padding:7px 10px; border-radius:8px;
+  background:#0f1729; color:#f2f5fa;
+  font-weight:450; font-size:11.5px; line-height:1.45; letter-spacing:.005em;
+  white-space:pre-line; text-align:left; pointer-events:none;
+  box-shadow:0 6px 22px rgba(15,23,42,.28);
+  animation:tip-in .1s ease-out;
+}
+.tip-below{transform:translate(-50%,0)}
+/* The little point, so it is obvious which thing is being described. */
+.tip::after{
+  content:''; position:absolute; left:50%; margin-left:-5px;
+  border:5px solid transparent; border-top-color:#0f1729;
+  top:100%;
+}
+.tip-below::after{top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:#0f1729}
+@keyframes tip-in{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.tip{animation:none}}

@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.29.0', build: 163, date: '30 Aug 2026',
+    title: 'Hover to see the detail \u2014 and two things the audit turned up',
+    notes: [
+      'Hover anything on the calendar and it tells you what it is. On a course: the dates, how long it runs, who is teaching it, how many are booked and what they are booked for, and a line telling you what it is still missing. On the side panel it gives you the full course or delegate name, which the narrow column has to cut short. On the buttons it says what they do, properly, instead of the browser\u2019s slow grey box.',
+      'It works from the keyboard as well \u2014 tab to something and the same note appears, Escape closes it \u2014 and it never shows on a phone or tablet, where there is no such thing as hovering. Nothing is hover-only: everything a hover tells you, a tap or a click tells you too. That was the mistake on the old calendar and it is not repeated here.',
+      'A REAL FAULT, FIXED: you could drag somebody onto a course that had already finished, and the record would quietly change. The old Schedule board has always refused that; this screen did not. It now says so and declines.',
+      'The side panel used to say \u201cWaiting to be placed 8\u201d and then list six people, with no way to reach the other two. The count was honest and the list was not. Every list in that panel now has a \u201cShow the other N\u201d when it has more to show.',
+    ],
+  },
+  {
     v: '1.28.1', build: 162, date: '30 Aug 2026',
     title: 'The new calendar on a phone \u2014 and a button that could not be clicked',
     notes: [

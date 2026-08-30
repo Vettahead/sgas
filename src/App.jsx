@@ -3,6 +3,7 @@ import { LIVE } from './lib/supabase.js'
 import logoUrl from './assets/sgas-logo-white.png'
 import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
 import { ToastHost } from './components/ToastHost.jsx'
+import TipHost from './components/Tip.jsx'
 import Login from './views/Login.jsx'
 import Dashboard from './views/Dashboard.jsx'
 import Inquiries from './views/Inquiries.jsx'
@@ -260,6 +261,7 @@ export default function App() {
         </div>
       </div>
       <ToastHost />
+      <TipHost />
     </div>
   )
 }

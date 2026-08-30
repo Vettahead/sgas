@@ -4,6 +4,61 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (later still) — hover tips, and two faults an audit turned up
+
+### Tips
+
+New `src/components/Tip.jsx`, mounted once in `App.jsx`. Anything anywhere opts
+in with a `data-tip` attribute — no import, no wrapper, no per-screen plumbing;
+newlines in the attribute become real lines.
+
+Why not `title`? It waits about a second, cannot be styled, never appears on
+keyboard focus, and on Windows draws a grey box belonging to no design system.
+Every `title` on the calendar's toolbar and bars is replaced.
+
+Three rules it follows, all learned elsewhere in this app:
+
+- **Nothing is hover-only.** Every tip repeats something a click or tap also
+  reveals. A tablet has no hover — that is the exact fault logged against the
+  old calendar's hover card, and it is not repeated. `Tip.jsx` bails out
+  entirely unless `(hover: hover) and (pointer: fine)`.
+- **Keyboard works.** `focusin` shows it, Escape dismisses it.
+- **It never sits on a drag.** `pointerdown` clears it, captured.
+
+380ms delay, dropping to ~0 while another tip is already up, so crossing a row
+of buttons doesn't flicker. Clamped 96px from each edge.
+
+`barTip()` composes the course tip: name, span and length, trainer (or "has
+left, needs a trainer"), who is booked and what for, and the reason it is not
+ready.
+
+### Two faults, found by auditing this screen against Schedule.jsx and Calendar.jsx
+
+**A finished course accepted drops.** `dropVerdict` had no date check, so a
+delegate could be dragged onto a course that ended last year and the record
+would change. `Schedule.jsx:294,303` has always refused this. Now:
+`if (block.end < todayISO()) return { ok:false, why: '… has already finished' }`.
+
+**The rail's counts were honest and its lists were not.** `needsWork.slice(0,4)`,
+`thisMonth.slice(0,7)`, `pool.slice(0,6)`, `staff.slice(0,8)` — the heading said
+8 and the list showed 6, with no route to the rest. Each capped group now ends
+in a **Show the other N** control.
+
+### Verified
+
+Headless: tip appears on hover, names the trainer and booking count, clears on
+leave, appears on focus, Escape dismisses, no `title` attributes left on the
+toolbar, the capped-list control appears and reveals the rest. Desktop and touch
+suites both re-run unchanged.
+
+### Also produced this session: a feature audit for hiding the old screens
+
+Two read-only audits of `Calendar.jsx` and `Schedule.jsx` against
+`CalendarNext.jsx`. Neither can be hidden yet — see the session summary. The
+short version: the new calendar never loads holidays or engagements, cannot
+delete a block, and is admin-only for writes while the SCHEDULER role exists to
+do exactly this work.
+
 ## 2026-08-30 (later) — mobile, and a class-name collision that broke a button
 
 ### The bug: `.cx-ghost` defined twice, for two different things

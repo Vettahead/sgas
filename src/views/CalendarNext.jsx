@@ -61,6 +61,31 @@ const kindOf = (k) => KIND[k] || KIND.NEW
    on a one-delegate course is a solid line nobody reads as information and on
    a ten-delegate course is a smear. What anyone actually wants to know is
    whether this course is all one thing or a mixture. */
+/* What a course says when you hover it. Deliberately repeats what the panel
+   shows on click — a tip must never be the ONLY route to a fact, because a
+   tablet has no hover. This is the shortcut for a mouse, not a hiding place. */
+function barTip(b) {
+  if (!b) return ''
+  if (b.isHoliday) return `${b.course || b.title}\n${span(b.start, b.end)} \u00b7 time off`
+  const days = between(b.start, b.end) + 1
+  const lines = [
+    b.course || b.title,
+    `${span(b.start, b.end)} \u00b7 ${days} day${days === 1 ? '' : 's'}`,
+    b.trainerGone ? `${b.trainer} \u2014 has left, needs a trainer`
+      : b.trainer ? `Trainer: ${b.trainer}` : 'No trainer yet',
+  ]
+  const n = b.delegates?.length || 0
+  const kinds = {}
+  for (const d of b.delegates || []) {
+    const l = kindOf(d.kind).label
+    kinds[l] = (kinds[l] || 0) + 1
+  }
+  const mix = Object.entries(kinds).map(([l, c]) => `${c} ${l.toLowerCase()}`).join(', ')
+  lines.push(n === 0 ? 'Nobody booked on yet' : `${n} booked${mix ? ` \u00b7 ${mix}` : ''}`)
+  if (!b.ready) lines.push(!b.trainerId ? '\u26a0 Needs a trainer' : n === 0 ? '\u26a0 Needs delegates' : '\u26a0 Needs attention')
+  return lines.join('\n')
+}
+
 const kindsOn = (delegates) => {
   const seen = new Set()
   for (const d of delegates || []) seen.add(kindOf(d.kind).c)
@@ -145,6 +170,20 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const [jump, setJump] = useState(false)
   // Off by default: the key is a reference, not part of reading the calendar.
   const [showKey, setShowKey] = useState(false)
+  // The rail's headings always showed the true count while the list underneath
+  // was cut to a handful with no way to reach the rest — so "Waiting to be
+  // placed 8" listed six people and the other two were simply gone.
+  const [showAll, setShowAll] = useState({})
+  const cap = (id, list, n) => (showAll[id] ? list : list.slice(0, n))
+  const More = ({ id, list, n }) => (list.length > n && !showAll[id] ? (
+    <button type="button" className="cx-more" onClick={() => setShowAll((s) => ({ ...s, [id]: true }))}>
+      Show the other {list.length - n}
+    </button>
+  ) : list.length > n ? (
+    <button type="button" className="cx-more" onClick={() => setShowAll((s) => ({ ...s, [id]: false }))}>
+      Show fewer
+    </button>
+  ) : null)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
 
   async function load() {
@@ -321,6 +360,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
     if (!d || !over) return null
     const block = over.type === 'course' ? (blocks || []).find((b) => String(b.id) === String(over.id)) : null
     if (over.type === 'course' && (!block || block.isHoliday || block.isEngagement)) return null
+    // A course that has already run is history. The Schedule board has always
+    // refused to change one; this screen did not, so somebody could be dropped
+    // onto a course that finished last year and the record would quietly change.
+    if (block && block.end < todayISO()) {
+      return { ok: false, why: `${block.course} has already finished` }
+    }
     if (d.kind === 'staff') {
       if (over.type !== 'course') return null
       if (String(block.trainerId) === String(d.item.staff_id)) return { ok: false, why: `${d.label} already has it` }
@@ -654,10 +699,10 @@ export default function CalendarNext({ isAdmin, user, go }) {
             </div>
           )}
           <div className="cx-steps">
-            <button onClick={() => step(-1)} aria-label="Previous month">‹</button>
-            <button onClick={() => step(1)} aria-label="Next month">›</button>
+            <button onClick={() => step(-1)} aria-label="Previous month" data-tip="Previous">‹</button>
+            <button onClick={() => step(1)} aria-label="Next month" data-tip="Next">›</button>
           </div>
-          <button className="cx-today" onClick={goToday}>Today</button>
+          <button className="cx-today" onClick={goToday} data-tip="Jump back to today">Today</button>
           {/* Beside the controls, not in a band of its own above the grid. */}
           <button type="button" className="cx-keybtn" aria-expanded={showKey}
             onClick={() => setShowKey((k) => !k)}>
@@ -671,22 +716,23 @@ export default function CalendarNext({ isAdmin, user, go }) {
             ))}
           </div>
           <button className={'cx-icon' + (dense ? ' on' : '')} onClick={() => setDense(!dense)}
-            aria-pressed={dense} title={dense ? 'Roomier rows' : 'Fit more in'}
-            aria-label={dense ? 'Roomier rows' : 'Fit more in'}>{dense ? '\u2637' : '\u2630'}</button>
+            aria-pressed={dense} aria-label={dense ? 'Roomier rows' : 'Fit more in'}
+            data-tip={dense ? 'Roomier rows' : 'Fit more courses on screen'}>{dense ? '\u2637' : '\u2630'}</button>
           <button className={'cx-icon cx-railbtn' + (rail ? ' on' : '')} onClick={() => setRail((r) => !r)}
             aria-pressed={rail} aria-label={rail ? 'Hide the side panel' : 'Show the side panel'}
-            title={rail ? 'Hide the side panel' : 'Show the side panel'}>
+            data-tip={rail ? 'Hide the side panel' : `Show the side panel${needsWork.length ? ` \u00b7 ${needsWork.length} need attention` : ''}`}>
             ▤{!rail && needsWork.length > 0 && <em>{needsWork.length}</em>}
           </button>
           <button className="cx-icon" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
+            aria-label={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            data-tip={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
             {theme === 'dark' ? '☀' : '☾'}
           </button>
           {/* The words go on a phone: they cost about 100px, which is the
               difference between the toolbar fitting on two rows and spilling
               onto a third. The ＋ and the tooltip carry it. */}
           {isAdmin && (
-            <button className="cx-primary" onClick={() => go?.('setup')} title="New course">
+            <button className="cx-primary" onClick={() => go?.('setup')} data-tip="Set up a new course">
               ＋<span className="cx-lbl">New course</span>
             </button>
           )}
@@ -784,8 +830,9 @@ export default function CalendarNext({ isAdmin, user, go }) {
                         if (e.target.classList.contains('cx-grab')) barDown(s.b, e, 'move')
                         else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
                       }}
-                      onClick={(e) => openAt(s.b, e)}>
-                      {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" title="Drag to move the whole course" />}
+                      onClick={(e) => openAt(s.b, e)}
+                      data-tip={barTip(s.b)}>
+                      {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" />}
                       {/* Two lines, not one. A course is an object with a name
                           and a second fact about it — who is teaching it and how
                           many people are on it. Encoding that in a dot and a
@@ -810,7 +857,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                           </span>
                         )}
                       </span>
-                      {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" title="Drag to change how many days it runs" />}
+                      {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" />}
                       {hint && preview?.id === s.b.id && s.head && <span className="cx-chip-len">{hint}</span>}
                     </button>
                   ))}
@@ -825,23 +872,24 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {needsWork.length > 0 && (
             <RailCard id="needs" title="Needs attention" count={needsWork.length}
               shut={shut} onToggle={toggleCard} className="cx-warn">
-              {needsWork.slice(0, 4).map((b) => (
+              {cap('needs', needsWork, 4).map((b) => (
                 <button key={b.id} className="cx-row" data-bid={b.id} style={{ '--c': b.color || '#5b6b80' }}
-                  onClick={(e) => openAt(b, e)}>
+                  data-tip={barTip(b)} onClick={(e) => openAt(b, e)}>
                   <i />
                   <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left` : 'no delegates'} · {shortDate(b.start)}</small></span>
                   <em className="cx-flag" aria-hidden="true" />
                 </button>
               ))}
+              <More id="needs" list={needsWork} n={4} />
             </RailCard>
           )}
 
           <RailCard id="month" title={`In ${monthLabel}`} count={thisMonth.length}
             shut={shut} onToggle={toggleCard}>
             {thisMonth.length === 0 && <p className="cx-empty">No courses {view === 'Year' ? 'this year' : 'this month'}.</p>}
-            {thisMonth.slice(0, 7).map((b) => (
+            {cap('month', thisMonth, 7).map((b) => (
               <button key={b.id} className="cx-row" data-bid={b.id} style={{ '--c': b.color || '#5b6b80' }}
-                onClick={(e) => openAt(b, e)}>
+                data-tip={barTip(b)} onClick={(e) => openAt(b, e)}>
                 <i />
                 <span>
                   <b>{b.course}</b>
@@ -849,6 +897,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                 </span>
               </button>
             ))}
+            <More id="month" list={thisMonth} n={7} />
           </RailCard>
 
           <RailCard id="pool" title="Waiting to be placed" count={pool.length}
@@ -857,14 +906,16 @@ export default function CalendarNext({ isAdmin, user, go }) {
               + (drag?.over?.type === 'pool' ? ' on' : '')}>
             {isAdmin && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
-            {pool.slice(0, 6).map((p) => (
+            {cap('pool', pool, 6).map((p) => (
               <div key={p.id} className={'cx-row' + (isAdmin ? ' grabby' : ' static')}
                 style={{ '--c': schemeColour(p.scheme) }}
+                data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting${isAdmin ? '\nDrag or tap to put them on a course' : ''}`}
                 onPointerDown={(e) => dragStart('pool', p, p.name, schemeColour(p.scheme), e)}>
                 <i />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
               </div>
             ))}
+            <More id="pool" list={pool} n={6} />
             {(drag?.kind === 'delegate' || placing?.kind === 'delegate') &&
               <p className="cx-dropnote">{drag ? 'Drop here' : 'Tap here'} to take them off the course</p>}
           </RailCard>
@@ -872,13 +923,15 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {isAdmin && staff.length > 0 && (
             <RailCard id="trainers" title="Trainers" count={staff.length} shut={shut} onToggle={toggleCard}>
               <p className="cx-hintline">Drag or tap one onto a course.</p>
-              {staff.slice(0, 8).map((t) => (
+              {cap('trainers', staff, 8).map((t) => (
                 <div key={t.staff_id} className="cx-row grabby" style={{ '--c': '#334155' }}
+                  data-tip={`${t.name}\n${teaching(t.staff_id)}\nDrag or tap to put them on a course`}
                   onPointerDown={(e) => dragStart('staff', t, t.name, '#334155', e)}>
                   <i />
                   <span><b>{t.name}</b><small>{teaching(t.staff_id)}</small></span>
                 </div>
               ))}
+              <More id="trainers" list={staff} n={8} />
             </RailCard>
           )}
         </aside>
