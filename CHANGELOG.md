@@ -4,6 +4,61 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — the NYC / no-show reschedule pool on the calendar
+
+Blocker 1 of 2 for retiring the Schedule board. `getReschedulePool()` and
+`rescheduleDelegate()` already existed and were already correct; nothing in
+`api.js` changed. What was missing was any entry point outside `Schedule.jsx`.
+
+**Its own rail card, not merged into the waiting list.** Schedule merges the two.
+Merged, a re-sit sorts wherever the alphabet puts it and drops below the six-row
+cap — which is exactly how somebody already paid up and already promised a place
+gets forgotten. A separate card also keeps its count visible when the rail is
+folded.
+
+**Colours reuse the existing vocabulary.** `KIND` already carried
+`NYC: #b7791f` and `NO_SHOW: #c0392b`, the same amber and red `kindsOn()` puts
+in a bar's stripe. The dot down the side stays the SCHEME colour so the rail
+keeps one colour language and the legend under the chips stays true; the reason
+rides as a `.cx-resit-tag` pill in the kind colour.
+
+**One gesture, two calls.** `isResit(p)` tests the `rb-` id prefix from
+`reschedEntry()`. A plain pool entry is `addDelegatesToBlock` (a new booking); a
+re-sit is `rescheduleDelegate(bookingId, sessionId)`, which re-books the
+ORIGINAL booking's non-PASS categories and flags the old one `rescheduled`.
+Getting that fork wrong would charge somebody twice, so it is applied at all
+four entry points: drag onto a course, drop onto empty days (booking a new
+course for them), the chip list inside a course, and `creating.forPool`.
+
+`dropVerdict` says which it is and what it costs them:
+*"Hassan Iqbal re-sits Domestic Gas ACS Initial — the 3 they did not pass"*.
+
+**Both lists can hold the same person, and both stay.** The pool is unplaced
+bookings; the re-sit list is derived from assessed ones. A first pass deduped by
+client+scheme — wrong: they are different bookings and hiding one loses a real
+booking. Now both show and the pool entry is labelled *"also owed a re-sit"*,
+with a tip spelling out that they are two different things. (In LIVE this
+overlap should not normally arise: `loadPool()` reads bookings with no
+`session_id`, and an assessed booking has one. It is the demo fixture that
+overlaps, pool entry 101 and booking 3 both being client 3's three categories.)
+
+New `resit.mjs`, 11 checks + a read-only pass. It books a course in the FUTURE
+first, because every course in the demo seed has already run and the calendar
+rightly refuses to change one that has — so this is end-to-end rather than a
+drop onto a fixture. It asserts the tag colours are exactly `rgb(183,121,31)`
+and `rgb(192,57,43)`, that the drag says "re-sit", that they leave the list,
+land on the course, and carry only their remaining codes.
+
+### Known gap, deliberately not papered over
+
+Once placed, a re-sit reads as an ordinary delegate — `New` in green.
+`rescheduleDelegate` creates a NEW booking and nothing on it records that it came
+from an NYC; the history lives on the OLD booking (`disposition` + `rescheduled`).
+So the kind dot and the bar stripe do not carry amber or red onto the course.
+Fixing it properly needs a column (`booking.resat_from`), which is Chris's call,
+not a silent schema change. `resit.mjs` PRINTS this rather than asserting it, so
+it cannot quietly become untrue in either direction.
+
 ## 2026-08-30 (night, later) — FOUND IT: `.cx-pop` was inheriting `.top`
 
 Not a paint bug. Not the placement maths. A **class-name collision**, proven

@@ -19,6 +19,18 @@
 
 export const RELEASES = [
   {
+    v: '1.33.0', build: 170, date: '30 Aug 2026',
+    title: 'People owed a re-sit are on the calendar now',
+    notes: [
+      'Anyone who did not complete (NYC) or did not turn up has their own list in the panel on the right \u2014 \u201cWaiting to re-sit\u201d \u2014 sitting above the ordinary waiting list. Until now that list only existed on the Schedule board, so if you worked off the calendar they were invisible. They are the people most easily forgotten and the ones most likely to ring up asking when they are going back on.',
+      'They have their own card rather than being mixed into the waiting list on purpose: it keeps their count visible even when the panel is folded up, and it stops them dropping below the fold behind newer bookings.',
+      'THE COLOURS ARE THE ONES YOU ALREADY KNOW. Amber for NYC, red for no-show \u2014 the same two the course bars use for the dots that tell you what a mixed course is made of. Each person carries the tag, and the dot down the side still tells you which scheme they are waiting for, so nothing has changed meaning.',
+      'Dropping one onto a course books them back in FOR WHAT THEY DID NOT PASS \u2014 not a new booking, and not charged again. The panel that follows your finger says exactly that as you drag: \u201cHassan Iqbal re-sits Domestic Gas ACS \u2014 the 3 they did not pass\u201d. They are also in the \u201cAdd someone from the waiting list\u201d chips inside a course, tagged the same way and listed first.',
+      'If somebody is both owed a re-sit AND has a separate new booking waiting, both show, and the new one is marked \u201calso owed a re-sit\u201d. Two different things that must not be confused for one another \u2014 hiding either would lose a real booking.',
+      'ONE THING IT DOES NOT DO YET, worth knowing: once you put them on a course they read as an ordinary delegate, because re-booking creates a fresh booking and nothing on it records where it came from. The list of qualifications is right \u2014 only the ones they still need \u2014 but the amber or red does not follow them onto the course. That needs a small database change; ask me and I will do it.',
+    ],
+  },
+  {
     v: '1.32.3', build: 169, date: '30 Aug 2026',
     title: 'Found it: the course panel was borrowing the page header\u2019s styling',
     notes: [

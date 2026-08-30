@@ -1650,6 +1650,17 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-addnote b{font-weight:700;color:var(--cx-ink)}
 .cx-add .cx-chips{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .cx-course-pop .cx-delg li{border-left:4px solid var(--s);border-radius:4px 9px 9px 4px;padding-left:10px}
+/* Owed a re-sit (NYC / no-show). The dot and the chip's left edge stay the
+   SCHEME colour so the rail keeps one colour language and the legend under the
+   chips stays true; the REASON rides as a small tag in the kind colour — the
+   same amber and red the course bars already use for these two. */
+.cx-resit-tag{display:inline-block;font-style:normal;font-weight:700;font-size:9px;
+  line-height:1;letter-spacing:.04em;text-transform:uppercase;color:#fff;
+  background:var(--k,var(--cx-warn));border-radius:99px;padding:3px 6px;margin-right:6px}
+.cx-pchip .cx-resit-tag{margin:0 0 0 6px;vertical-align:1px}
+.cx-row.cx-resit small{opacity:1}
+.cx-alsoresit{font-style:normal;color:var(--cx-warn);font-weight:600}
+
 .cx-pchip.already{opacity:.55}
 .cx-pchip.already small{color:var(--cx-warn);font-weight:600}
 

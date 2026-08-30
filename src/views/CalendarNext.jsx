@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
+  getReschedulePool, rescheduleDelegate,
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
@@ -110,6 +111,14 @@ const kindsOn = (delegates) => {
   for (const d of delegates || []) seen.add(kindOf(d.kind).c)
   return [...seen].slice(0, 4)
 }
+/* A re-sit carries the id 'rb-<bookingId>' from getReschedulePool(). That
+   prefix is what decides which call books them: a plain waiting-list entry is
+   a new booking (addDelegatesToBlock), a re-sit re-books the ORIGINAL booking's
+   remaining qualifications onto the new course (rescheduleDelegate) and closes
+   the old one off. Getting that wrong would charge somebody twice. */
+const isResit = (p) => String(p?.id || '').startsWith('rb-')
+const resitWord = (p) => (p?.kind === 'NO_SHOW' ? 'no-show' : 'NYC')
+
 // A delegate doing only part of a course — the "split" case.
 const isPart = (d) => !!(d.attendFrom || d.attendTo)
 
@@ -150,6 +159,21 @@ export default function CalendarNext({ canWrite, user, go }) {
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
   const [pool, setPool] = useState([])
+  /* People owed a RE-SIT — they did not complete (NYC) or did not turn up.
+     A separate list from the plain waiting pool on purpose: they are already
+     paid-for and already promised a place, and burying them under new
+     bookings is how they get forgotten. This existed only on the Schedule
+     board, which is why the board could not be retired. */
+  const [resits, setResits] = useState([])
+  /* The same person can appear in BOTH lists, and they are NOT the same thing:
+     the waiting pool holds unplaced bookings, the re-sit list is derived from
+     bookings that came back NYC or no-show. One entry takes a NEW booking, the
+     other re-books what they did not pass. Hiding either would lose a real
+     booking, so both stay and the overlap is LABELLED — the one thing you must
+     not do here is let someone pick the wrong one without knowing. */
+  const alsoResit = useMemo(
+    () => new Set(resits.map((r) => String(r.clientId))), [resits])
+  const waiting = pool
   const [view, setView] = useState(() => readLS(VIEW_KEY, 'Month'))
   // One date drives every view. Keeping a separate `month` meant paging to
   // July in Month and then clicking Week threw you back to today.
@@ -233,10 +257,11 @@ export default function CalendarNext({ canWrite, user, go }) {
      per kind — is what makes calendars unmaintainable. `isHoliday` and
      `isEngagement` were already threaded through this file waiting for them. */
   async function load() {
-    const [b, s, h, cs, eng, set] = await Promise.all([
+    const [b, s, h, cs, eng, set, rb] = await Promise.all([
       listBlocks(), listStaff(), listHolidays(), listCourses(),
       listEngagements(user?.user_id, user?.staffId).catch(() => []),
       getSettings().catch(() => ({})),
+      getReschedulePool().catch(() => []),
     ])
     const holBlocks = h.map((x) => ({
       id: 'h' + x.holidayId, holidayId: x.holidayId, isHoliday: true,
@@ -258,7 +283,7 @@ export default function CalendarNext({ canWrite, user, go }) {
       trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const all = [...b, ...holBlocks, ...engBlocks]
-    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool())
+    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool()); setResits(rb)
     setSettings(set)
     setCourses(cs.filter((c) => c.is_active !== false))
     return all
@@ -539,9 +564,18 @@ export default function CalendarNext({ canWrite, user, go }) {
       if (over.type === 'course') {
         if (block.delegates.some((x) => x.name === d.label)) return { ok: false, why: `${d.label} is already on it` }
         const clash = d.item.scheme && block.scheme && d.item.scheme !== block.scheme
-        return { ok: true, warn: clash, why: clash ? `${d.label} is waiting for ${d.item.scheme}, not ${block.scheme}` : `${d.label} joins ${block.course}` }
+        // A re-sit says so, and says what they are going back on FOR — they
+        // re-sit only what they did not pass, which is the whole point and is
+        // not obvious from a name on a chip.
+        const n = d.item.count || 0
+        const back = isResit(d.item)
+          ? `${d.label} re-sits ${block.course} \u2014 the ${n} ${n === 1 ? 'one' : 'they'} did not pass`
+          : `${d.label} joins ${block.course}`
+        return { ok: true, warn: clash, why: clash ? `${d.label} is waiting for ${d.item.scheme}, not ${block.scheme}` : back }
       }
-      if (over.type === 'day') return { ok: true, why: `Book a course for ${d.label} on ${fmt(over.d)}` }
+      if (over.type === 'day') return { ok: true, why: isResit(d.item)
+        ? `Book a course for ${d.label} to re-sit on ${fmt(over.d)}`
+        : `Book a course for ${d.label} on ${fmt(over.d)}` }
       return null
     }
     if (d.kind === 'delegate') {
@@ -691,9 +725,13 @@ export default function CalendarNext({ canWrite, user, go }) {
         await load(); setFlash(String(block.id)); setTimeout(() => setFlash(null), 900)
         toast(`${d.label} is teaching ${block.course}`)
       } else if (d.kind === 'pool' && over.type === 'course') {
-        await addDelegatesToBlock(block.id, [d.item.id])
+        // Two different calls behind one gesture — see isResit above.
+        if (isResit(d.item)) await rescheduleDelegate(d.item.bookingId, block.id)
+        else await addDelegatesToBlock(block.id, [d.item.id])
         await load(); setFlash(String(block.id)); setTimeout(() => setFlash(null), 900)
-        toast(`${d.label} added to ${block.course}`)
+        toast(isResit(d.item)
+          ? `${d.label} is back on for ${block.course}`
+          : `${d.label} added to ${block.course}`)
       } else if (d.kind === 'pool' && over.type === 'day') {
         // Booking a course FOR somebody: the panel opens on that day with the
         // course list narrowed to what they are waiting for, and they go on it
@@ -1111,22 +1149,54 @@ export default function CalendarNext({ canWrite, user, go }) {
             <More id="month" list={thisMonth} n={7} />
           </RailCard>
 
-          <RailCard id="pool" title="Waiting to be placed" count={pool.length}
+          {/* A CARD OF THEIR OWN, above the waiting list. These people have
+              already paid and have already been promised a place — they did not
+              complete, or did not turn up. Merged into the waiting list they sit
+              wherever the alphabet puts them and drop below the fold, which is
+              exactly how somebody owed a re-sit gets forgotten. A separate card
+              also keeps its count visible when the rail is folded up. */}
+          {resits.length > 0 && (
+            <RailCard id="resits" title="Waiting to re-sit" count={resits.length}
+              shut={shut} onToggle={toggleCard}>
+              {canWrite && <p className="cx-hintline">They go back on for what they did not pass. Drag or tap, then drop on a course.</p>}
+              {cap('resits', resits, 6).map((r) => (
+                <div key={r.id} className={'cx-row cx-resit' + (canWrite ? ' grabby' : ' static')}
+                  style={{ '--c': schemeColour(r.scheme), '--k': kindOf(r.kind).c }}
+                  data-tip={`${r.name}\n${kindOf(r.kind).label} \u2014 owed a re-sit\n${r.scheme || 'No scheme'} \u00b7 ${r.count} to re-sit${canWrite ? '\nDrag or tap to put them back on a course' : ''}`}
+                  onPointerDown={(e) => dragStart('pool', r, r.name, kindOf(r.kind).c, e)}>
+                  <i />
+                  <span>
+                    {/* The tag rides on the SECOND line: .cx-row b truncates
+                        with an ellipsis, so a long name would eat it. */}
+                    <b>{r.name}</b>
+                    <small><em className="cx-resit-tag">{resitWord(r)}</em>{r.scheme || '\u2014'}{' \u00b7 '}{r.count} to re-sit</small>
+                  </span>
+                </div>
+              ))}
+              <More id="resits" list={resits} n={6} />
+            </RailCard>
+          )}
+
+          <RailCard id="pool" title="Waiting to be placed" count={waiting.length}
             shut={shut} onToggle={toggleCard}
             className={'cx-droppool' + (drag?.kind === 'delegate' || placing?.kind === 'delegate' ? ' armed' : '')
               + (drag?.over?.type === 'pool' ? ' on' : '')}>
             {canWrite && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
-            {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
-            {cap('pool', pool, 6).map((p) => (
+            {waiting.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
+            {cap('pool', waiting, 6).map((p) => (
               <div key={p.id} className={'cx-row' + (canWrite ? ' grabby' : ' static')}
                 style={{ '--c': schemeColour(p.scheme) }}
-                data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting${canWrite ? '\nDrag or tap to put them on a course' : ''}`}
+                data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting`
+                  + (alsoResit.has(String(p.clientId)) ? '\nThis is a NEW booking. They are also in "Waiting to re-sit" for a course they did not pass — two different things.' : '')
+                  + (canWrite ? '\nDrag or tap to put them on a course' : '')}
                 onPointerDown={(e) => dragStart('pool', p, p.name, schemeColour(p.scheme), e)}>
                 <i />
-                <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
+                <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}
+                  {alsoResit.has(String(p.clientId)) && <em className="cx-alsoresit"> · also owed a re-sit</em>}
+                </small></span>
               </div>
             ))}
-            <More id="pool" list={pool} n={6} />
+            <More id="pool" list={waiting} n={6} />
             {(drag?.kind === 'delegate' || placing?.kind === 'delegate') &&
               <p className="cx-dropnote">{drag ? 'Drop here' : 'Tap here'} to take them off the course</p>}
           </RailCard>
@@ -1336,7 +1406,14 @@ export default function CalendarNext({ canWrite, user, go }) {
                   const id = await createBlock({ courseId: Number(creating.courseId), from: f, to })
                   // Dragged somebody onto the calendar? They go on it, or the
                   // drag did nothing and you would have to add them by hand.
-                  if (creating.forPool) { try { await addDelegatesToBlock(id, [creating.forPool.id]) } catch { /* the course is booked either way */ } }
+                  if (creating.forPool) {
+                    // Same fork as a drop onto an existing course: a re-sit
+                    // re-books the original booking, it is not a new one.
+                    try {
+                      if (isResit(creating.forPool)) await rescheduleDelegate(creating.forPool.bookingId, id)
+                      else await addDelegatesToBlock(id, [creating.forPool.id])
+                    } catch { /* the course is booked either way */ }
+                  }
                   const who = creating.forPool?.name
                   const moved = f !== creating.from || to !== creating.to
                   setCreating(null)
@@ -1473,7 +1550,7 @@ export default function CalendarNext({ canWrite, user, go }) {
                     </ul>}
                 {/* Quiet until you want it — eight name chips permanently on
                     show made the popover twice as tall as it needed to be. */}
-                {canWrite && pool.length > 0 && (() => {
+                {canWrite && (resits.length + waiting.length) > 0 && (() => {
                   // Whoever is waiting for THIS scheme belongs at the top, and
                   // everyone carries the colour of what they are waiting for —
                   // you can see who fits without reading a single line.
@@ -1482,26 +1559,38 @@ export default function CalendarNext({ canWrite, user, go }) {
                   // rather than a filter — but adding the same person twice by
                   // accident is easy and nothing here undoes it.
                   const onIt = new Set(open.delegates.map((d) => d.name))
-                  const sorted = [...pool].sort((a, z) => (fits(z) ? 1 : 0) - (fits(a) ? 1 : 0)
+                  // Re-sits first within their fit group: they are already owed
+                  // a place, so they should never be the ones cut off by the cap.
+                  const sorted = [...resits, ...waiting].sort((a, z) => (fits(z) ? 1 : 0) - (fits(a) ? 1 : 0)
+                    || (isResit(z) ? 1 : 0) - (isResit(a) ? 1 : 0)
                     || (a.scheme || '').localeCompare(z.scheme || '') || a.name.localeCompare(z.name))
                   const n = sorted.filter(fits).length
                   return (
                     <details className="cx-add">
-                      <summary>Add someone from the waiting list<span>{pool.length}</span></summary>
+                      <summary>Add someone from the waiting list<span>{resits.length + waiting.length}</span></summary>
                       <div className="cx-chips">
                         {sorted.slice(0, 12).map((x) => (
-                          <button key={x.id} className={'cx-chip cx-pchip' + (fits(x) ? ' fits' : '') + (onIt.has(x.name) ? ' already' : '')}
-                            disabled={busy} style={{ '--s': schemeColour(x.scheme) }}
-                            title={onIt.has(x.name)
+                          <button key={x.id} className={'cx-chip cx-pchip' + (fits(x) ? ' fits' : '') + (onIt.has(x.name) ? ' already' : '') + (isResit(x) ? ' resit' : '')}
+                            disabled={busy} style={{ '--s': schemeColour(x.scheme), '--k': kindOf(x.kind).c }}
+                            data-tip={onIt.has(x.name)
                               ? `${x.name} is already on this course — this is a second booking`
-                              : `${x.name} — waiting for ${x.scheme || 'no scheme'}, ${x.count} qualification${x.count === 1 ? '' : 's'}`}
+                              : isResit(x)
+                                ? `${x.name} — ${resitWord(x)}, owed a re-sit\nGoes back on for the ${x.count} they did not pass, not a new booking`
+                                : `${x.name} — waiting for ${x.scheme || 'no scheme'}, ${x.count} qualification${x.count === 1 ? '' : 's'}`}
                             onClick={async () => {
                               setBusy(true)
-                              try { await addDelegatesToBlock(open.id, [x.id]); const f = await load(); setOpen(f.find((y) => y.id === open.id) || null); toast(`${x.name} added`) }
+                              try {
+                                if (isResit(x)) await rescheduleDelegate(x.bookingId, open.id)
+                                else await addDelegatesToBlock(open.id, [x.id])
+                                const f = await load(); setOpen(f.find((y) => y.id === open.id) || null)
+                                toast(isResit(x) ? `${x.name} is back on` : `${x.name} added`)
+                              }
                               catch (err) { toast(err.message) } finally { setBusy(false) }
                             }}>
-                            <b>{x.name}</b>
-                            <small>{onIt.has(x.name) ? 'already on this course' : `${x.scheme || 'no scheme'} · ${x.count}`}</small>
+                            <b>{x.name}{isResit(x) && <em className="cx-resit-tag">{resitWord(x)}</em>}</b>
+                            <small>{onIt.has(x.name) ? 'already on this course'
+                              : isResit(x) ? `re-sitting ${x.count}`
+                              : `${x.scheme || 'no scheme'} · ${x.count}`}</small>
                           </button>
                         ))}
                       </div>
@@ -1510,6 +1599,9 @@ export default function CalendarNext({ canWrite, user, go }) {
                           ? <><b>{n} of these {n === 1 ? 'is' : 'are'} waiting for {open.scheme}</b> — shown first. </>
                           : <>Nobody here is waiting for {open.scheme || 'this scheme'}. </>}
                         The line down the side is what each person is waiting for.
+                        {resits.length > 0 && <> Anyone marked <b>NYC</b> or <b>no-show</b> is owed a re-sit
+                          — putting them on a course books them back in for only the qualifications
+                          they did not pass, and does not charge them again.</>}
                       </p>
                     </details>
                   )
