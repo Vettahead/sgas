@@ -19,6 +19,20 @@
 
 export const RELEASES = [
   {
+    v: '1.31.0', build: 165, date: '30 Aug 2026',
+    title: 'One calendar. The old one has gone.',
+    notes: [
+      'There is now ONE Calendar in the menu instead of two. Everything the old one could do, the new one does \u2014 and it does more.',
+      'STAFF TIME OFF IS BACK ON THE CALENDAR, which was the big missing piece: you can see it, book it, ask for it, approve or reject a request, and remove it. Personal diary entries are there too \u2014 a title, a date, a start and end time, and anyone else who is going.',
+      'You can now REMOVE a course. There was no way to do that at all before. It asks you once first, and the system still refuses if anybody is booked on it \u2014 take them off first.',
+      'Assessor and verifier are on the course panel. They were on the old screen and nowhere on the new one, which matters when an auditor asks who assessed what.',
+      'A FILTER, next to \u201cWhat the marks mean\u201d: narrow by scheme, by trainer, hide courses that have already finished, or show courses only. It tells you how many it is hiding, and Clear puts everything back. Courses with NO trainer stay visible when you filter by trainer \u2014 hiding exactly the ones that need staffing would be the wrong way round.',
+      'A course runs Monday to Friday again. You could previously drag one onto a Saturday; it now moves itself off the weekend and says so, and refuses a course that would run only over a weekend.',
+      'SCHEDULERS CAN SCHEDULE. The new calendar was read-only for everybody except an Admin \u2014 including the one role that exists to do this job. Reception now gets the calendar too, to look at.',
+      'The three places that used to jump to the old calendar \u2014 two on the Dashboard and \u201cSee it on the calendar\u201d at the end of the booking wizard \u2014 now open the new one.',
+    ],
+  },
+  {
     v: '1.30.0', build: 164, date: '30 Aug 2026',
     title: 'Turn the phone sideways for the calendar \u2014 and the menu bug that found',
     notes: [

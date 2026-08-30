@@ -17,12 +17,18 @@ export const ROLE_LABELS = {
   ACCOUNTS: 'Accounts',
 }
 
+// 'calendar' — the ORIGINAL calendar — is deliberately absent from every role
+// as of 30 Aug 2026: the new one now does everything it did. The view and the
+// file both remain, because Schedule renders the Calendar component as its own
+// tab and Dashboard/SetupWizard import MonthView and YearView from it. To put
+// the old tab back, add 'calendar' here and restore its NAV_GROUPS entry.
+//
 // Views each role may open, listed in nav order. Used to build the sidebar AND
 // to guard the active view (a hand-typed/stale view falls back to the default).
 export const ROLE_VIEWS = {
-  ADMIN: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendar', 'calendarnext', 'assess', 'pay', 'delegates', 'companies', 'courses', 'admin', 'roadmap', 'changelog', 'help'],
-  STANDARD: ['dash', 'inquiries', 'book', 'calendar', 'delegates', 'companies', 'help'],
-  SCHEDULER: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendar', 'calendarnext', 'help'],
+  ADMIN: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendarnext', 'assess', 'pay', 'delegates', 'companies', 'courses', 'admin', 'roadmap', 'changelog', 'help'],
+  STANDARD: ['dash', 'inquiries', 'book', 'calendarnext', 'delegates', 'companies', 'help'],
+  SCHEDULER: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendarnext', 'help'],
   ASSESSOR: ['dash', 'assess', 'help'],
   ACCOUNTS: ['dash', 'pay', 'help'],
 }
@@ -42,4 +48,15 @@ export function defaultView(role) {
 
 export function roleLabel(role) {
   return ROLE_LABELS[role] || 'Staff'
+}
+
+
+/* Who may CHANGE the schedule, as opposed to look at it.
+   The calendar used to gate every write on `isAdmin`, which locked out the one
+   role that exists to do this work: a scheduler could open the new calendar and
+   change nothing on it, while the Schedule board let them do as they liked.
+   Reception (STANDARD) keeps the calendar read-only — the role model above has
+   said "no scheduling" since the review meeting. */
+export function canSchedule(role) {
+  return role === 'ADMIN' || role === 'SCHEDULER'
 }

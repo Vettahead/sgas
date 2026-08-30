@@ -4,6 +4,89 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (evening) — the old Calendar is out of the menu
+
+Nine of the ten blockers from this morning's audit, closed. `calendar` is gone
+from every role in `roles.js` and from `NAV_GROUPS`; `calendarnext` is now
+labelled simply **Calendar**.
+
+**The file stays.** `Schedule.jsx:595` renders the `Calendar` component as its
+own tab and `Dashboard.jsx` / `SetupWizard.jsx` import `MonthView`, `YearView`
+and `cal` from it. Only the nav entry and the route are gone, and there is a
+comment in `roles.js` saying how to put them back.
+
+### Permissions — the one that mattered most
+
+`CalendarNext` gated **every** write on `isAdmin`, so a SCHEDULER — the role
+that exists to do this work — could open it and change nothing. New
+`canSchedule(role)` in `roles.js` (ADMIN or SCHEDULER); the 36 uses of
+`isAdmin` inside the view are now `canWrite`, fed from it. STANDARD (reception)
+gains `calendarnext` read-only, which the role model has described as
+"no scheduling" since the review meeting.
+
+### Holidays and diary entries
+
+Both become blocks in `load()`, exactly as the old calendar shaped them, so one
+grid, one lane packer and one drag handler cover all three kinds — the
+alternative, a parallel layer per kind, is what makes calendars unmaintainable.
+The `isHoliday` / `isEngagement` branches already threaded through this file
+were dead code waiting for this.
+
+- **Create**: the "New course" popover became a three-way — Course / Time off /
+  Diary entry — hidden when somebody was dragged onto the grid, which is
+  unambiguously a booking. Anyone who cannot approve is *asking*, and can only
+  ask for themselves; same rule as the old screen.
+- **Open**: two new popovers. Time off shows note and status, offers
+  Approve/Reject to an approver, and Remove. A diary entry edits its date, times
+  and members inline.
+- **Drag**: `finish()` routes to `updateHoliday` / `updateEngagement` /
+  `updateBlock` by kind.
+
+### Delete, assessor, verifier
+
+`deleteBlock` was never imported — there was no way to remove a course at all.
+Two-step confirm inside the popover rather than a browser `confirm()`; the
+database still refuses when delegates are booked. Assessor and verifier get
+their own rows, with the same on-holiday marking the trainer picker has.
+
+### Filters
+
+Scheme chips, trainer chips, hide-finished, courses-only, Clear, and a count of
+what is hidden on the control itself. Persisted per device.
+**A course with no trainer stays visible under a trainer filter** — hiding
+exactly the courses that need staffing would be the wrong way round.
+
+### The weekend guard
+
+`snapWeekday()` ported. Applied on create, on typing the dates, and on the drag
+commit. A course that would run only over a weekend is refused; one that lands
+partly on a weekend moves itself off and says so. Time off and diary entries
+keep their real dates — they are not courses.
+
+### Inbound links
+
+`Dashboard.jsx` ×3 and `SetupWizard.jsx` ×1 repointed to `calendarnext`. The
+dashboard's own `'calendar'` CARD id is untouched — different thing.
+
+### Verified across three roles
+
+**Admin**: old calendar gone from the menu, exactly one Calendar, filters hide
+and report and clear, a course can be removed, assessor and verifier present.
+**Scheduler**: sees it, gets the drag handles, can change a trainer.
+**Reception**: sees it, gets no drag handles and no New course button.
+
+End to end, against the real UI: time off created → appears on the grid → opens
+with its note and status → removed. Diary entry created with a member → appears
+→ opens with its times → deleted. A course refused when dragged onto a weekend.
+Desktop, tips, portrait-touch and landscape suites all re-run green.
+
+### Still open — the Schedule board
+
+Four blockers remain there, unchanged: schedulers' write path (now solved on the
+calendar, so this is really about parity), the NYC/no-show reschedule pool, the
+**ACS form printing** (the October audit deliverable), and adding a
+qualification to an existing booking.
+
 ## 2026-08-30 (later still) — landscape on a phone, and an unreachable menu
 
 Chris asked whether landscape would help visibility on the calendar. Measured

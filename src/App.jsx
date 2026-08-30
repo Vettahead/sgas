@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { LIVE } from './lib/supabase.js'
 import logoUrl from './assets/sgas-logo-white.png'
-import { viewsForRole, defaultView, roleLabel } from './lib/roles.js'
+import { viewsForRole, defaultView, roleLabel, canSchedule } from './lib/roles.js'
 import { ToastHost } from './components/ToastHost.jsx'
 import TipHost from './components/Tip.jsx'
 import Login from './views/Login.jsx'
@@ -41,8 +41,10 @@ const TITLES = {
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
   sched: ['Schedule', 'Assign a trainer to each course block and add delegates (assessor & verifier are set in Assess)'],
-  calendar: ['Calendar', 'Drag to create blocks, move or resize them, and see everything by month, week, day, staff or year'],
-  calendarnext: ['Calendar — new look', 'A redesign, side by side with the one you know. Nothing here replaces it yet.'],
+  // The old calendar is no longer in the menu (see roles.js) but Schedule still
+  // renders it as a tab, so it keeps its title.
+  calendar: ['Calendar', 'Drag to create courses, move or resize them, and see everything by month, week, day or year'],
+  calendarnext: ['Calendar', 'Courses, time off and diary entries by month, week, day or year. Drag to move, resize or book.'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -61,8 +63,7 @@ const NAV_GROUPS = [
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'setup', ic: '🪄', label: 'Set up a course' },
     { v: 'sched', ic: '▤', label: 'Schedule' },
-    { v: 'calendar', ic: '📅', label: 'Calendar' },
-    { v: 'calendarnext', ic: '✨', label: 'Calendar — new look' },
+    { v: 'calendarnext', ic: '📅', label: 'Calendar' },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
@@ -261,7 +262,7 @@ export default function App() {
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'sched' && <Schedule user={user} isAdmin={isAdmin} go={go} />}
           {activeView === 'calendar' && <Calendar go={go} isAdmin={isAdmin} user={user} />}
-          {activeView === 'calendarnext' && <CalendarNext go={go} isAdmin={isAdmin} user={user} />}
+          {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}

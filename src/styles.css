@@ -1839,3 +1839,30 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
   .cx-bar-sub{display:none}
   .cx-bar-t{justify-content:center;font-size:11.5px}
 }
+
+
+/* ═══ CALENDAR: time off, diary entries, and removing things ════════════════ */
+/* Which of the three you are adding. Same segmented control as the view
+   switcher, so it is recognised rather than learned. */
+.cx-newkind{margin:0 14px 2px;align-self:flex-start}
+/* Two times reading as one range, the way the two dates above them do. */
+.cx-times{display:inline-flex;align-items:center;gap:7px}
+.cx-times input{min-width:0}
+.cx-times span{color:var(--cx-mute);font-size:12px}
+/* Chips that toggle — who else is on a diary entry. */
+.cx-chip.on{border-style:solid;border-color:var(--cx-brand);background:var(--cx-brand-soft);color:var(--cx-brand)}
+/* Removing something asks in place, never in a browser box. */
+.cx-del{margin-left:auto;color:var(--cx-mute)}
+.cx-del:hover{color:var(--cx-warn)}
+.cx-confirm{margin-left:auto;display:inline-flex;align-items:center;gap:8px;
+  font-weight:500;font-size:11.5px;color:var(--cx-ink)}
+.cx-danger{border:0;background:#c0392b;color:#fff;border-radius:8px;padding:6px 11px;
+  font-weight:500;font-size:11.5px;line-height:1;cursor:pointer}
+.cx-danger:hover{filter:brightness(1.08)}
+.cx-danger:disabled{opacity:.6;cursor:default}
+.cx-pop-foot{flex-wrap:wrap}
+
+/* The filter row reuses the key's row, and its chips are the modal's chips. */
+.cx-filters .cx-chip{padding:5px 10px;font-size:11.5px}
+.cx-keybtn.on{color:var(--cx-brand);font-weight:500}
+.cx-keybtn.on .cx-chev{opacity:.7}

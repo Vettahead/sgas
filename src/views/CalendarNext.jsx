@@ -2,9 +2,22 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
-  createBlock, setBookingAttendance,
+  createBlock, setBookingAttendance, deleteBlock,
+  createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
+  listEngagements, createEngagement, updateEngagement, deleteEngagement,
+  getSettings,
 } from '../lib/api.js'
 import { todayISO, fmt } from '../lib/util.js'
+
+/* A course runs Monday to Friday. The old calendar snapped every date it was
+   given and refused a course that would run only over a weekend; this one
+   committed whatever it was handed, so a course could be dragged onto a
+   Saturday. Same rule, same two lines. */
+function snapWeekday(iso, forward) {
+  const d = new Date(iso + 'T00:00:00')
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + (forward ? 1 : -1))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
 
 /* Dates for the rail, where the column is 300px and a wrapped second line
    doubles a row's height. fmt() gives "01 Jul 2026", which is the year twice
@@ -86,6 +99,11 @@ function barTip(b) {
   return lines.join('\n')
 }
 
+const NEW_LABEL = { course: 'New course', holiday: 'Time off', diary: 'Diary entry' }
+const NEW_CTA = { course: 'Book it', holiday: 'Add it', diary: 'Add it' }
+/* Enough filled in to save. Each kind needs a different one thing. */
+const newReady = (c) => c.kind === 'holiday' ? true : c.kind === 'diary' ? !!(c.title || '').trim() : !!c.courseId
+
 const kindsOn = (delegates) => {
   const seen = new Set()
   for (const d of delegates || []) seen.add(kindOf(d.kind).c)
@@ -115,13 +133,18 @@ export function schemeColour(name) {
 }
 
 const RAIL_KEY = 'sgas_cx_rail'
+const FILT_KEY = 'sgas_cx_filters'
 const CARDS_KEY = 'sgas_cx_cards'
 const VIEW_KEY = 'sgas_cx_view'
 const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
 
-export default function CalendarNext({ isAdmin, user, go }) {
+export default function CalendarNext({ canWrite, user, go }) {
+  // `canWrite` is the scheduler capability, not admin-ness — see canSchedule()
+  // in lib/roles.js. Everything that changes a course, a holiday or a diary
+  // entry is gated on it; everything else is visible to anyone who can open
+  // this screen, which now includes reception, read-only.
   const [blocks, setBlocks] = useState(null)
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
@@ -185,17 +208,60 @@ export default function CalendarNext({ isAdmin, user, go }) {
     </button>
   ) : null)
   const [jumpY, setJumpY] = useState(() => Number(todayISO().slice(0, 4)))
+  const [settings, setSettings] = useState({})
+  // Removing anything asks first, in the popover, rather than in a browser box.
+  const [confirmDel, setConfirmDel] = useState(null)
+  const [filt, setFilt] = useState(() => {
+    try { return { schemes: [], staff: [], hideDone: false, onlyCourses: false, ...JSON.parse(readLS(FILT_KEY, '') || '{}') } }
+    catch { return { schemes: [], staff: [], hideDone: false, onlyCourses: false } }
+  })
+  const [showFilt, setShowFilt] = useState(false)
+  const toggleIn = (key, v) => setFilt((f) => ({
+    ...f, [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v],
+  }))
+  // Who may approve time off, rather than only ask for it.
+  const canApprove = canApproveHolidays(user, settings)
 
+  /* Holidays and diary entries become blocks so that ONE grid, one lane packer
+     and one drag handler cover all three. The alternative — a parallel layer
+     per kind — is what makes calendars unmaintainable. `isHoliday` and
+     `isEngagement` were already threaded through this file waiting for them. */
   async function load() {
-    const [b, s, h, cs] = await Promise.all([listBlocks(), listStaff(), listHolidays(), listCourses()])
-    setBlocks(b); setStaff(s); setHolidays(h); setPool(getPool())
+    const [b, s, h, cs, eng, set] = await Promise.all([
+      listBlocks(), listStaff(), listHolidays(), listCourses(),
+      listEngagements(user?.user_id, user?.staffId).catch(() => []),
+      getSettings().catch(() => ({})),
+    ])
+    const holBlocks = h.map((x) => ({
+      id: 'h' + x.holidayId, holidayId: x.holidayId, isHoliday: true,
+      staffId: x.staffId, staffName: x.staffName, note: x.note,
+      pending: x.pending, status: x.status,
+      course: x.staffName + (x.pending ? ' \u2014 waiting for approval' : ' \u2014 time off'),
+      scheme: 'Holiday', color: x.pending ? '#b7791f' : '#8a94a6',
+      start: x.start, end: x.end,
+      trainerId: null, assessorId: null, verifierId: null,
+      trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
+    }))
+    const engBlocks = (eng || []).map((e) => ({
+      id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true,
+      title: e.title, startTime: e.startTime, endTime: e.endTime,
+      ownerUserId: e.ownerUserId, members: e.members || [],
+      course: e.title, scheme: 'Diary', color: '#475569',
+      start: e.date, end: e.date,
+      trainerId: null, assessorId: null, verifierId: null,
+      trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
+    }))
+    const all = [...b, ...holBlocks, ...engBlocks]
+    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool())
+    setSettings(set)
     setCourses(cs.filter((c) => c.is_active !== false))
-    return b
+    return all
   }
   useEffect(() => { (async () => { try { await loadPool() } catch { /* optional */ } await load() })() }, [])
   useEffect(() => { try { localStorage.setItem(THEME_KEY, theme) } catch { /* private */ } }, [theme])
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
   useEffect(() => { try { localStorage.setItem(RAIL_KEY, rail ? '1' : '0') } catch { /* private */ } }, [rail])
+  useEffect(() => { try { localStorage.setItem(FILT_KEY, JSON.stringify(filt)) } catch { /* private */ } }, [filt])
   useEffect(() => { try { localStorage.setItem(CARDS_KEY, JSON.stringify(shut)) } catch { /* private */ } }, [shut])
   useEffect(() => { try { localStorage.setItem(DENSE_KEY, dense ? '1' : '0') } catch { /* private */ } }, [dense])
 
@@ -234,13 +300,33 @@ export default function CalendarNext({ isAdmin, user, go }) {
   }
   // Dragging the dates from inside the popover, the same commit path the
   // drag-on-the-grid uses.
+  /* Time off and diary entries save the same way a course does: you change the
+     field and it is saved — no unlock step, no Save button. */
+  const saveHoliday = async (from, to) => {
+    setBusy(true)
+    try {
+      await updateHoliday(open.holidayId, { from: from || open.start, to: to || open.end })
+      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Time off updated')
+    } catch (err) { toast(err.message) } finally { setBusy(false) }
+  }
+  const saveDiary = async (patch) => {
+    setBusy(true)
+    try {
+      await updateEngagement(open.engagementId, patch)
+      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+    } catch (err) { toast(err.message) } finally { setBusy(false) }
+  }
+
   const saveDates = async (from, to) => {
     const next = { from: from || open.start, to: to || open.end }
     if (next.to < next.from) next.to = next.from
+    const f2 = snapWeekday(next.from, true), t2 = snapWeekday(next.to, false)
+    if (f2 > t2) return toast("A course can't run only over a weekend")
     setBusy(true)
     try {
-      await updateBlock(open.id, next)
-      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Dates changed')
+      await updateBlock(open.id, { from: f2, to: t2 })
+      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+      toast(f2 !== next.from || t2 !== next.to ? 'Dates changed — moved off the weekend' : 'Dates changed')
     } catch (err) { toast(err.message) } finally { setBusy(false) }
   }
   useEffect(() => { setJumpY(Number(month.slice(0, 4))) }, [month])
@@ -261,9 +347,28 @@ export default function CalendarNext({ isAdmin, user, go }) {
   const viewDays = view === 'Day' ? [anchor] : weekDays
 
   // Blocks as they should currently be drawn — the live drag included.
-  const shown = useMemo(() => (blocks || []).map((b) => (
+  /* ── filters ──────────────────────────────────────────────────────────────
+     The old calendar could narrow the board by scheme, by who is teaching, and
+     could hide what has already finished; this one showed everything, always.
+     Unassigned courses stay visible under a staff filter on purpose — filtering
+     by trainer and thereby hiding the courses that have no trainer is the exact
+     opposite of what you want when you are staffing a month. */
+  const schemes = useMemo(
+    () => [...new Set((blocks || []).filter((b) => !b.isHoliday && !b.isEngagement)
+      .map((b) => b.scheme).filter(Boolean))].sort(), [blocks])
+  const filtered = useMemo(() => (blocks || []).filter((b) => {
+    if (b.isHoliday || b.isEngagement) return !filt.onlyCourses
+    if (filt.hideDone && b.end < todayISO()) return false
+    if (filt.schemes.length && !filt.schemes.includes(b.scheme)) return false
+    if (filt.staff.length && b.trainerId && !filt.staff.includes(String(b.trainerId))) return false
+    return true
+  }), [blocks, filt])
+  const hiddenCount = (blocks || []).length - filtered.length
+  const anyFilter = filt.schemes.length > 0 || filt.staff.length > 0 || filt.hideDone || filt.onlyCourses
+
+  const shown = useMemo(() => filtered.map((b) => (
     preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
-  )), [blocks, preview])
+  )), [filtered, preview])
 
   // ── The six-week grid ─────────────────────────────────────────────────────
   const grid = useMemo(() => {
@@ -437,7 +542,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   }
 
   function dragStart(kind, item, label, colour, e) {
-    if (!isAdmin || (e.button != null && e.button !== 0)) return
+    if (!canWrite || (e.button != null && e.button !== 0)) return
     const x0 = e.clientX, y0 = e.clientY
     let live = false
     // On a phone or a tablet the rail sits BELOW the calendar, so the thing you
@@ -552,7 +657,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // its day cells with data-d, so this one handler serves the month grid, the
   // week and day all-day band, and the year rows.
   function cellDown(d, e) {
-    if (!isAdmin || (e.button != null && e.button !== 0)) return
+    if (!canWrite || (e.button != null && e.button !== 0)) return
     setSel({ from: d, to: d })
     const x0 = e.clientX, y0 = e.clientY
     let moved = false
@@ -595,7 +700,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
   // has to measure its starting width ONCE — reading offsetWidth each frame
   // just fed the bar its own value back, so it never moved at all.
   function barDown(b, e, mode) {
-    if (!isAdmin) return
+    if (!canWrite) return
     e.preventDefault(); e.stopPropagation()
     const el = e.currentTarget.closest('.cx-bar')
     // Every draggable grid says how many columns it has, so one handler serves
@@ -647,13 +752,27 @@ export default function CalendarNext({ isAdmin, user, go }) {
         setTimeout(() => { justDragged.current = false }, 250)
       }
       if (!commit || !moved || !delta) { setPreview(null); return }
-      const { from, to } = dates(delta)
+      const raw = dates(delta)
+      // A course runs Monday to Friday. The old calendar snapped every drag and
+      // refused a course that would land only on a weekend; this one committed
+      // whatever it was handed, so a course could be dropped on a Saturday.
+      // Time off and diary entries are not courses and keep their real dates.
+      const isCourse = !b.isHoliday && !b.isEngagement
+      const from = isCourse ? snapWeekday(raw.from, true) : raw.from
+      const to = isCourse ? snapWeekday(raw.to, false) : raw.to
+      if (isCourse && from > to) { setPreview(null); return toast("A course can't run only over a weekend") }
       // Keep it where it was dropped while the save runs.
       setBlocks((bs) => (bs || []).map((x) => (x.id === b.id ? { ...x, start: from, end: to } : x)))
       setPreview(null)
       setFlash(String(b.id)); setTimeout(() => setFlash(null), 800)
       setBusy(true)
-      try { await updateBlock(b.id, { from, to }); await load() }
+      try {
+        if (b.isHoliday) await updateHoliday(b.holidayId, { from, to })
+        else if (b.isEngagement) await updateEngagement(b.engagementId, { date: from })
+        else await updateBlock(b.id, { from, to })
+        await load()
+        if (isCourse && (from !== raw.from || to !== raw.to)) toast('Moved off the weekend')
+      }
       catch (err) { toast(err.message); await load() }
       finally { setBusy(false) }
     }
@@ -708,6 +827,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
             onClick={() => setShowKey((k) => !k)}>
             <i className="cx-chev" aria-hidden="true" />What the marks mean
           </button>
+          <button type="button" className={'cx-keybtn' + (anyFilter ? ' on' : '')} aria-expanded={showFilt}
+            onClick={() => setShowFilt((k) => !k)}
+            data-tip={anyFilter ? `${hiddenCount} hidden by a filter` : 'Narrow what is on the calendar'}>
+            <i className="cx-chev" aria-hidden="true" />
+            {anyFilter ? `Filtered \u00b7 ${hiddenCount} hidden` : 'Filter'}
+          </button>
         </div>
         <div className="cx-tools">
           <div className="cx-seg" role="group" aria-label="View">
@@ -731,7 +856,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {/* The words go on a phone: they cost about 100px, which is the
               difference between the toolbar fitting on two rows and spilling
               onto a third. The ＋ and the tooltip carry it. */}
-          {isAdmin && (
+          {canWrite && (
             <button className="cx-primary" onClick={() => go?.('setup')} data-tip="Set up a new course">
               ＋<span className="cx-lbl">New course</span>
             </button>
@@ -743,6 +868,34 @@ export default function CalendarNext({ isAdmin, user, go }) {
           about 90px of a laptop screen spent explaining marks that most people
           need explained once. It is a click away instead, and the calendar
           starts 90px higher. */}
+      {showFilt && (
+        <div className="cx-legend cx-filters">
+          <b>Scheme</b>
+          {schemes.map((s) => (
+            <button key={s} type="button" className={'cx-chip' + (filt.schemes.includes(s) ? ' on' : '')}
+              aria-pressed={filt.schemes.includes(s)} onClick={() => toggleIn('schemes', s)}>{s}</button>
+          ))}
+          <span className="cx-l-sep" />
+          <b>Trainer</b>
+          {staff.map((s) => (
+            <button key={s.staff_id} type="button"
+              className={'cx-chip' + (filt.staff.includes(String(s.staff_id)) ? ' on' : '')}
+              aria-pressed={filt.staff.includes(String(s.staff_id))}
+              onClick={() => toggleIn('staff', String(s.staff_id))}>{s.name}</button>
+          ))}
+          <span className="cx-l-sep" />
+          <button type="button" className={'cx-chip' + (filt.hideDone ? ' on' : '')}
+            aria-pressed={filt.hideDone}
+            onClick={() => setFilt((f) => ({ ...f, hideDone: !f.hideDone }))}>Hide finished</button>
+          <button type="button" className={'cx-chip' + (filt.onlyCourses ? ' on' : '')}
+            aria-pressed={filt.onlyCourses}
+            onClick={() => setFilt((f) => ({ ...f, onlyCourses: !f.onlyCourses }))}>Courses only</button>
+          {anyFilter && (
+            <button type="button" className="cx-x"
+              onClick={() => setFilt({ schemes: [], staff: [], hideDone: false, onlyCourses: false })}>Clear</button>
+          )}
+        </div>
+      )}
       {showKey && (
         <div className="cx-legend">
           <b>Dots on a course — why people are on it:</b>
@@ -794,11 +947,11 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {blocks === null ? (
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
           ) : view === 'Year' ? (
-            <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
+            <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} canWrite={canWrite}
               onBarDown={barDown} flash={flash} chip={hint && preview ? { id: preview.id, text: hint } : null}
-              onCellDown={cellDown} inSel={inSel} isAdmin={isAdmin} dropClass={dropClass} />
+              onCellDown={cellDown} inSel={inSel} canWrite={canWrite} dropClass={dropClass} />
           ) : view !== 'Month' ? (
-            <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} isAdmin={isAdmin}
+            <DaysGrid days={viewDays} blocks={shown} onOpen={openAt} canWrite={canWrite}
               onBarDown={barDown} flash={flash} single={view === 'Day'} chip={hint && preview ? { id: preview.id, text: hint } : null}
               onCellDown={cellDown} inSel={inSel} dropClass={dropClass} />
           ) : (
@@ -832,7 +985,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                       }}
                       onClick={(e) => openAt(s.b, e)}
                       data-tip={barTip(s.b)}>
-                      {isAdmin && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" />}
+                      {canWrite && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" />}
                       {/* Two lines, not one. A course is an object with a name
                           and a second fact about it — who is teaching it and how
                           many people are on it. Encoding that in a dot and a
@@ -857,7 +1010,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                           </span>
                         )}
                       </span>
-                      {isAdmin && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" />}
+                      {canWrite && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" />}
                       {hint && preview?.id === s.b.id && s.head && <span className="cx-chip-len">{hint}</span>}
                     </button>
                   ))}
@@ -904,12 +1057,12 @@ export default function CalendarNext({ isAdmin, user, go }) {
             shut={shut} onToggle={toggleCard}
             className={'cx-droppool' + (drag?.kind === 'delegate' || placing?.kind === 'delegate' ? ' armed' : '')
               + (drag?.over?.type === 'pool' ? ' on' : '')}>
-            {isAdmin && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
+            {canWrite && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
             {pool.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
             {cap('pool', pool, 6).map((p) => (
-              <div key={p.id} className={'cx-row' + (isAdmin ? ' grabby' : ' static')}
+              <div key={p.id} className={'cx-row' + (canWrite ? ' grabby' : ' static')}
                 style={{ '--c': schemeColour(p.scheme) }}
-                data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting${isAdmin ? '\nDrag or tap to put them on a course' : ''}`}
+                data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting${canWrite ? '\nDrag or tap to put them on a course' : ''}`}
                 onPointerDown={(e) => dragStart('pool', p, p.name, schemeColour(p.scheme), e)}>
                 <i />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}</small></span>
@@ -920,7 +1073,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
               <p className="cx-dropnote">{drag ? 'Drop here' : 'Tap here'} to take them off the course</p>}
           </RailCard>
 
-          {isAdmin && staff.length > 0 && (
+          {canWrite && staff.length > 0 && (
             <RailCard id="trainers" title="Trainers" count={staff.length} shut={shut} onToggle={toggleCard}>
               <p className="cx-hintline">Drag or tap one onto a course.</p>
               {cap('trainers', staff, 8).map((t) => (
@@ -940,90 +1093,216 @@ export default function CalendarNext({ isAdmin, user, go }) {
 
 
       {creating && (
-        <Popover at={at} onClose={() => setCreating(null)} label="New course"
-          className="cx-course-pop" dirty={!!creating.courseId}>
+        <Popover at={at} onClose={() => setCreating(null)} label={NEW_LABEL[creating.kind || 'course']}
+          className="cx-course-pop" dirty={!!(creating.courseId || creating.title)}>
           <header className="cx-pop-head"
-            style={{ '--c': courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80' }}>
+            style={{ '--c': creating.kind === 'holiday' ? '#8a94a6' : creating.kind === 'diary' ? '#475569'
+              : (courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80') }}>
             <span className="cx-pop-dot" />
-            <h3 className="cx-pop-title">{creating.forPool ? `Book for ${creating.forPool.name}` : 'New course'}</h3>
+            <h3 className="cx-pop-title">
+              {creating.forPool ? `Book for ${creating.forPool.name}` : NEW_LABEL[creating.kind || 'course']}
+            </h3>
             <button className="cx-icon" onClick={() => setCreating(null)} aria-label="Close">✕</button>
           </header>
 
+          {/* Three things can go on a calendar and they were one dialog on the
+              old screen too. Hidden when somebody was dragged here — that is
+              unambiguously a booking. */}
+          {!creating.forPool && (
+            <div className="cx-seg cx-newkind" role="group" aria-label="What are you adding">
+              <button className={(creating.kind || 'course') === 'course' ? 'on' : ''}
+                onClick={() => setCreating((c) => ({ ...c, kind: 'course' }))}>Course</button>
+              <button className={creating.kind === 'holiday' ? 'on' : ''}
+                onClick={() => setCreating((c) => ({ ...c, kind: 'holiday', staffId: c.staffId || user?.staffId || '' }))}>Time off</button>
+              <button className={creating.kind === 'diary' ? 'on' : ''}
+                onClick={() => setCreating((c) => ({ ...c, kind: 'diary', to: c.from }))}>Diary entry</button>
+            </div>
+          )}
+
           <div className="cx-when">
             <label className="cx-when-b">
-              <small>Starts</small>
+              <small>{creating.kind === 'diary' ? 'On' : 'Starts'}</small>
               <input type="date" value={creating.from}
-                onChange={(e) => setCreating((c) => ({ ...c, from: e.target.value, to: c.to < e.target.value ? e.target.value : c.to }))} />
+                onChange={(e) => setCreating((c) => ({ ...c, from: e.target.value, to: c.to < e.target.value || c.kind === 'diary' ? e.target.value : c.to }))} />
               <b>{fmt(creating.from)}</b>
             </label>
-            <span className="cx-when-arrow" aria-hidden="true">›</span>
-            <label className="cx-when-b">
-              <small>Ends</small>
-              <input type="date" value={creating.to} min={creating.from}
-                onChange={(e) => setCreating((c) => ({ ...c, to: e.target.value }))} />
-              <b>{fmt(creating.to)}</b>
-            </label>
-            <span className="cx-when-len">{between(creating.from, creating.to) + 1} days</span>
+            {creating.kind !== 'diary' && <>
+              <span className="cx-when-arrow" aria-hidden="true">›</span>
+              <label className="cx-when-b">
+                <small>Ends</small>
+                <input type="date" value={creating.to} min={creating.from}
+                  onChange={(e) => setCreating((c) => ({ ...c, to: e.target.value }))} />
+                <b>{fmt(creating.to)}</b>
+              </label>
+              <span className="cx-when-len">{between(creating.from, creating.to) + 1} days</span>
+            </>}
           </div>
 
           <div className="cx-rows">
-            <div className={'cx-row2' + (creating.courseId ? '' : ' empty')}>
-              <span className="cx-ricon" aria-hidden="true">📚</span>
-              <span className="cx-rwrap">
-                <span className="cx-rlabel">Which course</span>
-                <select autoFocus value={creating.courseId || ''} aria-label="Which course"
-                  onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
-                  <option value="">Pick a course</option>
-                  {/* Dropped somebody here? Then what they are waiting for goes
-                      at the top — that is the whole reason you dragged them. */}
-                  {creating.forPool?.scheme && courses.some((c) => c.scheme === creating.forPool.scheme) && (
-                    <optgroup label={`${creating.forPool.scheme} — what they are waiting for`}>
-                      {courses.filter((c) => c.scheme === creating.forPool.scheme)
-                        .map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-                    </optgroup>
-                  )}
-                  {creating.forPool?.scheme
-                    ? <optgroup label="Everything else">
-                        {courses.filter((c) => c.scheme !== creating.forPool.scheme)
+            {(creating.kind || 'course') === 'course' && (
+              <div className={'cx-row2' + (creating.courseId ? '' : ' empty')}>
+                <span className="cx-ricon" aria-hidden="true">📚</span>
+                <span className="cx-rwrap">
+                  <span className="cx-rlabel">Which course</span>
+                  <select autoFocus value={creating.courseId || ''} aria-label="Which course"
+                    onChange={(e) => setCreating({ ...creating, courseId: e.target.value })}>
+                    <option value="">Pick a course</option>
+                    {/* Dropped somebody here? Then what they are waiting for goes
+                        at the top — that is the whole reason you dragged them. */}
+                    {creating.forPool?.scheme && courses.some((c) => c.scheme === creating.forPool.scheme) && (
+                      <optgroup label={`${creating.forPool.scheme} — what they are waiting for`}>
+                        {courses.filter((c) => c.scheme === creating.forPool.scheme)
                           .map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
                       </optgroup>
-                    : courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-                </select>
-              </span>
-            </div>
+                    )}
+                    {creating.forPool?.scheme
+                      ? <optgroup label="Everything else">
+                          {courses.filter((c) => c.scheme !== creating.forPool.scheme)
+                            .map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                        </optgroup>
+                      : courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                  </select>
+                </span>
+              </div>
+            )}
+
+            {creating.kind === 'holiday' && (
+              <>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">🏖</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Who is off</span>
+                    {/* Anyone who cannot approve is ASKING, and can only ask for
+                        themselves — the same rule the old screen had. */}
+                    {canApprove ? (
+                      <select autoFocus value={creating.staffId || ''} aria-label="Who is off"
+                        onChange={(e) => setCreating({ ...creating, staffId: e.target.value })}>
+                        <option value="">Pick somebody</option>
+                        {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>{s.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="cx-rtext">{staff.find((s) => String(s.staff_id) === String(user?.staffId))?.name || 'You'}</span>
+                    )}
+                  </span>
+                </div>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">✎</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Note (optional)</span>
+                    <input type="text" value={creating.note || ''} placeholder="Annual leave"
+                      aria-label="Note" onChange={(e) => setCreating({ ...creating, note: e.target.value })} />
+                  </span>
+                </div>
+              </>
+            )}
+
+            {creating.kind === 'diary' && (
+              <>
+                <div className={'cx-row2' + (creating.title ? '' : ' empty')}>
+                  <span className="cx-ricon" aria-hidden="true">📌</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">What is it</span>
+                    <input autoFocus type="text" value={creating.title || ''} placeholder="Site visit"
+                      aria-label="What is it" onChange={(e) => setCreating({ ...creating, title: e.target.value })} />
+                  </span>
+                </div>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">🕘</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Time</span>
+                    <span className="cx-times">
+                      <input type="time" value={creating.startTime || '09:00'} aria-label="Starts at"
+                        onChange={(e) => setCreating({ ...creating, startTime: e.target.value })} />
+                      <span aria-hidden="true">–</span>
+                      <input type="time" value={creating.endTime || '10:00'} aria-label="Ends at"
+                        onChange={(e) => setCreating({ ...creating, endTime: e.target.value })} />
+                    </span>
+                  </span>
+                </div>
+                {staff.length > 0 && (
+                  <div className="cx-row2">
+                    <span className="cx-ricon" aria-hidden="true">👥</span>
+                    <span className="cx-rwrap">
+                      <span className="cx-rlabel">Anyone else</span>
+                      <span className="cx-chips">
+                        {staff.map((s) => {
+                          const on = (creating.members || []).includes(s.staff_id)
+                          return (
+                            <button key={s.staff_id} type="button"
+                              className={'cx-chip' + (on ? ' on' : '')}
+                              aria-pressed={on}
+                              onClick={() => setCreating((c) => ({
+                                ...c,
+                                members: on ? (c.members || []).filter((x) => x !== s.staff_id)
+                                  : [...(c.members || []), s.staff_id],
+                              }))}>{s.name}</button>
+                          )
+                        })}
+                      </span>
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
           <footer className="cx-pop-foot actions">
-            <button className="cx-ghost" onClick={() => { setCreating(null); go?.('setup') }}>
-              Full set-up instead
-            </button>
-            <button className="cx-primary" disabled={!creating.courseId || busy} onClick={async () => {
+            {(creating.kind || 'course') === 'course' && (
+              <button className="cx-ghost" onClick={() => { setCreating(null); go?.('setup') }}>
+                Full set-up instead
+              </button>
+            )}
+            <button className="cx-primary" disabled={busy || !newReady(creating)} onClick={async () => {
               setBusy(true)
               try {
-                const id = await createBlock({ courseId: Number(creating.courseId), from: creating.from, to: creating.to })
-                // Dragged somebody onto the calendar? They go on it, or the
-                // drag did nothing and you would have to add them by hand.
-                if (creating.forPool) { try { await addDelegatesToBlock(id, [creating.forPool.id]) } catch { /* the course is booked either way */ } }
-                const who = creating.forPool?.name
-                setCreating(null)
-                const f = await load()
-                const made = f.find((x) => String(x.id) === String(id))
-                setFlash(String(id)); setTimeout(() => setFlash(null), 900)
-                if (made) setOpen(made)
-                toast(who ? `Course booked with ${who} on it — it needs a trainer` : 'Course booked — add a trainer and delegates')
+                if (creating.kind === 'holiday') {
+                  const forStaff = canApprove ? creating.staffId : (user?.staffId || creating.staffId)
+                  const r = await createHoliday({
+                    staffId: Number(forStaff), from: creating.from, to: creating.to,
+                    note: creating.note || '', requestedBy: user?.staffId || null, asApprover: !!canApprove,
+                  })
+                  setCreating(null); await load()
+                  toast(r?.status === 'APPROVED' ? 'Time off added to the calendar' : 'Request sent for approval')
+                } else if (creating.kind === 'diary') {
+                  await createEngagement({
+                    ownerUserId: user?.user_id, title: creating.title, date: creating.from,
+                    startTime: creating.startTime || '09:00', endTime: creating.endTime || '10:00',
+                    memberStaffIds: creating.members || [],
+                  })
+                  setCreating(null); await load()
+                  toast('Added to the calendar')
+                } else {
+                  // Monday to Friday, the same rule the old calendar enforced.
+                  const f = snapWeekday(creating.from, true), to = snapWeekday(creating.to, false)
+                  if (f > to) { setBusy(false); return toast("A course can't run only over a weekend") }
+                  const id = await createBlock({ courseId: Number(creating.courseId), from: f, to })
+                  // Dragged somebody onto the calendar? They go on it, or the
+                  // drag did nothing and you would have to add them by hand.
+                  if (creating.forPool) { try { await addDelegatesToBlock(id, [creating.forPool.id]) } catch { /* the course is booked either way */ } }
+                  const who = creating.forPool?.name
+                  const moved = f !== creating.from || to !== creating.to
+                  setCreating(null)
+                  const fresh = await load()
+                  const made = fresh.find((x) => String(x.id) === String(id))
+                  setFlash(String(id)); setTimeout(() => setFlash(null), 900)
+                  if (made) setOpen(made)
+                  toast(who ? `Course booked with ${who} on it — it needs a trainer`
+                    : moved ? 'Course booked — moved off the weekend'
+                    : 'Course booked — add a trainer and delegates')
+                }
               } catch (err) { toast(err.message) } finally { setBusy(false) }
-            }}>{busy ? 'Booking…' : 'Book it'}</button>
+            }}>{busy ? 'Saving…' : NEW_CTA[creating.kind || 'course']}</button>
           </footer>
         </Popover>
       )}
 
-      {open && (
+      {open && !open.isHoliday && !open.isEngagement && (
         <Popover at={at} onClose={() => setOpen(null)} label={open.course} className="cx-course-pop">
           {/* No edit mode. You type into it and it saves — the way Calendars
               does it — instead of asking you to unlock the thing first. */}
           <header className="cx-pop-head" style={{ '--c': open.color || '#5b6b80' }}>
             <span className="cx-pop-dot" />
-            {isAdmin ? (
+            {canWrite ? (
               <select className="cx-pop-title" value={open.courseId || ''} disabled={busy}
                 onChange={async (e) => {
                   setBusy(true)
@@ -1046,14 +1325,14 @@ export default function CalendarNext({ isAdmin, user, go }) {
           <div className="cx-when">
             <label className="cx-when-b">
               <small>Starts</small>
-              <input type="date" value={open.start} disabled={!isAdmin || busy}
+              <input type="date" value={open.start} disabled={!canWrite || busy}
                 onChange={(e) => saveDates(e.target.value, null)} />
               <b>{fmt(open.start)}</b>
             </label>
             <span className="cx-when-arrow" aria-hidden="true">›</span>
             <label className="cx-when-b">
               <small>Ends</small>
-              <input type="date" value={open.end} min={open.start} disabled={!isAdmin || busy}
+              <input type="date" value={open.end} min={open.start} disabled={!canWrite || busy}
                 onChange={(e) => saveDates(null, e.target.value)} />
               <b>{fmt(open.end)}</b>
             </label>
@@ -1067,7 +1346,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
               <span className="cx-ricon" aria-hidden="true">👤</span>
               <span className="cx-rwrap">
               <span className="cx-rlabel">Trainer</span>
-              {isAdmin ? (
+              {canWrite ? (
                 <select value={open.trainerId || ''} disabled={busy} aria-label="Trainer" onChange={async (e) => {
                   setBusy(true)
                   try {
@@ -1084,6 +1363,31 @@ export default function CalendarNext({ isAdmin, user, go }) {
               </span>
             </div>
 
+            {/* Assessor and verifier were on the old block panel and nowhere on
+                this one — and who assessed what is exactly what an audit asks. */}
+            {[['assessor', 'Assessor', '✓'], ['verifier', 'Verifier', '⑃']].map(([role, label, icon]) => (
+              <div key={role} className={'cx-row2' + (open[role + 'Id'] ? '' : ' empty')}>
+                <span className="cx-ricon" aria-hidden="true">{icon}</span>
+                <span className="cx-rwrap">
+                  <span className="cx-rlabel">{label}</span>
+                  {canWrite ? (
+                    <select value={open[role + 'Id'] || ''} disabled={busy} aria-label={label} onChange={async (e) => {
+                      setBusy(true)
+                      try {
+                        await assignBlockRole(open.id, role, Number(e.target.value))
+                        const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast(label + ' set')
+                      } catch (err) { toast(err.message) } finally { setBusy(false) }
+                    }}>
+                      <option value="">Add {label === 'Assessor' ? 'an' : 'a'} {label.toLowerCase()}</option>
+                      {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>
+                        {s.name}{staffOnHoliday(holidays, s.staff_id, open.start, open.end) ? ' (on holiday)' : ''}
+                      </option>)}
+                    </select>
+                  ) : <span className="cx-rtext">{open[role] || 'No ' + label.toLowerCase()}</span>}
+                </span>
+              </div>
+            ))}
+
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">👥</span>
               <div className="cx-rfill">
@@ -1091,7 +1395,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                 {open.delegates.length === 0
                   ? <span className="cx-rtext">Nobody booked on yet</span>
                   : <ul className="cx-delg">{open.delegates.map((d) => (
-                      <Delegate key={d.bookingId} d={d} block={open} isAdmin={isAdmin} busy={busy}
+                      <Delegate key={d.bookingId} d={d} block={open} canWrite={canWrite} busy={busy}
                         onDragStart={(e) => dragStart('delegate', { ...d, blockId: open.id }, d.name, schemeColour(open.scheme), e)}
                         onSplit={async (f, t) => {
                           setBusy(true)
@@ -1106,7 +1410,7 @@ export default function CalendarNext({ isAdmin, user, go }) {
                     </ul>}
                 {/* Quiet until you want it — eight name chips permanently on
                     show made the popover twice as tall as it needed to be. */}
-                {isAdmin && pool.length > 0 && (() => {
+                {canWrite && pool.length > 0 && (() => {
                   // Whoever is waiting for THIS scheme belongs at the top, and
                   // everyone carries the colour of what they are waiting for —
                   // you can see who fits without reading a single line.
@@ -1161,6 +1465,168 @@ export default function CalendarNext({ isAdmin, user, go }) {
           {/* There is no Save button, so the popover has to say so. */}
           <footer className="cx-pop-foot">
             {busy ? <><span className="cx-spin" />Saving…</> : <>✓ Changes save as you make them</>}
+            {/* Removing a course was simply not possible here — deleteBlock was
+                never even imported. Two steps rather than a browser confirm box,
+                so the question is answered where it is asked. The database
+                refuses outright if anyone is booked on. */}
+            {canWrite && (confirmDel === open.id ? (
+              <span className="cx-confirm">
+                Remove this course?
+                <button className="cx-danger" disabled={busy} onClick={async () => {
+                  setBusy(true)
+                  try {
+                    await deleteBlock(open.id)
+                    setConfirmDel(null); setOpen(null); await load(); toast('Course removed')
+                  } catch (err) { toast(err.message); setConfirmDel(null) } finally { setBusy(false) }
+                }}>Remove it</button>
+                <button className="cx-x" onClick={() => setConfirmDel(null)}>Keep it</button>
+              </span>
+            ) : (
+              <button className="cx-x cx-del" onClick={() => setConfirmDel(open.id)}>Remove course</button>
+            ))}
+          </footer>
+        </Popover>
+      )}
+
+      {/* ── time off ───────────────────────────────────────────────────────── */}
+      {open?.isHoliday && (
+        <Popover at={at} onClose={() => setOpen(null)} label={open.course} className="cx-course-pop">
+          <header className="cx-pop-head" style={{ '--c': open.color }}>
+            <span className="cx-pop-dot" />
+            <h3 className="cx-pop-title">🏖 {open.staffName}</h3>
+            <button className="cx-icon" onClick={() => setOpen(null)} aria-label="Close">✕</button>
+          </header>
+          <div className="cx-when">
+            <label className="cx-when-b">
+              <small>From</small>
+              <input type="date" value={open.start} disabled={!canWrite || busy}
+                onChange={(e) => saveHoliday(e.target.value, null)} />
+              <b>{fmt(open.start)}</b>
+            </label>
+            <span className="cx-when-arrow" aria-hidden="true">›</span>
+            <label className="cx-when-b">
+              <small>To</small>
+              <input type="date" value={open.end} min={open.start} disabled={!canWrite || busy}
+                onChange={(e) => saveHoliday(null, e.target.value)} />
+              <b>{fmt(open.end)}</b>
+            </label>
+            <span className="cx-when-len">{between(open.start, open.end) + 1} days</span>
+          </div>
+          <div className="cx-rows">
+            {open.note && (
+              <div className="cx-row2">
+                <span className="cx-ricon" aria-hidden="true">✎</span>
+                <span className="cx-rwrap"><span className="cx-rlabel">Note</span>
+                  <span className="cx-rtext">{open.note}</span></span>
+              </div>
+            )}
+            <div className="cx-row2">
+              <span className="cx-ricon" aria-hidden="true">{open.pending ? '⏳' : '✓'}</span>
+              <span className="cx-rwrap"><span className="cx-rlabel">Status</span>
+                <span className="cx-rtext">{open.pending ? 'Waiting for approval' : 'Approved'}</span></span>
+            </div>
+          </div>
+          <footer className="cx-pop-foot actions">
+            {open.pending && canApprove && (
+              <>
+                <button className="cx-ghost" disabled={busy} onClick={async () => {
+                  setBusy(true)
+                  try { await decideHoliday(open.holidayId, 'REJECTED', { decidedBy: user?.staffId || null })
+                    setOpen(null); await load(); toast('Request rejected') }
+                  catch (err) { toast(err.message) } finally { setBusy(false) }
+                }}>Reject</button>
+                <button className="cx-primary" disabled={busy} onClick={async () => {
+                  setBusy(true)
+                  try { await decideHoliday(open.holidayId, 'APPROVED', { decidedBy: user?.staffId || null })
+                    const f = await load(); setOpen(f.find((x) => x.id === open.id) || null); toast('Approved') }
+                  catch (err) { toast(err.message) } finally { setBusy(false) }
+                }}>Approve</button>
+              </>
+            )}
+            {canWrite && !open.pending && (confirmDel === open.id ? (
+              <span className="cx-confirm">
+                Remove this time off?
+                <button className="cx-danger" disabled={busy} onClick={async () => {
+                  setBusy(true)
+                  try { await deleteHoliday(open.holidayId); setConfirmDel(null); setOpen(null); await load(); toast('Time off removed') }
+                  catch (err) { toast(err.message); setConfirmDel(null) } finally { setBusy(false) }
+                }}>Remove it</button>
+                <button className="cx-x" onClick={() => setConfirmDel(null)}>Keep it</button>
+              </span>
+            ) : <button className="cx-x cx-del" onClick={() => setConfirmDel(open.id)}>Remove</button>)}
+          </footer>
+        </Popover>
+      )}
+
+      {/* ── a diary entry ──────────────────────────────────────────────────── */}
+      {open?.isEngagement && (
+        <Popover at={at} onClose={() => setOpen(null)} label={open.title} className="cx-course-pop">
+          <header className="cx-pop-head" style={{ '--c': open.color }}>
+            <span className="cx-pop-dot" />
+            <h3 className="cx-pop-title">📌 {open.title}</h3>
+            <button className="cx-icon" onClick={() => setOpen(null)} aria-label="Close">✕</button>
+          </header>
+          <div className="cx-when">
+            <label className="cx-when-b">
+              <small>On</small>
+              <input type="date" value={open.start} disabled={!canWrite || busy}
+                onChange={(e) => saveDiary({ date: e.target.value })} />
+              <b>{fmt(open.start)}</b>
+            </label>
+            <span className="cx-when-len">{open.startTime || '—'}–{open.endTime || '—'}</span>
+          </div>
+          <div className="cx-rows">
+            <div className="cx-row2">
+              <span className="cx-ricon" aria-hidden="true">🕘</span>
+              <span className="cx-rwrap">
+                <span className="cx-rlabel">Time</span>
+                <span className="cx-times">
+                  <input type="time" value={open.startTime || '09:00'} disabled={!canWrite || busy}
+                    aria-label="Starts at" onChange={(e) => saveDiary({ startTime: e.target.value })} />
+                  <span aria-hidden="true">–</span>
+                  <input type="time" value={open.endTime || '10:00'} disabled={!canWrite || busy}
+                    aria-label="Ends at" onChange={(e) => saveDiary({ endTime: e.target.value })} />
+                </span>
+              </span>
+            </div>
+            {staff.length > 0 && (
+              <div className={'cx-row2' + (open.members?.length ? '' : ' empty')}>
+                <span className="cx-ricon" aria-hidden="true">👥</span>
+                <span className="cx-rwrap">
+                  <span className="cx-rlabel">Who else is on it</span>
+                  {canWrite ? (
+                    <span className="cx-chips">
+                      {staff.map((s) => {
+                        const on = (open.members || []).some((m) => Number(m) === Number(s.staff_id))
+                        return (
+                          <button key={s.staff_id} type="button" className={'cx-chip' + (on ? ' on' : '')}
+                            aria-pressed={on} disabled={busy}
+                            onClick={() => saveDiary({ memberStaffIds: on
+                              ? (open.members || []).filter((m) => Number(m) !== Number(s.staff_id))
+                              : [...(open.members || []), s.staff_id] })}>{s.name}</button>
+                        )
+                      })}
+                    </span>
+                  ) : <span className="cx-rtext">
+                    {(open.members || []).map((m) => staff.find((s) => Number(s.staff_id) === Number(m))?.name).filter(Boolean).join(', ') || 'Just you'}
+                  </span>}
+                </span>
+              </div>
+            )}
+          </div>
+          <footer className="cx-pop-foot">
+            {busy ? <><span className="cx-spin" />Saving…</> : <>✓ Changes save as you make them</>}
+            {canWrite && (confirmDel === open.id ? (
+              <span className="cx-confirm">
+                Delete it?
+                <button className="cx-danger" disabled={busy} onClick={async () => {
+                  setBusy(true)
+                  try { await deleteEngagement(open.engagementId); setConfirmDel(null); setOpen(null); await load(); toast('Deleted') }
+                  catch (err) { toast(err.message); setConfirmDel(null) } finally { setBusy(false) }
+                }}>Delete it</button>
+                <button className="cx-x" onClick={() => setConfirmDel(null)}>Keep it</button>
+              </span>
+            ) : <button className="cx-x cx-del" onClick={() => setConfirmDel(open.id)}>Delete</button>)}
           </footer>
         </Popover>
       )}
@@ -1191,14 +1657,14 @@ function RailCard({ id, title, count, shut, onToggle, className = '', children }
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, isAdmin, busy, onSplit, onRemove, onDragStart }) {
+function Delegate({ d, block, canWrite, busy, onSplit, onRemove, onDragStart }) {
   const [edit, setEdit] = useState(false)
   const [f, setF] = useState(d.attendFrom || block.start)
   const [t, setT] = useState(d.attendTo || block.end)
   const part = isPart(d)
   const k = kindOf(d.kind)
   return (
-    <li className={(part ? 'part' : '') + (isAdmin ? ' grabby' : '')} style={{ '--s': schemeColour(block.scheme) }}
+    <li className={(part ? 'part' : '') + (canWrite ? ' grabby' : '')} style={{ '--s': schemeColour(block.scheme) }}
       onPointerDown={(e) => { if (!e.target.closest('button, input')) onDragStart?.(e) }}>
       <span className="cx-kind" style={{ background: k.c }} title={k.label} />
       <span className="cx-dinfo">
@@ -1209,8 +1675,8 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove, onDragStart }) {
           {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
         </small>
       </span>
-      {isAdmin && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
-      {isAdmin && !edit && (
+      {canWrite && !edit && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'only some days'}</button>}
+      {canWrite && !edit && (
         <button className="cx-x danger" disabled={busy}
           onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
           take off
@@ -1234,7 +1700,7 @@ function Delegate({ d, block, isAdmin, busy, onSplit, onRemove, onDragStart }) {
    main event, not an afterthought above a time grid. Below it sits the hour
    grid for timed entries, with a line showing where we are now. */
 const H0 = 7, H1 = 20, HPX = 46
-function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chip, onCellDown, inSel, dropClass }) {
+function DaysGrid({ days, blocks, onOpen, canWrite, onBarDown, flash, single, chip, onCellDown, inSel, dropClass }) {
   const [hours, setHours] = useState(false)
   const first = days[0], last = days[days.length - 1]
   const allDay = useMemo(() => {
@@ -1289,12 +1755,12 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
               style={{ left: `calc(${(col / days.length) * 100}% + 4px)`, width: `calc(${(span / days.length) * 100}% - 8px)`,
                 top: lane * 28 + 5, height: 24, '--c': b.color || '#5b6b80' }}
               onPointerDown={(e) => {
-                if (!isAdmin || b.isHoliday) return
+                if (!canWrite || b.isHoliday) return
                 if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
                 else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
               }}
               onClick={(e) => onOpen(b, e)}>
-              {isAdmin && !b.isHoliday && b.start >= first && <span className="cx-grab" title="Drag to move" />}
+              {canWrite && !b.isHoliday && b.start >= first && <span className="cx-grab" title="Drag to move" />}
               <span className="cx-bar-t">
                 <span className="cx-bar-n">{b.course || b.title}</span>
                 {b.delegates?.some(isPart) && <span className="cx-part">◧</span>}
@@ -1305,7 +1771,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
                 )}
                 {b.delegates?.length > 0 && <em>{b.delegates.length}</em>}
               </span>
-              {isAdmin && !b.isHoliday && b.end <= last && <span className="cx-resize" title="Drag to change the length" />}
+              {canWrite && !b.isHoliday && b.end <= last && <span className="cx-resize" title="Drag to change the length" />}
               {chip && String(chip.id) === String(b.id) && <span className="cx-chip-len">{chip.text}</span>}
             </button>
           ))}
@@ -1391,7 +1857,7 @@ function DaysGrid({ days, blocks, onOpen, isAdmin, onBarDown, flash, single, chi
 /* ── Year ──────────────────────────────────────────────────────────────────
    Months as rows, the whole year in one screen. This is the view Teamup did
    well and the one Simon reads the shape of the business from. */
-function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCellDown, inSel, dropClass }) {
+function YearGrid({ year, blocks, onOpen, canWrite, onBarDown, flash, chip, onCellDown, inSel, dropClass }) {
   const y = Number(year)
   const TICKS = [1, 5, 10, 15, 20, 25, 31]
   return (
@@ -1451,12 +1917,12 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCel
                   style={{ left: `calc(${(col / 31) * 100}% + 2px)`, width: `calc(${(span / 31) * 100}% - 4px)`,
                     top: lane * 22 + 6, height: 18, '--c': b.color || '#5b6b80' }}
                   onPointerDown={(e) => {
-                    if (!isAdmin || b.isHoliday) return
+                    if (!canWrite || b.isHoliday) return
                     if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
                     else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
                   }}
                   onClick={(e) => onOpen(b, e)}>
-                  {isAdmin && !b.isHoliday && <span className="cx-grab" />}
+                  {canWrite && !b.isHoliday && <span className="cx-grab" />}
                   {/* The name lives INSIDE the bar, always, clipped to it. It
                       used to spill out to the right when the bar was too narrow
                       to hold it, which on a date-scaled row reads as the course
@@ -1464,7 +1930,7 @@ function YearGrid({ year, blocks, onOpen, isAdmin, onBarDown, flash, chip, onCel
                       its name shows none: the colour, the tooltip and the rail
                       carry it, and the bar's length stays honest either way. */}
                   {span >= 3 && <span className="cx-bar-t"><span className="cx-bar-n">{b.course || b.title}</span></span>}
-                  {isAdmin && !b.isHoliday && <span className="cx-resize" />}
+                  {canWrite && !b.isHoliday && <span className="cx-resize" />}
                 </button>
               ))}
             </div>

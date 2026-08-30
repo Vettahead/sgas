@@ -378,14 +378,14 @@ function MonthGlance({ go, user }) {
         <button className="cal-nav" onClick={() => move(-1)}>‹</button>
         <span className="mc-title">{anchor.toString('MMMM yyyy')}</span>
         <button className="cal-nav" onClick={() => move(1)}>›</button>
-        <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendar')}>Open calendar →</button>
+        <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendarnext')}>Open calendar →</button>
       </div>
       <MonthView
         anchor={anchor}
         blocks={shown.filter((b) => b.start && b.end)}
         colourFor={(b) => b.color || '#48566a'}
-        onOpen={() => go('calendar')}
-        onCreate={() => go('calendar')}
+        onOpen={() => go('calendarnext')}
+        onCreate={() => go('calendarnext')}
         onDragCommit={() => {}}
         readOnly
       />

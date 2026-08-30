@@ -171,7 +171,7 @@ export default function SetupWizard({ go }) {
           </p>
           <div className="inrow" style={{ justifyContent: 'center', marginTop: 16 }}>
             <button className="btn" onClick={reset}>Set up another</button>
-            <button className="btn ghost" onClick={() => go('calendar')}>See it on the calendar</button>
+            <button className="btn ghost" onClick={() => go('calendarnext')}>See it on the calendar</button>
           </div>
         </div>
       </div>
