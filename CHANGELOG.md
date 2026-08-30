@@ -4,6 +4,53 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — `booking.resat_from` / `resat_kind`: a re-sit stays a re-sit
+
+Closes the gap left open in v1.33.0 an hour earlier.
+
+MIGRATION `20260830174500_booking_records_the_resit_it_came_from.sql`, applied.
+Two columns, answering two different questions:
+
+- `resat_from bigint references booking(booking_id)` — the truthful link back to
+  the sitting this one replaces. The audit answer to "which attempt was this".
+  Partial index where not null.
+- `resat_kind text check (in ('NYC','NO_SHOW'))` — the original disposition,
+  copied at the moment of re-booking. Denormalised deliberately: it is a
+  historical fact that can never change afterwards, and it means every screen
+  colours a re-sit without a join back through a self-referencing FK on every
+  listing of a course. The alternative was a PostgREST self-embed on the hot
+  `listBlocks` query, which could not have been tested from the demo harness.
+
+`rescheduleDelegate()` sets both, on the LIVE insert AND on the merge path (when
+they were already on the target course, that booking is stamped too, guarded by
+`.is('resat_from', null)` so a second merge cannot overwrite the first link),
+and in demo.
+
+`kindFromFlags(disposition, flags, resatKind)` gained a third argument: a re-sit
+has no disposition of its own — it has not been assessed — so it takes the kind
+of the sitting it replaces. `listBlocks` selects the two columns and exposes
+`resit` and `resatFrom` on each delegate. Column grants checked: `authenticated`
+holds table-level SELECT/INSERT/UPDATE on `booking`, so the new columns are
+covered and `anon` still has nothing.
+
+**In the UI.** The delegate row reads `NYC · Re-sitting` with the same tag pill
+the rail uses, and its kind bar is the amber/red. `kindsOn()` therefore puts that
+colour in the bar's stripe with no change at all — a mixed course draws amber
+plus green. `barTip` counts a re-sit as "re-sitting" rather than as another "not
+yet competent", because the colour already says which of the two it is:
+*"2 booked · 1 new, 1 re-sitting"*.
+
+`resit.mjs` grew four assertions and lost its NOTE block: the row reads as a
+re-sit, its dot is `rgb(183,121,31)` or `rgb(192,57,43)`, it carries the same tag
+as the rail, and the bar stripe holds that colour. Plus the thing Chris actually
+asked about — a mixed course showing **one colour per kind**, asserted as
+`["rgb(183, 121, 31)","rgb(31, 157, 85)"]` with the tip counting them
+separately.
+
+**Not backfilled.** Re-sits booked before today have no `resat_from`, so they
+still read as ordinary bookings. Inferring them from `rescheduled` + client would
+be a guess, and this is audit-facing.
+
 ## 2026-08-30 — the NYC / no-show reschedule pool on the calendar
 
 Blocker 1 of 2 for retiring the Schedule board. `getReschedulePool()` and

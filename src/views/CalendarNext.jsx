@@ -92,7 +92,9 @@ function barTip(b) {
   const n = b.delegates?.length || 0
   const kinds = {}
   for (const d of b.delegates || []) {
-    const l = kindOf(d.kind).label
+    // A re-sit counts as a re-sit, not as another "not yet competent" — the
+    // colour already says which of the two it is.
+    const l = d.resit ? 'Re-sitting' : kindOf(d.kind).label
     kinds[l] = (kinds[l] || 0) + 1
   }
   const mix = Object.entries(kinds).map(([l, c]) => `${c} ${l.toLowerCase()}`).join(', ')
@@ -1878,11 +1880,17 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
   return (
     <li className={(part ? 'part' : '') + (canWrite ? ' grabby' : '')} style={{ '--s': schemeColour(block.scheme) }}
       onPointerDown={(e) => { if (!e.target.closest('button, input')) onDragStart?.(e) }}>
-      <span className="cx-kind" style={{ background: k.c }} title={k.label} />
+      <span className="cx-kind" style={{ background: k.c }}
+        title={d.resit ? `Re-sitting \u2014 ${k.label.toLowerCase()} last time` : k.label} />
       <span className="cx-dinfo">
         <b>{d.name}</b>
         <small>
-          {k.label}
+          {/* The amber/red follows them onto the course. Before booking.resat_kind
+              existed, a re-sit arrived here as a plain green "New" and the whole
+              reason they were on the course was lost the moment they were put on it. */}
+          {d.resit
+            ? <><em className="cx-resit-tag" style={{ '--k': k.c }}>{resitWord(d)}</em>Re-sitting</>
+            : k.label}
           {d.codes?.length ? ' · ' + d.codes.join(', ') : ''}
           {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
         </small>

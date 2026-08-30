@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.33.1', build: 171, date: '30 Aug 2026',
+    title: 'A re-sit still looks like a re-sit once it is on the course',
+    notes: [
+      'The gap flagged an hour ago is closed. Put somebody back on a course to re-sit and they now stay amber (NYC) or red (no-show) \u2014 on their row inside the course, on the coloured dots along the course itself, and in the note you get when you hover it. Before this they turned green and read as an ordinary new booking the moment they were placed, and the reason they were there vanished.',
+      'THE COLOURED DOTS ON A COURSE now do what you asked: a course with a mixture shows one dot per kind, so amber-plus-green tells you at a glance it is a re-sit sitting alongside new bookings. Hovering it spells it out \u2014 \u201c2 booked \u00b7 1 new, 1 re-sitting\u201d.',
+      'Their row inside the course reads \u201cNYC \u00b7 Re-sitting\u201d rather than just \u201cNot yet competent\u201d, so you can tell somebody who is BEING re-sat apart from somebody who was marked NYC on that course.',
+      'This needed one change to the database, already applied: a booking now records which earlier booking it is a second attempt at. That is worth having on its own \u2014 it is the answer to \u201cwhich sitting was this\u201d when an auditor asks.',
+      'Nothing you have already booked changes. Older re-sits made before today have no record of where they came from and will still read as ordinary bookings; everything from here on carries it.',
+    ],
+  },
+  {
     v: '1.33.0', build: 170, date: '30 Aug 2026',
     title: 'People owed a re-sit are on the calendar now',
     notes: [

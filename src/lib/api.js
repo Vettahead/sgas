@@ -503,7 +503,7 @@ function reschedEntry(bookingId, clientId, companyId, forename, surname, scheme,
 export async function rescheduleDelegate(bookingId, targetSessionId) {
   if (LIVE) {
     const { data: orig, error: e0 } = await supabase.from('booking')
-      .select('client_id,company_id,booking_category(category_id,result,is_reassessment)').eq('booking_id', bookingId).single()
+      .select('client_id,company_id,disposition,booking_category(category_id,result,is_reassessment)').eq('booking_id', bookingId).single()
     if (e0) throw e0
     const cats = (orig.booking_category || []).filter((x) => x.result !== 'PASS')
     // One booking per delegate per block: merge into an existing booking if they're already on the target.
@@ -511,6 +511,11 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
     let targetId
     if (existing) {
       targetId = existing.booking_id
+      // They were already on this course, so their categories merge in — but it
+      // is still a re-sit, and the record has to say so.
+      await supabase.from('booking')
+        .update({ resat_from: bookingId, resat_kind: orig.disposition === 'NO_SHOW' ? 'NO_SHOW' : 'NYC' })
+        .eq('booking_id', targetId).is('resat_from', null)
       const { data: have } = await supabase.from('booking_category').select('category_id').eq('booking_id', targetId)
       const haveSet = new Set((have || []).map((x) => x.category_id))
       const toAdd = cats.filter((x) => !haveSet.has(x.category_id))
@@ -520,7 +525,11 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
       }
     } else {
       const { data: bk, error: e1 } = await supabase.from('booking')
-        .insert({ client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id || null, overall_result: 'PENDING' })
+        // resat_from is the truthful link back; resat_kind is the original
+        // disposition copied at this moment so a re-sit can be COLOURED as one
+        // without joining back through a self-referencing key on every listing.
+        .insert({ client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id || null, overall_result: 'PENDING',
+          resat_from: bookingId, resat_kind: orig.disposition === 'NO_SHOW' ? 'NO_SHOW' : 'NYC' })
         .select().single()
       if (e1) throw e1
       targetId = bk.booking_id
@@ -541,9 +550,11 @@ export async function rescheduleDelegate(bookingId, targetSessionId) {
   if (existing) {
     const have = new Set(D.booking_categories.filter((x) => x.booking_id === existing.booking_id).map((x) => x.category_id))
     for (const x of cats) if (!have.has(x.category_id)) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: existing.booking_id, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
+    if (existing.resat_from == null) { existing.resat_from = bookingId; existing.resat_kind = orig.disposition === 'NO_SHOW' ? 'NO_SHOW' : 'NYC' }
   } else {
     const newId = ++D.seq.booking
-    D.bookings.push({ booking_id: newId, client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_mlp: orig.flag_mlp, flag_igas: orig.flag_igas, flag_payment_outstanding: false, flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null, is_reassessment: orig.is_reassessment, pref_date_from: null, pref_date_to: null, rescheduled: false, last_chased: null, confirmation_sent_at: null })
+    D.bookings.push({ booking_id: newId, client_id: orig.client_id, session_id: targetSessionId, company_id: orig.company_id, overall_result: 'PENDING', disposition: 'NONE', assess_notes: null, flag_mlp: orig.flag_mlp, flag_igas: orig.flag_igas, flag_payment_outstanding: false, flag_cert_outstanding: false, flag_photo_outstanding: false, sage_ref: null, is_reassessment: orig.is_reassessment, pref_date_from: null, pref_date_to: null, rescheduled: false, last_chased: null, confirmation_sent_at: null,
+      resat_from: bookingId, resat_kind: orig.disposition === 'NO_SHOW' ? 'NO_SHOW' : 'NYC' })
     for (const x of cats) D.booking_categories.push({ booking_category_id: ++D.seq.bcat, booking_id: newId, category_id: x.category_id, result: 'PENDING', achieved_date: null, expiry_date: null, is_reassessment: !!x.is_reassessment })
   }
   orig.rescheduled = true
@@ -1516,9 +1527,13 @@ const delegateKind = (disposition, isReassess) =>
 
 // Per-module kind: NEW (all new) / REASSESS (all reassessment) / MIXED (both).
 // disposition (NYC/No-show) still wins. flags = per-category is_reassessment booleans.
-const kindFromFlags = (disposition, flags) => {
+const kindFromFlags = (disposition, flags, resatKind) => {
   if (disposition === 'NO_SHOW') return 'NO_SHOW'
   if (disposition === 'NYC') return 'NYC'
+  // A re-sit has no disposition of its own yet — it has not been assessed. It
+  // takes the colour of the sitting it is replacing, so the amber or red
+  // follows the person onto the course instead of stopping at the waiting list.
+  if (resatKind === 'NO_SHOW' || resatKind === 'NYC') return resatKind
   if (!flags.length) return 'NEW'
   const re = flags.filter(Boolean).length
   return re === 0 ? 'NEW' : re === flags.length ? 'REASSESS' : 'MIXED'
@@ -1529,7 +1544,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1539,7 +1554,8 @@ export async function listBlocks() {
       trainerLeftOn: s.trainer?.left_on || null,
       delegates: (s.booking || []).map((b) => ({
         bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
-        kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment)),
+        kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment), b.resat_kind),
+        resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
         categoryIds: (b.booking_category || []).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
@@ -1558,7 +1574,8 @@ export async function listBlocks() {
       trainerLeftOn: asr(s.trainer_id)?.left_on || null,
       delegates: bks.map((b) => ({
         bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
-        kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment)),
+        kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment), b.resat_kind),
+        resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
         categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
