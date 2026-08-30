@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.30.0', build: 164, date: '30 Aug 2026',
+    title: 'Turn the phone sideways for the calendar \u2014 and the menu bug that found',
+    notes: [
+      'Turning your phone sideways now gives you the whole month on one screen with every course name written out in full. A column goes from about half an inch wide to well over an inch \u2014 which is the difference between \u201cDomestic Gas AC\u2026\u201d and the actual name. Nothing to switch on: rotate the phone and it changes.',
+      'It needed doing properly rather than just letting it rotate. Measured beforehand, turning the phone was WORSE: two thirds of the shorter screen went on the heading and buttons and the month ran off the bottom. The heading and toolbar are now much tighter sideways, and the rows are only as tall as a course actually needs.',
+      'A REAL BUG THIS TURNED UP, and it was a bad one: sideways, the menu opened as the full desktop sidebar, taller than the screen, and would not scroll. Everything from \u201cCalendar \u2014 new look\u201d downwards \u2014 Assess, Payments, Delegates, Companies, Courses, Admin, Progress, Help \u2014 was simply unreachable. The menu scrolls now, opens as an overlay sideways as it does on a narrow phone, and closes itself again once you have picked something. It was doing none of those three.',
+      'The cause is worth recording: the styling decided \u201cthis is a phone\u201d by width alone, and a phone held sideways is wider than many laptops. It now asks about height as well, and the code and the styling ask the same question in one place instead of two.',
+    ],
+  },
+  {
     v: '1.29.0', build: 163, date: '30 Aug 2026',
     title: 'Hover to see the detail \u2014 and two things the audit turned up',
     notes: [

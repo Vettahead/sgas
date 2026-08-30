@@ -9,7 +9,13 @@ html{color-scheme:light}
 *{box-sizing:border-box}
 body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.45}
 .app{display:flex;min-height:100vh}
-.side{width:230px;background:#0d1b2e;color:#c9d4e3;display:flex;flex-direction:column;flex:0 0 230px}
+/* The menu is taller than a phone held sideways: 1097px of nav in a 412px
+   viewport, with nothing to scroll it, so everything from "Calendar — new look"
+   downwards was simply unreachable. It scrolls now, and the scrollbar is hidden
+   because the dark panel does not need a grey trough down it. */
+.side{width:230px;background:#0d1b2e;color:#c9d4e3;display:flex;flex-direction:column;flex:0 0 230px;
+  overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none}
+.side::-webkit-scrollbar{display:none}
 .brand{padding:18px 20px 16px;border-bottom:1px solid #1c2c44;text-align:center}
 .brand .brand-logo{display:block;width:100%;max-width:178px;margin:0 auto}
 .brand b{color:#fff;font-size:16px;letter-spacing:.3px}
@@ -993,7 +999,7 @@ select,select option{color:#1d2733;background:#fff}
 /* On a phone the sidebar is 230px of a 375px screen, and opening it pushed the
    whole page sideways. It now slides over the content instead, with a backdrop
    to tap away, and closes itself when you pick something. */
-@media (max-width:760px){
+@media (max-width:760px), (max-height:500px){
   .app .side{position:fixed;top:0;bottom:0;left:0;z-index:70;width:264px;flex-basis:264px;
     transform:translateX(-100%);transition:transform .22s cubic-bezier(.22,1,.36,1);
     box-shadow:6px 0 28px rgba(13,27,46,.34)}
@@ -1787,3 +1793,49 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .tip-below::after{top:auto; bottom:100%; border-top-color:transparent; border-bottom-color:#0f1729}
 @keyframes tip-in{from{opacity:0}to{opacity:1}}
 @media (prefers-reduced-motion:reduce){.tip{animation:none}}
+
+
+/* ═══ A PHONE HELD SIDEWAYS ════════════════════════════════════════════════
+   Worth having, because a 7-column month grid is the one layout that genuinely
+   wants width: a column goes from 56px to 123px, which is the difference
+   between "Domestic Gas AC…" and the whole course name.
+
+   But turning the phone is only a win if the height is spent on the calendar.
+   Measured before this block: 210px of the 412px went on the page header and
+   the toolbar, the rows kept their desktop height, and 251px of the month hung
+   off the bottom — so rotating made it worse, not better. Everything here is
+   about giving those pixels back.
+
+   Scoped to short AND landscape so a tall phone in portrait, and any ordinary
+   laptop, are untouched. */
+@media (max-height:500px) and (orientation:landscape){
+  /* The page header, down to a single tight line. */
+  .top{padding:6px 12px;gap:8px}
+  .top h1{font-size:14px}
+  .top .sub{display:none}
+  .top .right{font-size:11px;gap:9px}
+  .navtoggle{width:30px;height:30px}
+  .content{padding:10px 12px}
+
+  .cx{margin:-10px -12px;padding:10px 12px}
+  .cx-title{font-size:16px}
+  .cx-bar-top{gap:7px;margin-bottom:10px}
+  .cx-steps button,.cx-icon,.cx-today,.cx-primary{height:30px}
+  .cx-steps button,.cx-icon{width:30px}
+  .cx-today{padding:0 10px;font-size:11.5px}
+  .cx-seg button{padding:6px 9px;font-size:11.5px}
+  .cx-primary{padding:0 11px;font-size:11.5px}
+  /* At this height the key would cost a row of the calendar to explain marks
+     that the ? already explains. */
+  .cx-keybtn{display:none}
+  .cx-dow div{padding:5px 8px;font-size:9.5px}
+
+  /* Rows down to what a single course actually needs: the date, the bar, and a
+     little air. A second lane still grows the row — it just starts smaller. */
+  .cx{--rowmin:46px;--numh:18px;--barh:22px}
+  .cx-cell{padding:3px 6px}
+  /* One line per course: 22px of bar cannot carry two, and at 123px wide the
+     name is finally readable, which is the whole reason for turning the phone. */
+  .cx-bar-sub{display:none}
+  .cx-bar-t{justify-content:center;font-size:11.5px}
+}

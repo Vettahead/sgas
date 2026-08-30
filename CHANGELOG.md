@@ -4,6 +4,61 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (later still) — landscape on a phone, and an unreachable menu
+
+Chris asked whether landscape would help visibility on the calendar. Measured
+rather than guessed, and the answer was yes-but — with a blocking bug in the way.
+
+### The measurement
+
+At 412x915 portrait vs 915x412 landscape, both a real Android context:
+
+```
+                       portrait   landscape (before)   landscape (after)
+column width               56px            123px               127px
+chrome before the grid    193px            210px                93px
+month fits on screen        yes    no, 251px off              yes
+course names fully shown    3/4              4/4                4/4
+```
+
+So the win Chris was after is real — a 7-column grid is the one layout that
+genuinely wants width, and 56px cannot hold a course name — **but rotating made
+things worse until the height was spent on the calendar instead of on chrome.**
+New `@media (max-height:500px) and (orientation:landscape)` block: header to a
+single tight line, toolbar controls to 30px, key hidden, `--rowmin` 78→46,
+`--numh` 20→18, `--barh` 22, one line per course.
+
+Scoped to short AND landscape, so a tall phone in portrait and any ordinary
+laptop are untouched.
+
+### The bug it uncovered
+
+**Sideways, half the menu was unreachable.** The drawer breakpoint was
+`@media (max-width:760px)` — and a phone held sideways is **915px wide**, wider
+than plenty of laptops. So it got the full desktop sidebar: 1097px of navigation
+in a 412px viewport, `overflow-y: visible`, no scroll. Everything below about
+412px — Calendar — new look, Assess, Payments, Delegates, Companies, Courses,
+Admin, Progress, Changelog, Help — could not be reached at all.
+
+Three separate faults, one cause:
+
+1. `.side` never scrolled. Now `overflow-y:auto` with a hidden scrollbar — that
+   alone fixes it at *any* viewport too short for the menu, not just phones.
+2. The CSS breakpoint became `@media (max-width:760px), (max-height:500px)`.
+3. **The JS and the CSS had drifted apart.** `App.jsx` decided the same question
+   in three places with a bare `window.innerWidth <= 760` — the initial open
+   state, the close-on-navigate, and the scrim dismiss. In landscape all three
+   said "desktop", so once the drawer did open it covered the page and never
+   closed. Replaced with one module-level `isDrawer()` that matches the media
+   query exactly, with a comment on each saying to change them together.
+
+### Verified
+
+New landscape suite: menu starts closed, menu scrolls to the items below the
+fold, choosing a screen closes it again, the whole month fits without scrolling,
+**every course name fully readable**, no sideways scroll, tapping a course opens
+it. Desktop, portrait-touch and tips suites all re-run unchanged.
+
 ## 2026-08-30 (later still) — hover tips, and two faults an audit turned up
 
 ### Tips

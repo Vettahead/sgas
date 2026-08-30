@@ -29,6 +29,12 @@ import { tokensEnabled, appLogout } from './lib/api.js'
 
 const SESSION_KEY = 'sgas_user'
 
+/* Must match the media query in styles.css that turns the sidebar into an
+   overlay drawer: @media (max-width:760px), (max-height:500px). */
+const isDrawer = () =>
+  typeof window !== 'undefined' &&
+  (window.innerWidth <= 760 || window.innerHeight <= 500)
+
 const TITLES = {
   dash: ['Dashboard', 'The renewal engine, scheduled sessions, and what is outstanding'],
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
@@ -108,7 +114,14 @@ export default function App() {
   const [view, setView] = useState(() => defaultView(loadSession()?.role))
   const [openDelegate, setOpenDelegate] = useState(null)
   const [bookPrefill, setBookPrefill] = useState(null)
-  const [navOpen, setNavOpen] = useState(() => (typeof window !== 'undefined' ? window.innerWidth > 820 : true))
+  // ── one definition of "the menu is a drawer over the page" ────────────────
+  // The CSS switches to the drawer at (max-width:760px) OR (max-height:500px) —
+  // the second because a phone held sideways is 915px WIDE and was getting the
+  // full desktop sidebar. These three checks used to say `innerWidth <= 760`
+  // on their own, so in landscape the drawer opened over the page and then
+  // never closed: you picked a screen and the menu stayed on top of it.
+  // If the CSS breakpoint changes, change this with it.
+  const [navOpen, setNavOpen] = useState(() => (typeof window !== 'undefined' ? !isDrawer() : true))
 
   function onLogin(u) {
     localStorage.setItem(SESSION_KEY, JSON.stringify(u))
@@ -175,7 +188,7 @@ export default function App() {
     setView(v)
     // On a phone the menu overlays the page, so leaving it open would hide
     // whatever you just picked.
-    if (typeof window !== 'undefined' && window.innerWidth <= 760) setNavOpen(false)
+    if (typeof window !== 'undefined' && isDrawer()) setNavOpen(false)
   }
   // Guard: any view the current role can't see falls back to its default view.
   const activeView = allowed.includes(view) ? view : defaultView(user.role)
@@ -189,7 +202,7 @@ export default function App() {
       onClick={(e) => {
         // The backdrop is the ::before of this element, so a click that lands
         // on the container itself on a small screen means "close the menu".
-        if (navOpen && e.target === e.currentTarget && window.innerWidth <= 760) setNavOpen(false)
+        if (navOpen && e.target === e.currentTarget && isDrawer()) setNavOpen(false)
       }}
     >
       <aside className="side">
