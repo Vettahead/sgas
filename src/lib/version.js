@@ -19,6 +19,13 @@
 
 export const RELEASES = [
   {
+    v: '1.32.1', build: 167, date: '30 Aug 2026',
+    title: 'The old calendar\u2019s last hiding place',
+    notes: [
+      'The Calendar tab INSIDE Schedule was still the old calendar. That is why the old one never really went away \u2014 taking it out of the menu did not take it off that screen, and anyone landing there got the version with no time off, no diary entries, no filters and no ACS forms. It is now the same calendar as everywhere else, and there is genuinely only one left.',
+    ],
+  },
+  {
     v: '1.32.0', build: 166, date: '30 Aug 2026',
     title: 'The ACS forms print from the calendar \u2014 and it checks them first',
     notes: [

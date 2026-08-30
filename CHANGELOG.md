@@ -4,6 +4,40 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (later still) — Schedule's Calendar tab is the new calendar
+
+`Schedule.jsx` imported `CalendarView` from `Calendar.jsx` and rendered it as its
+`cal` tab. Taking `calendar` out of `roles.js` and `NAV_GROUPS` in v1.31.0 removed
+the menu entry but not this, so the old screen was still one click away with none
+of what has been built since — holidays, diary entries, delete, assessor/verifier,
+filters, tips, the weekend guard, ACS forms.
+
+`CalendarTab` now renders `CalendarNext`. Write access comes from
+`canSchedule(user.role)`, matching the Calendar screen, rather than the `isAdmin`
+prop it was handed — so a SCHEDULER can now actually schedule from this tab too.
+`user` is still forwarded (without it `listEngagements` shows every user's private
+diary entries).
+
+`Calendar.jsx` stays on disk: `Dashboard.jsx` and `SetupWizard.jsx` still import
+`MonthView`, `YearView` and `cal` from it. Nothing renders the full `Calendar`
+component any more.
+
+New `schedcal.mjs`: 6 checks that the tab renders `.cx-*`, carries no `.cal-*`,
+has the Day/Week/Month/Year toolbar, draws bars, and opens a course with the ACS
+forms row on it.
+
+### Open, not reproduced
+
+Chris reports the course popover breaking its layout on the live site, and the app
+going white when the desktop window is resized with a modal open. Not reproduced
+here across production and dev builds at 1512/1828/412/915 wide, nor by oscillating
+the viewport across the 720/1000/500 breakpoints with a popover open — no page
+error, no console error, no overflow, `.cx-pop` computing to `display:block` at
+376px throughout. A white screen on resize is an uncaught render error, so the
+next step is the actual console message from his browser. The prime suspect is
+`Popover.place()`: `useLayoutEffect(() => { place() })` runs after EVERY render
+with no dependency array, and only the `commit()` equality guard stops it looping.
+
 ## 2026-08-30 (late) — ACS forms on the calendar, with a pre-flight check
 
 The last of the audit blockers that lived only on the Schedule board, and the

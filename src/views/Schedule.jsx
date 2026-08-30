@@ -4,7 +4,8 @@ import { useData } from '../lib/hooks.js'
 import { fmt, initials } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 import { downloadCombined, downloadZip, downloadForm } from '../lib/acspdf.js'
-import CalendarView from './Calendar.jsx'
+import CalendarNext from './CalendarNext.jsx'
+import { canSchedule } from '../lib/roles.js'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const todayISO = () => new Date().toISOString().slice(0, 10)
@@ -89,7 +90,7 @@ export default function Schedule({ user, isAdmin, go }) {
         </div>
       </div>
       {tab === 'drag' && <DragAssign f={f} />}
-      {tab === 'cal' && <CalendarTab user={user} isAdmin={isAdmin} go={go} />}
+      {tab === 'cal' && <CalendarTab user={user} go={go} />}
     </>
   )
 }
@@ -587,12 +588,17 @@ function BlockFooter({ b }) {
 }
 
 /* ============================ calendar ============================ */
-function CalendarTab({ user, isAdmin, go }) {
-  // Reuse the full calendar (the same one as the standalone Calendar tab).
-  // These props MUST be forwarded: without `user`, listEngagements falls back
-  // to an unfiltered query and shows every user's private entries; without
-  // `isAdmin` the tab silently loses all its edit controls.
-  return <CalendarView user={user} isAdmin={isAdmin} go={go} />
+function CalendarTab({ user, go }) {
+  // The SAME calendar as the Calendar screen — one calendar in the whole app.
+  // This tab used to render the old Calendar.jsx, which is why the old screen
+  // was still reachable after it came out of the menu: the board quietly kept
+  // it alive, holidays, diary entries, forms and all missing.
+  //
+  // `user` MUST be forwarded: without it listEngagements falls back to an
+  // unfiltered query and shows every user's private diary entries. Write
+  // access is decided by role, exactly as it is on the Calendar screen —
+  // never by whoever happens to be an admin.
+  return <CalendarNext user={user} canWrite={canSchedule(user?.role)} go={go} />
 }
 
 function Calendar({ blocks }) {
