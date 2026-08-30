@@ -4,6 +4,51 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 (night) — the popover is translated, not positioned
+
+Chris filmed it. Two frames out of the clip show the course popover with the
+`.cx-when` date block absent, the title absent, the header rule only ~90px wide,
+the rows stranded in a narrow right-hand column, and a horizontal scrollbar.
+
+**It is not CSS.** A brace-aware scan of every rule that can match `.cx-pop`,
+`.cx-rows`, `.cx-when`, `.cx-row2`, `.cx-rfill` and `.cx-rwrap`, in every media
+query, finds `display` set on exactly six of them and `.cx-pop` on none — there
+is no rule anywhere that could lay the panel's children out in a row. It also
+does not reproduce: production and dev builds, 1846x1318 (his own window size),
+1512x950, 1280x720, 900x760, 700x900; every bar in four months opened at 5%,
+50% and 95% along; viewport oscillated across the 720/1000/500 breakpoints with
+a panel open; 70-step smooth resize drags. `scrollWidth === clientWidth` every
+time, no page error, no console error.
+
+What is left is a **paint/compositing artefact**, which fits everything: torn
+output with fragments stranded and blank areas between them, a refresh curing
+it, the whole app going white on a window resize, and it happening on one
+machine and not in headless Chromium.
+
+The provocation is ours. `.cx-pop` is `position:fixed`, scrolls its own content,
+carries a 48px shadow, and `place()` re-runs on every scroll frame and after
+every render. It was moved by writing `left`/`top`, which re-lays-out and
+re-rasters the whole box each time.
+
+- `Popover.jsx` now applies `transform: translate3d(x, y, 0)` instead of
+  `left`/`top`. Rounded to whole pixels. Placement maths is untouched —
+  `place()` measures `offsetWidth`/`offsetHeight`, which transforms do not
+  affect — so this changes only how the answer is applied.
+- `.cx-pop` gets `left:0; top:0; will-change:transform`, so it has its own
+  layer before the first move rather than because of it.
+- `@keyframes cx-pop-in` is now opacity-only. It animated `transform`, which
+  would fight the positioning transform, and animating transform on a fixed,
+  scrolling, shadowed box is the same provocation again.
+
+New `place.mjs`: opens every bar at 5/50/95% across five viewports and asserts
+the panel is fully on screen with no horizontal overflow — 0px both, everywhere.
+New `follow.mjs`: after a scroll the panel re-places, stays fully on screen, and
+its caret still points at its course. acs (admin + reception), verify, e2e, tip,
+parity, schedcal and touch all clean.
+
+**Unproven.** If it recurs, the theory is wrong and the next suspect is
+`Popover`'s `useLayoutEffect(() => { place() })` with no dependency array.
+
 ## 2026-08-30 (later still) — Schedule's Calendar tab is the new calendar
 
 `Schedule.jsx` imported `CalendarView` from `Calendar.jsx` and rendered it as its

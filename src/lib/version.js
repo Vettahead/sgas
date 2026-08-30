@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.32.2', build: 168, date: '30 Aug 2026',
+    title: 'The course panel drawing itself in pieces',
+    notes: [
+      'The panel that opens when you click a course was sometimes drawing itself wrong \u2014 the dates missing, the writing squashed into a narrow strip down one side, a scrollbar along the bottom that should not be there \u2014 and the whole screen could go white when the window was resized with a panel open, until you refreshed.',
+      'It is not a fault in the panel itself. The panel follows the course it belongs to as you scroll, and it was being MOVED in a way that makes the browser redraw the whole thing from scratch every time. On some machines that redraw does not finish, and you are left looking at half of it. It is now moved the way browsers are built to move things \u2014 the panel slides as one piece instead of being redrawn \u2014 which should also make scrolling with it open noticeably smoother.',
+      'BEING HONEST: this could not be reproduced away from the machine it happens on, so it is the most likely cause rather than a proven one. If you still see it, say so \u2014 the next step is different and I know what it is.',
+      'The panel now fades in rather than fading and sliding. That is deliberate: the slide was the same kind of movement that provokes the fault.',
+    ],
+  },
+  {
     v: '1.32.1', build: 167, date: '30 Aug 2026',
     title: 'The old calendar\u2019s last hiding place',
     notes: [

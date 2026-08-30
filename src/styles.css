@@ -1458,14 +1458,24 @@ button.cx-title:hover i{opacity:1}
 /* ── Anchored course popover ────────────────────────────────────────────────
    Opens beside the bar you clicked instead of dimming the calendar. The
    calendar behind it is the context you need while you look at a course. */
-.cx-pop{position:fixed;z-index:220;width:376px;max-width:calc(100vw - 24px);
+/* MOVED WITH transform, NOT left/top — see Popover.jsx. left/top stay at 0 and
+   the panel is translated into place, so following the anchor down a scroll is
+   a composited move instead of a re-layout and re-raster of a fixed, scrolling,
+   shadowed box on every frame. will-change gives it its own layer up front so
+   the first move is not the one that has to build it. */
+.cx-pop{position:fixed;left:0;top:0;will-change:transform;
+  z-index:220;width:376px;max-width:calc(100vw - 24px);
   max-height:min(78vh,660px);overflow:auto;background:var(--cx-panel);
   border:1px solid var(--cx-line);border-radius:16px;
   box-shadow:0 18px 48px rgba(15,23,42,.20),0 3px 10px rgba(15,23,42,.08);
   animation:cx-pop-in .16s cubic-bezier(.2,.9,.3,1)}
 .cx-pop:focus{outline:none}
 .cx-dark .cx-pop{box-shadow:0 18px 48px rgba(0,0,0,.55)}
-@keyframes cx-pop-in{from{opacity:0;transform:translateY(-4px) scale(.975)}to{opacity:1;transform:none}}
+/* Opacity ONLY. This used to animate transform as well, which fought the
+   transform the panel is now positioned with — and animating transform on a
+   fixed, scrolling, shadowed box is one of the things that provokes the
+   repaint fault this move was made to avoid. */
+@keyframes cx-pop-in{from{opacity:0}to{opacity:1}}
 .cx-pop.left{transform-origin:right center}
 .cx-pop.right{transform-origin:left center}
 .cx-pop.bottom{transform-origin:top center}

@@ -171,7 +171,17 @@ export default function Popover({ at, onClose, dirty = false, label, className =
     }
   }, [tryClose])
 
-  const style = pos?.sheet ? undefined : { left: pos?.left ?? -9999, top: pos?.top ?? -9999 }
+  // TRANSLATED into place rather than positioned with left/top. This panel is
+  // position:fixed, scrolls its own content, carries a large shadow, and is
+  // re-placed on every scroll frame and every render. Moving that with left/top
+  // makes the browser lay it out and re-raster it each time; on some machines
+  // that leaves torn, half-drawn panels behind — content stranded in a column,
+  // the date block missing, a scrollbar that should not be there. A transform
+  // is composited: the layer is MOVED, not redrawn. Rounded to whole pixels so
+  // text never lands on a half-pixel.
+  const style = pos?.sheet ? undefined : {
+    transform: `translate3d(${Math.round(pos?.left ?? -9999)}px, ${Math.round(pos?.top ?? -9999)}px, 0)`,
+  }
   return (
     <>
       {sheet && <div className="cx-pop-scrim" onPointerDown={tryClose} />}
