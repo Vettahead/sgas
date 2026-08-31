@@ -224,3 +224,51 @@ Three things to know when touching bar contents:
 `/tmp/sgastest/overflowcheck.mjs` asserts this across all four views at desktop,
 tablet and phone. Run it after any change to what sits inside a bar — it found
 two phone faults nobody had reported.
+
+## `.cx` is a PAGE, not a theme (31 Aug 2026)
+
+The mini month (`MiniMonth`, used by the dashboard card and the set-up wizard's
+date step) carries `class="cx cx-glance"` so it can read the calendar's colour
+and size tokens. `.cx` also carries the full-screen page:
+
+```css
+.cx{background:var(--cx-bg);margin:-24px -28px;padding:22px 26px;min-height:calc(100vh - 62px)}
+```
+
+So the mini month arrived a whole viewport tall — 888px on a 950px window — with
+a page background and a negative margin bleeding out of its container. That is
+what put the scrollbar in the set-up dialog, and it survived two rounds of
+"make the picker smaller" because the picker was never the problem: its rows
+measured 46px and its content 264px while the box around them was 888px.
+
+`.cx-glance` now resets `margin/padding/background/min-height`. **If any other
+component ever borrows `cx` for the tokens, it has to undo the frame the same
+way** — or split the tokens out of `.cx` into a `.cx-tokens` class.
+
+Measure the BOX as well as the content when something is too tall. The row
+heights and the `--lanes`/`--barh` maths were all correct and all irrelevant.
+
+## The tests were measuring an hour-old build (31 Aug 2026)
+
+Four `serve` processes from earlier sessions were still holding port 4173,
+serving a copy of `dist` taken hours before. Every suite passed, and every
+measurement of a CSS fix reported that it had changed nothing — twice — because
+the browser was being handed the previous stylesheet. Nothing warns about this:
+the page loads, the app works, the numbers are simply from another build.
+
+`runall.sh` now builds, kills everything on 4173 (`lsof -t -i :4173`, not just
+`pkill -f 'vite preview'`), restarts the server, and **refuses to run a single
+suite unless the index.html the server hands out names the CSS file the build
+just wrote.** `SKIP_BUILD=1` opts out for a quick re-run.
+
+Two suites also had to be corrected for the hidden weekend, and they are worth
+knowing about as a shape of test fault: both were still passing on the old build
+and both were asking a question the app no longer answers.
+
+- `e2e.mjs`'s weekend guard dragged across "cells 5 and 6 of the first week".
+  With Saturday and Sunday hidden those are Monday and Tuesday of week two, so
+  the guard was never reached. It turns weekends on first now.
+- `verify.mjs`'s resize check pulled the first bar's right handle 340px right —
+  but the check before it had just dragged that bar to the end of the row, and
+  with the weekend hidden Friday is a wall. It now picks whichever bar has room
+  to its right and pulls it one column wider.
