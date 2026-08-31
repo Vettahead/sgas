@@ -30,10 +30,10 @@ body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Hel
 .nav a.soon small{margin-left:auto;font-size:9px;background:#22344f;padding:1px 6px;border-radius:10px}
 .side .foot{padding:14px 20px;border-top:1px solid #1c2c44;font-size:11px;color:#6f81a0}
 .main{flex:1;min-width:0;display:flex;flex-direction:column}
-.top{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:16px}
-.top h1{font-size:17px;margin:0;font-weight:650}
-.top .sub{color:var(--muted);font-size:12.5px}
-.top .right{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}
+.appbar{background:var(--panel);border-bottom:1px solid var(--line);padding:14px 28px;display:flex;align-items:center;gap:16px}
+.appbar h1{font-size:17px;margin:0;font-weight:650}
+.appbar .sub{color:var(--muted);font-size:12.5px}
+.appbar .right{margin-left:auto;display:flex;align-items:center;gap:14px;color:var(--muted);font-size:12.5px}
 .pill{background:var(--brand-soft);color:var(--brand-dark);padding:3px 10px;border-radius:20px;font-weight:600;font-size:11.5px}
 .linkbtn{background:none;border:none;color:var(--muted);cursor:pointer;font:inherit;font-size:12.5px;text-decoration:underline}
 .linkbtn:hover{color:var(--brand)}
@@ -169,25 +169,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .leg span{display:inline-flex;align-items:center;gap:6px}
 
 /* Calendar (Calendar.jsx) — toolbar, filters, create modal, roster drawer */
-.cal-wrap{display:flex;flex-direction:column}
-.cal-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px}
 .cal-nav-grp{display:flex;align-items:center;gap:8px}
-.cal-label{font-size:16px;font-weight:650;margin-left:6px;min-width:150px}
-.cal-views{display:flex;gap:6px}
-.cal-filters{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
-.cal-filters select{padding:6px 9px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
-.cal-check{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);cursor:pointer}
-.cal-dates{display:flex;gap:10px}
-.cal-wrap .fld{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--slate);margin-top:10px;flex:1}
-.cal-wrap .fld select,.cal-wrap .fld input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;box-sizing:border-box}
-.cal-drawer{width:min(460px,94vw)}
-.cal-drawer-head{padding-left:12px;margin-bottom:8px}
-.cal-drawer-head h3{margin:0}
-.cal-drawer-roles{margin-bottom:10px}
-.cal-warn{color:#b7791f;font-weight:600}
-.cal-drawer-body{border-top:1px solid var(--line);padding-top:10px}
-.cal-delg{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:4px;max-height:260px;overflow:auto}
-.cal-delg li{font-size:13px;padding:5px 8px;background:#f6f8fb;border-radius:6px}
 .leg i{width:11px;height:11px;border-radius:3px;display:inline-block}
 .assess-deleg{border:1px solid var(--line);border-radius:10px;margin-bottom:14px;overflow:hidden}
 .assess-deleg .dh{display:flex;align-items:center;gap:12px;padding:12px 16px;background:#f7f9fc;border-bottom:1px solid var(--line)}
@@ -486,59 +468,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .wg-dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:none}
 
 /* Calendar 2 — react-big-calendar brand tweaks */
-.cal2-wrap{display:flex;flex-direction:column}
-.cal2-host{background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px}
-.cal2-host .rbc-toolbar button{color:var(--ink);border-color:#cfd8e3}
-.cal2-host .rbc-toolbar button.rbc-active{background:var(--brand);border-color:var(--brand);color:#fff}
-.cal2-host .rbc-toolbar button:hover{background:var(--brand-soft)}
-.cal2-host .rbc-toolbar-label{font-weight:650;font-size:15px}
-.cal2-host .rbc-today{background:var(--brand-soft)}
-.cal2-host .rbc-event{font-size:11.5px;font-weight:600;padding:1px 5px}
-.cal2-host .rbc-event.rbc-selected{filter:brightness(1.05)}
-.cal2-host .rbc-off-range-bg{background:#fafbfd}
 
 /* Year view (YearCalendar.jsx) — Teamup-style linear months-as-rows */
-.yc-wrap{display:flex;flex-direction:column}
-.yc-months{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
-.yc-months select{width:auto;padding:5px 8px}
-.yc{border:1px solid var(--line);border-radius:12px;overflow-x:auto;background:#fff}
-.yc-head,.yc-row{display:grid;grid-template-columns:84px 1fr;align-items:stretch}
-.yc-head{position:sticky;top:0;z-index:2;background:#f7f9fc;border-bottom:1px solid var(--line)}
-.yc-dowrow{display:grid;grid-template-columns:repeat(37,1fr)}
-.yc-dow{font-size:9.5px;color:var(--muted);text-align:center;padding:5px 0;font-weight:600}
-.yc-mlabel{display:flex;flex-direction:column;justify-content:center;padding:6px 10px;font-weight:650;font-size:12.5px;border-right:1px solid var(--line);background:#f7f9fc;position:sticky;left:0;z-index:1}
-.yc-mlabel small{color:var(--muted);font-weight:500;font-size:10px}
-.yc-row{border-bottom:1px solid var(--line);min-height:40px}
-.yc-row:last-child{border-bottom:none}
-.yc-track{display:grid;position:relative;padding:2px 0}
-.yc-cell{border-right:1px solid #eef1f6;min-width:18px;position:relative}
 .yc-cell.out{background:#fafbfd}
 .yc-cell.wknd{background:#f4f7fb}
 .yc-cell.today{background:var(--brand-soft)}
-.yc-dn{position:absolute;top:2px;left:2px;font-size:8.5px;color:var(--muted);line-height:1}
-.yc-todaybar{pointer-events:none;box-shadow:inset 2px 0 0 var(--brand);z-index:1}
-.yc-bar{align-self:center;margin:1px 1px;height:18px;border:none;border-radius:4px;color:#fff;font-size:10.5px;font-weight:600;cursor:pointer;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 6px;text-align:left;display:flex;align-items:center;box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.yc-bar:hover{filter:brightness(1.07)}
-.yc-bar-t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.yc-cell{cursor:cell;touch-action:none}
 .yc-cell.sel{background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}
 /* Year view: bigger to match Teamup/ClickUp + day numbers in their own strip */
-.yc-mlabel{font-size:13.5px;padding:8px 12px}
-.yc-dow{font-size:11px;padding:7px 0}
-.yc-num{font-size:10.5px;color:var(--muted);text-align:center;line-height:22px;border-right:1px solid #eef1f6;min-width:26px;background:#fcfdfe}
 .yc-num.out{background:#fafbfd;color:transparent}
 .yc-num.wknd{background:#f4f7fb}
-.yc-cell{min-width:26px}
-.yc-bar{height:24px;font-size:11.5px;border-radius:5px;margin:1px 1px}
-.cal-edit{display:flex;flex-direction:column;gap:2px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:10px}
 /* FIX: bars must sit ABOVE the position:relative day cells, or clicks hit the
    cell underneath and start a new-block drag instead of opening the block. */
-.yc-bar{position:relative;z-index:2;height:28px;font-size:12px;font-weight:600;border-radius:5px;box-shadow:0 1px 3px rgba(0,0,0,.22)}
-.yc-num{line-height:24px;font-size:11px}
 /* faint hint that the empty bottom strip of each month row is draggable to add a block */
-.yc-track .yc-cell:hover{background:var(--brand-soft)}
-
-.yc-bar{height:21px;font-size:11px}
 
 /* Collapsible sidebar (mobile + give the calendar room) */
 .side{transition:margin-left .22s ease}
@@ -556,13 +497,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
   border-radius:14px;box-shadow:0 24px 60px rgba(13,27,46,.34);display:flex;flex-direction:column;
   overflow:auto;padding:18px 22px;animation:calpop .18s cubic-bezier(.22,1,.36,1)}
 @keyframes calpop{from{transform:translateY(10px) scale(.985);opacity:.6}to{transform:none;opacity:1}}
-.cal-modal-head{padding:0 0 12px 12px;border-bottom:1px solid var(--line);margin-bottom:14px}
-.cal-modal-title{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.cal-modal-title h3{margin:0;font-size:16px}
 /* Two columns once there is room — details on the left, people on the right. */
 @media (min-width:640px){
   .cal-modal .cal-sec{break-inside:avoid}
-  .cal-modal-body-2col{column-count:2;column-gap:22px}
 }
 @media (max-width:640px){
   .cal-modal-wrap{padding:0}
@@ -571,21 +508,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 @media (prefers-reduced-motion:reduce){
   .cal-modal,.cal-modal-wrap{animation:none}
 }
-.cal-x{background:none;border:none;font-size:15px;color:var(--muted);cursor:pointer;line-height:1}
-.cal-editbtns{display:flex;gap:8px;margin-top:8px}
-.cal-sec{border-top:1px solid var(--line);padding-top:12px;margin-top:12px;display:flex;flex-direction:column;gap:6px}
-.cal-sec>strong{font-size:12.5px}
-.cal-delg li{display:flex;align-items:center;justify-content:space-between;gap:8px}
-.cal-mini{flex:none;width:24px;height:24px;border:1px solid #cfd8e3;background:#fff;border-radius:6px;cursor:pointer;color:var(--slate);line-height:1}
 .cal-mini.add{border-color:var(--brand);color:var(--brand);font-weight:700}
-.cal-mini:hover{background:var(--brand-soft)}
-.cal-modal-foot{margin-top:auto;padding-top:14px;display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--line)}
 .btn.danger{background:var(--red);border-color:var(--red);color:#fff}
 .btn.danger:hover{filter:brightness(1.05)}
 
 /* arrange panel: attendance tag + collapsible pool-by-qualification */
-.cal-delg-info{display:flex;flex-direction:column;gap:2px;min-width:0}
-.att-tag{font-size:10px;font-weight:600;padding:1px 7px;border-radius:20px;align-self:flex-start}
 .att-tag.full{background:var(--green-soft);color:var(--green)}
 .att-tag.part{background:var(--amber-soft);color:var(--amber)}
 .pool-grp{border:1px solid var(--line);border-radius:8px;margin-top:6px;overflow:hidden}
@@ -594,11 +521,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .pool-grp-head .chev{color:var(--muted);font-size:10px}
 .pool-grp-head strong{font-size:12.5px}
 .pool-grp-n{margin-left:auto;font-size:11px;color:var(--muted);background:#eef2f7;padding:1px 8px;border-radius:20px}
-.pool-grp .cal-delg{padding:6px 8px}
 
 /* admin view/edit chooser + mode toggle */
-.cal-modeseg{display:flex;margin-top:10px;border:1px solid #cfd8e3;border-radius:8px;overflow:hidden;width:fit-content}
-.cal-modeseg button{border:none;background:#fff;padding:5px 11px;font:inherit;font-size:11.5px;cursor:pointer;color:var(--slate)}
 .cal-modeseg button.on{background:var(--brand);color:#fff}
 .chooser{display:flex;gap:10px;margin-top:12px}
 .chooser-opt{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:3px;padding:13px;border:1px solid #cfd8e3;border-radius:10px;background:#fff;cursor:pointer;text-align:left;font:inherit}
@@ -607,40 +531,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .chooser-opt strong{font-size:13px}
 
 /* per-delegate attendance editor in the arrange panel (edit view) */
-.att-line{display:inline-flex;align-items:center;gap:7px}
-.att-change{background:none;border:none;color:var(--brand);font:inherit;font-size:11px;cursor:pointer;text-decoration:underline;padding:0}
-.att-edit{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
-.att-edit .att-dates{display:inline-flex;align-items:center;gap:4px}
-.att-edit input[type=date]{width:auto;padding:3px 6px;font-size:11px}
-.att-full{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--slate)}
-.att-full input{width:auto}
-.att-hint{font-size:10px}
 
 /* calendar filter chips (multi-select, colour-coded, like the Schedule page) */
-.cal-toolbar-wrap{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
-.cal-toolbar-wrap .cal-toolbar{margin-bottom:0}
-.cal-chipbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px}
-.cal-chipgrp{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
-.cal-chiplabel{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-right:2px}
-.cal-fchip{cursor:pointer;padding:4px 11px;font-size:12px}
 .cal-fchip.on{outline:3px solid #0d1b2e;outline-offset:2px}
 .cal-fchip:not(.on){opacity:.85}
 
 /* partial-attendance stripes over the portion a partial delegate attends */
-.yc-stripe{position:absolute;top:0;bottom:0;pointer-events:none;background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 4px, rgba(255,255,255,0) 4px 9px)}
-.yc-bar-t{position:relative;z-index:1}
 
 /* Year-view rich hover card (full staff detail) */
-.yc-hover{position:fixed;z-index:80;width:360px;max-height:62vh;overflow:auto;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 36px rgba(0,0,0,.24);padding:10px 12px;pointer-events:none;font-size:12px}
-.yc-hover-head{display:flex;flex-direction:column;gap:2px;padding-left:8px;margin-bottom:7px}
-.yc-hover-head strong{font-size:13px}
-.yc-hover-roles{display:flex;flex-wrap:wrap;gap:5px 12px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:7px 0;margin-bottom:7px;color:var(--slate)}
 .yc-hover-roles .ok{color:var(--green);font-weight:600}
 .yc-hover-roles .warn{color:var(--amber);font-weight:600}
-.yc-hover-delg{display:flex;flex-direction:column;gap:4px}
-.yc-hover-d{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:nowrap}
-.yc-hover-d>span:first-child{min-width:0}
-.yc-hover-d .att-tag{flex:none;white-space:nowrap}
 
 .kindtag{font-size:9.5px;font-weight:700;color:#fff;padding:1px 6px;border-radius:20px;white-space:nowrap}
 .result-sum{display:inline-flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
@@ -652,29 +552,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .dash-mod{margin-bottom:18px}
 .dash-mod-bar{display:flex;align-items:center;gap:6px;padding:5px 4px;margin-bottom:4px}
 .dash-mod-name{font-size:12px;font-weight:700;color:var(--slate);margin-right:auto}
-.mc-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.mc-title{font-size:14px;font-weight:650;min-width:130px;text-align:center}
-.mc-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
-.mc-dow{text-align:center;font-size:10px;font-weight:700;color:var(--muted);padding:2px 0}
-.mc-day{min-height:42px;border:1px solid var(--line);border-radius:7px;padding:3px 4px;cursor:pointer;display:flex;flex-direction:column;gap:3px;background:#fff}
 .mc-day.out{background:transparent;border:none;cursor:default}
 .mc-day.has:hover{border-color:var(--brand);background:var(--brand-soft)}
 .mc-day.today{box-shadow:inset 0 0 0 2px var(--brand)}
-.mc-n{font-size:10.5px;color:var(--muted);font-weight:600}
 .mc-day.today .mc-n{color:var(--brand)}
-.mc-dots{display:flex;flex-wrap:wrap;gap:2px}
-.mc-dots i{width:7px;height:7px;border-radius:50%;display:inline-block}
 
 /* dashboard module widths (resizable) + mini-calendar bars */
 .dash-mods{display:flex;flex-wrap:wrap;gap:18px;align-items:flex-start}
 .dash-mod{flex:1 1 100%;min-width:0;margin-bottom:0}
 .dash-mod.half{flex:1 1 calc(50% - 9px)}
 @media(max-width:820px){.dash-mod.half{flex:1 1 100%}}
-.mc-day{min-height:50px}
-.mc-bars{display:flex;flex-direction:column;gap:2px;margin-top:auto;width:100%}
-.mc-bar{height:5px;border-radius:3px}
-.mc-more{font-size:8px;color:var(--muted);line-height:1}
-.mc-swatch{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:middle}
 
 /* dashboard: drag-to-resize grip */
 .dash-mod{position:relative}
@@ -685,64 +572,19 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 @media(max-width:820px){.dash-mod{flex:1 1 100% !important}}
 
 /* Week/Day all-day column view */
-.wd{display:flex;gap:8px;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;overflow-x:auto;min-height:60vh}
-.wd-col{flex:1;min-width:96px;display:flex;flex-direction:column}
-.wd-day .wd-col{min-width:0}
-.wd-head{text-align:center;font-size:12px;font-weight:650;color:var(--slate);padding:2px 0 6px}
-.wd-head .wd-dn{display:block;font-size:18px;font-weight:720;color:var(--ink)}
 .wd-col.today .wd-head,.wd-col.today .wd-dn{color:var(--brand)}
-.wd-body{flex:1;border-top:2px solid var(--line);padding-top:8px;display:flex;flex-direction:column;gap:4px;cursor:cell}
 .wd-col.today .wd-body{border-top-color:var(--brand)}
 .wd-body.sel{background:var(--brand-soft);border-radius:0 0 8px 8px}
-.wd-bar{border:none;border-radius:5px;color:#fff;font-size:11px;font-weight:600;padding:4px 8px;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.18)}
-.wd-bar:hover{filter:brightness(1.07)}
-.wd-bar-t{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wd-empty{color:#cfd8e3;font-size:14px;text-align:center}
 
 /* weekend "not running" cut-out: dashed + faded over the weekend part of a course bar */
-.yc-wknd-cut{position:absolute;top:1px;bottom:1px;pointer-events:none;background:rgba(255,255,255,.82);border:1px dashed rgba(0,0,0,.42);border-radius:3px;box-sizing:border-box;z-index:1}
 .wd-bar.wknd{background:transparent !important;border:1.5px dashed;box-shadow:none}
 
 /* Year-view drag-to-move + edge resize */
-.yc-bar{cursor:grab}
-.yc-bar:active{cursor:grabbing}
-.yc-grip{position:absolute;top:0;bottom:0;width:7px;cursor:ew-resize;z-index:3}
-.yc-grip-l{left:0}
-.yc-grip-r{right:0}
 .yc-bar.dragging{z-index:6;opacity:.92;box-shadow:0 4px 12px rgba(16,30,54,.28);cursor:grabbing}
 
 /* Week/Day time grid */
-.wt{display:flex;gap:0;overflow:auto;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
-.wt-gutter{flex:0 0 52px;border-right:1px solid var(--line);background:#fafbfd}
-.wt-gh{height:34px;border-bottom:1px solid var(--line)}
-.wt-ga{height:56px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:center}
 .wt-ga .muted{font-size:9.5px;text-transform:uppercase;letter-spacing:.4px}
-.wt-gg{position:relative}
-.wt-hr{font-size:10px;color:var(--muted);text-align:right;padding:1px 6px 0 0;border-bottom:1px solid var(--line);box-sizing:border-box}
-.wt-main{flex:1;min-width:0;display:flex;flex-direction:column}
-.wt-headrow{display:flex}
-.wt-headrow .wt-head{flex:1 1 0}
-.wt-weekview .wt-headrow .wt-head,.wt-weekview .wt-band-cell,.wt-weekview .wt-col{min-width:96px}
-.wt-head{height:34px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11.5px;font-weight:650;color:var(--slate);border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-transform:uppercase;letter-spacing:.4px}
-.wt-headrow .wt-head:last-child{border-right:none}
-.wt-head .wd-dn{font-size:13px;font-weight:720;color:var(--ink)}
 .wt-head.today{background:var(--brand-soft);color:var(--brand-dark)}
-.wt-band{position:relative;border-bottom:1px solid var(--line)}
-.wt-band-cells{position:absolute;inset:0;display:flex}
-.wt-band-cell{flex:1 1 0;border-right:1px solid var(--line);cursor:copy}
-.wt-band-cell:last-child{border-right:none}
-.wt-abar{position:absolute;height:20px;display:flex;align-items:center;border:none;border-radius:5px;color:#fff;padding:1px 7px;overflow:hidden;text-align:left;cursor:pointer;z-index:2;box-shadow:0 1px 2px rgba(16,30,54,.18)}
-.wt-abar .wd-bar-t{font-size:11px;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wt-gridrow{display:flex;flex:1;min-width:0}
-.wt-gridrow .wt-col{flex:1 1 0;border-right:1px solid var(--line)}
-.wt-gridrow .wt-col:last-child{border-right:none}
-.wt-grid{position:relative;cursor:copy}
-.wt-ev{position:absolute;left:3px;right:3px;border-radius:6px;color:#fff;padding:3px 6px;overflow:hidden;cursor:grab;box-shadow:0 1px 3px rgba(16,30,54,.2);z-index:2;border:none;text-align:left}
-.wt-ev:active{cursor:grabbing}
-.wt-ev-t{display:block;font-size:11.5px;font-weight:650;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wt-ev-time{display:block;font-size:10px;opacity:.92}
-.wt-ev-grip{position:absolute;left:0;right:0;bottom:0;height:7px;cursor:ns-resize}
-.wt-ev-ghost{background:var(--brand);opacity:.55;pointer-events:none;border:1px dashed #fff}
 
 /* Engagement member chips */
 .eng-mem{display:flex;flex-wrap:wrap;gap:5px;margin-top:5px}
@@ -856,35 +698,14 @@ select,select option{color:#1d2733;background:#fff}
 
 
 /* ── Month view (our own grid — replaced the DayPilot widget) ────────────── */
-.mv{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);box-shadow:var(--shadow)}
-.mv-head{display:grid;grid-template-columns:repeat(7,1fr);background:#fbfcfe;border-bottom:1px solid var(--line)}
-.mv-head div{padding:8px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
-.mv-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--line)}
-.mv-week:last-child{border-bottom:none}
-.mv-cell{border-right:1px solid var(--line);padding:5px 7px;min-height:0;touch-action:none;cursor:crosshair}
-.mv-cell:last-child{border-right:none}
 .mv-cell.out{background:#fafbfd}
 .mv-cell.out .mv-num{color:#c3ccd8}
 .mv-cell.today{background:var(--brand-soft)}
 .mv-cell.today .mv-num{background:var(--brand);color:#fff;border-radius:99px;padding:1px 6px}
 .mv-cell.sel{background:var(--brand-soft);box-shadow:inset 0 0 0 1px var(--brand)}
-.mv-num{font-size:11.5px;font-weight:650;color:var(--slate)}
-.mv-bar{position:absolute;height:21px;border-radius:5px;color:#fff;display:flex;align-items:center;
-  font-size:11px;font-weight:600;cursor:pointer;overflow:hidden;touch-action:none;
-  box-shadow:0 1px 2px rgba(16,30,54,.2);transition:transform .12s,box-shadow .12s}
-.mv-bar:hover{box-shadow:0 3px 9px rgba(16,30,54,.3);transform:translateY(-1px);z-index:3}
 .mv-bar.hol{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.22) 0 5px,transparent 5px 10px)}
-.mv-bar.incomplete{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.55),0 1px 2px rgba(16,30,54,.2)}
-.mv-bar-t{padding:0 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
-.mv-grip{position:absolute;top:0;bottom:0;width:8px;touch-action:none}
 .mv-grip.l{left:0;cursor:grab}
 .mv-grip.r{right:0;cursor:ew-resize}
-.mv-bar:hover .mv-grip{background:rgba(255,255,255,.28)}
-@media (max-width:700px){
-  .mv-head div{padding:6px 4px;font-size:9.5px}
-  .mv-cell{padding:4px 3px}
-  .mv-bar-t{padding:0 4px;font-size:10px}
-}
 
 /* ── Set up a course (wizard) ────────────────────────────────────────────── */
 .wz{max-width:840px}
@@ -940,30 +761,18 @@ select,select option{color:#1d2733;background:#fff}
 .wz-picked{font-size:13.5px}
 .wz-manual summary{cursor:pointer;list-style:revert}
 .wz-manual{min-width:280px}
-.cal-modal-sm{width:min(460px,100%)}
 .cal-modal:focus{outline:none}
 
 /* ── Touch targets and focus. Handles were 7-8px and invisible until hover,
    which on a touch device means they do not exist. The bar keeps its slim
    look; the grab area is padded out beyond it. ─────────────────────────── */
-.yc-grip,.mv-grip,.wt-ev-grip{position:relative}
-.yc-grip::after,.mv-grip::after,.wt-ev-grip::after{
-  content:'';position:absolute;top:-8px;bottom:-8px;left:-8px;right:-8px}
-.mv-grip{width:14px}
-.yc-grip{width:12px}
-.wt-ev-grip{height:12px}
 /* Show the handles without needing hover — a finger cannot hover. */
 @media (hover:none){
-  .mv-bar .mv-grip,.yc-bar .yc-grip{background:rgba(255,255,255,.3)}
-  .mv-bar,.yc-bar{min-height:28px}
-  .cal-mini,.addq-btn,.ret-btn,.drawer-x,.cal-nav{min-width:40px;min-height:40px}
+  .addq-btn,.ret-btn,.drawer-x,.cal-nav{min-width:40px;min-height:40px}
 }
 /* Every control gets a visible focus ring. Only inputs had one, and outline
    was being used as a "selected" style elsewhere, so focus was invisible. */
-.btn:focus-visible,.linkbtn:focus-visible,.cal-nav:focus-visible,.cal-mini:focus-visible,
-.wz-pick:focus-visible,.wz-steps button:focus-visible,.seg button:focus-visible,
-.cal-fchip:focus-visible,.dn-link:focus-visible,.nav a:focus-visible,
-.mv-bar:focus-visible,.yc-bar:focus-visible,.cal-x:focus-visible{
+.btn:focus-visible,.linkbtn:focus-visible,.cal-nav:focus-visible,.wz-pick:focus-visible,.wz-steps button:focus-visible,.seg button:focus-visible,.dn-link:focus-visible,.nav a:focus-visible{
   outline:3px solid var(--brand);outline-offset:2px;border-radius:6px}
 .nav a:focus-visible{outline-offset:-3px}
 
@@ -976,24 +785,21 @@ select,select option{color:#1d2733;background:#fff}
 }
 @media (max-width:640px){
   .content{padding:14px 12px}
-  .top{padding:9px 12px;gap:8px;flex-wrap:wrap}
+  .appbar{padding:9px 12px;gap:8px;flex-wrap:wrap}
   /* Every item here was wrapping mid-phrase — "Sign / out", "Sun, 30 Aug /
      2026" — which reads as broken rather than tight. Let them stay whole and
      let the row scroll if it has to. */
-  .top .right{gap:10px;font-size:11.5px;flex-wrap:nowrap;overflow-x:auto;
+  .appbar .right{gap:10px;font-size:11.5px;flex-wrap:nowrap;overflow-x:auto;
     scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .top .right::-webkit-scrollbar{display:none}
-  .top .right > *{flex:0 0 auto;white-space:nowrap}
+  .appbar .right::-webkit-scrollbar{display:none}
+  .appbar .right > *{flex:0 0 auto;white-space:nowrap}
   /* On a phone this is a paragraph of explanation sitting above every screen,
      every time. It has been read; the ? keeps it available. */
-  .top .sub{display:none}
+  .appbar .sub{display:none}
   .twocol{grid-template-columns:1fr}
-  .cal-toolbar,.cal-filters,.cal-chipbar{flex-wrap:wrap}
   .block-grid{grid-template-columns:1fr}
   /* Let a finger scroll the page. Every day cell had touch-action:none, so on
      a phone the month grid swallowed the gesture and started a drag instead. */
-  .mv-cell{touch-action:pan-y}
-  .yc-cell{touch-action:pan-y}
 }
 
 /* On a phone the sidebar is 230px of a 375px screen, and opening it pushed the
@@ -1903,10 +1709,10 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
    laptop, are untouched. */
 @media (max-height:500px) and (orientation:landscape){
   /* The page header, down to a single tight line. */
-  .top{padding:6px 12px;gap:8px}
-  .top h1{font-size:14px}
-  .top .sub{display:none}
-  .top .right{font-size:11px;gap:9px}
+  .appbar{padding:6px 12px;gap:8px}
+  .appbar h1{font-size:14px}
+  .appbar .sub{display:none}
+  .appbar .right{font-size:11px;gap:9px}
   .navtoggle{width:30px;height:30px}
   .content{padding:10px 12px}
 

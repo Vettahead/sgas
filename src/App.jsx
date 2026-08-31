@@ -243,7 +243,11 @@ export default function App() {
       </aside>
 
       <div className="main">
-        <div className="top">
+        {/* Named .appbar, not .top. As `.top` this was a bare, prefix-less rule
+            that any element carrying the class `top` would pick up — which is
+            exactly what happened in v1.32.3, when the course popover labelled
+            itself with its placement side and inherited a page header. */}
+        <div className="appbar">
           <button className="navtoggle" onClick={() => setNavOpen((o) => !o)} title="Toggle menu">☰</button>
           <div><h1>{title}</h1><div className="sub">{sub}</div></div>
           <div className="right">

@@ -4,6 +4,56 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — dead CSS out, and `.top` renamed so it cannot bite again
+
+Two jobs, one inventory. `scripts/class-audit.mjs` reads every class the JSX
+composes — literals, and prefixes so `'tip tip-' + place` counts `tip-below` as
+live — and diffs against `styles.css`. It reports three things:
+
+- **COLLISION RISK** — a class composed at RUNTIME from a variable with no
+  namespace. The exact shape of v1.32.3. Currently **0**.
+- **GENERIC** — a prefix-less class with a BARE rule (`.x{...}`, not
+  `.parent .x`) used in 2+ files. Four: `.b`, `.btn`, `.cgroup`, `.card` — all
+  deliberate shared utilities, which is the opposite problem and fine.
+- **DEAD** — defined but never composed.
+
+**The audit found its own bug first.** The prefix rule only accepted
+single-token literals, so `'tip tip-' + place` was missed and `tip-below`
+appeared DEAD. A dead-code list you cannot trust is worse than none: it gets you
+to delete something live. Fixed before anything was removed.
+
+**`scripts/prune-dead-css.mjs`** — PostCSS, not a regex. The first attempt was a
+hand-rolled brace walker that did not understand comments and produced a
+stylesheet with balanced braces that still would not parse. Conservative:
+families `cal|yc|wt|mv|wd|mc|rbc|cal2|att` only, a grouped selector loses only
+its dead parts, and a rule goes only when EVERY class it targets is dead — so
+`.cal-nav` and `.cal-nav-grp`, still used by the wizard toolbar, survive, and
+`.cal-mini,…,.cal-nav{}` was trimmed rather than dropped.
+
+185 rules removed. `styles.css` 128,830 → 114,049 bytes; built CSS 103.97 kB →
+91.09 kB (gzip 19.89 → 17.71).
+
+**Proof it changed nothing:** `cmp.mjs` loads the before and after builds side by
+side, walks all fifteen screens and sums the rendered geometry of every element
+carrying a class. Identical on all fifteen — 3,481 elements, same count, same
+heights, same signature.
+
+### `.top` → `.appbar`
+
+The page header strip was `.top`: prefix-less, bare-ruled, `display:flex` with
+28px of side padding. Any element anywhere carrying `top` inherited it — which
+is precisely what happened to the course popover. Renamed (13 rules, one JSX
+site); layout verified identical again.
+
+`side.mjs`'s canary had to change with it: it asserted that the BARE class it
+replaced still broke the panel, which stopped being true the moment `.top` no
+longer existed — so it began passing for the wrong reason. It now applies a real
+app-level class (`appbar`) and asserts THAT still breaks it, proving the
+mechanism is live and that namespacing is what protects against it.
+
+72 dead classes remain, mostly one-offs from earlier versions. Harmless, and
+not worth the risk of a second pass tonight.
+
 ## 2026-08-30 — Calendar.jsx is deleted
 
 `SetupWizard.jsx` was the last importer. Its date-picking step needed more than

@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.34.2', build: 175, date: '30 Aug 2026',
+    title: 'Clearing up after the old calendar',
+    notes: [
+      'The styling the deleted calendar left behind is gone \u2014 185 rules, an eighth of the whole stylesheet. Nothing looks any different: every one of the fifteen screens was measured before and after, element by element, and they come out identical to the pixel.',
+      'THE THING THAT BROKE THE COURSE PANEL TWICE CANNOT HAPPEN QUIETLY AGAIN. The strip across the top of every page was called \u201ctop\u201d \u2014 a name so ordinary that anything else labelling itself \u201ctop\u201d silently inherited it, which is exactly what went wrong on Saturday. It has a proper name now, and there is a check that hunts for that shape of mistake across the whole app and refuses to pass if it finds one.',
+      'That check tests itself. It carries the original fault as a sample and fails loudly if it ever stops recognising it \u2014 because a safety check that has quietly stopped working is worse than none at all, since it reads as an all-clear.',
+      'It also lists what else is unused. Seventy-odd bits of styling from older versions are still in there; they are harmless and can go another day.',
+    ],
+  },
+  {
     v: '1.34.1', build: 174, date: '30 Aug 2026',
     title: 'The old calendar is deleted',
     notes: [
