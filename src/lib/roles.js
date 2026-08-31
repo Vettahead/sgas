@@ -2,7 +2,7 @@
 // Roles agreed in the SGAS review meeting (see SGAS_roadmap.md §4.6):
 //   ADMIN     — everything, plus the Admin screen; can view everyone's dashboard
 //   STANDARD  — reception: dashboard, book a delegate, delegates, companies (no scheduling)
-//   SCHEDULER — dashboard, book a delegate, schedule
+//   SCHEDULER — dashboard, book a delegate, set up a course, the calendar
 //   ASSESSOR  — dashboard (their blocks to assess) + assessments
 //   ACCOUNTS  — dashboard (outstanding to chase) + payments & chase
 // Every role lands on a DASHBOARD tailored to what they do (§4.10 per-user dashboards).
@@ -17,6 +17,13 @@ export const ROLE_LABELS = {
   ACCOUNTS: 'Accounts',
 }
 
+// 'sched' — the Schedule board — came out of the menu on 30 Aug 2026. It was a
+// second window onto the same work, and by then the calendar did everything it
+// did: the ACS forms, the NYC/no-show re-sit list, filters, and adding a
+// qualification to an existing booking. Anyone arriving on 'sched' is sent to
+// the calendar (see VIEW_ALIAS in App.jsx) rather than quietly landing on the
+// Dashboard. The file is still there; nothing routes to it.
+//
 // 'calendar' — the ORIGINAL calendar — is GONE, not merely out of the menu:
 // src/views/Calendar.jsx was deleted once nothing imported it any more.
 // Everything it did lives in CalendarNext, including the two grids the
@@ -27,9 +34,9 @@ export const ROLE_LABELS = {
 // Views each role may open, listed in nav order. Used to build the sidebar AND
 // to guard the active view (a hand-typed/stale view falls back to the default).
 export const ROLE_VIEWS = {
-  ADMIN: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendarnext', 'assess', 'pay', 'delegates', 'companies', 'courses', 'admin', 'roadmap', 'changelog', 'help'],
+  ADMIN: ['dash', 'inquiries', 'book', 'setup', 'calendarnext', 'assess', 'pay', 'delegates', 'companies', 'courses', 'admin', 'roadmap', 'changelog', 'help'],
   STANDARD: ['dash', 'inquiries', 'book', 'calendarnext', 'delegates', 'companies', 'help'],
-  SCHEDULER: ['dash', 'inquiries', 'book', 'setup', 'sched', 'calendarnext', 'help'],
+  SCHEDULER: ['dash', 'inquiries', 'book', 'setup', 'calendarnext', 'help'],
   ASSESSOR: ['dash', 'assess', 'help'],
   ACCOUNTS: ['dash', 'pay', 'help'],
 }

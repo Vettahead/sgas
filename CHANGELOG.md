@@ -4,6 +4,48 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — the Schedule board leaves the menu
+
+Confirmed with Chris that the system is not in daily use yet, so there is no
+habit to protect and this is purely a design call. His answer: the Calendar, with
+the naming made explicit about where scheduling happens.
+
+- `roles.js` — `sched` out of ADMIN and SCHEDULER. `ROLE_VIEWS` is now the only
+  place that decides, as before.
+- `App.jsx` — nav entry, route and `import Schedule` all gone, and the stale
+  `TITLES.calendar` entry with them. **`VIEW_ALIAS`** maps `sched` (and the long
+  dead `calendar`) to `calendarnext`, so anything that ever asks for the board
+  lands on the Calendar rather than being dumped on the Dashboard.
+- `TITLES.calendarnext` subtitle rewritten from a description of the views
+  ("by month, week, day or year") to what the screen is FOR: *"Where courses are
+  scheduled. Drag to book, move or resize; add trainers and delegates, print ACS
+  forms, and book time off."*
+- `Dashboard.jsx` — "Open schedule" → "Open the calendar", `go('calendarnext')`.
+- `Help.jsx` — section 6 was "Scheduling (the board)". Rewritten rather than
+  deleted: the questions were all still the right questions, only the screen
+  changed. New answers on the re-sit list and on what the kind dots mean, and
+  the two stale references elsewhere (ACS forms "on the Schedule board", the
+  trainer "set earlier on the Schedule") corrected.
+
+`Schedule.jsx` stays on disk, now orphaned — nothing imports it, so rollup drops
+it: bundle 1,222.55 → 1,204.68 kB without deleting anything. It costs nothing to
+leave, so it stays until Chris has lived with the calendar.
+
+New `menu.mjs`, 14 checks across Admin / Scheduler / Reception: no Schedule in
+any menu, exactly one Calendar, the subtitle says "scheduled", no page errors.
+Plus three static ones — nothing calls `go('sched')`, the alias exists as a
+safety net, and no role lists it.
+
+**Two of those assertions were wrong first.** One faked a stale route through
+`localStorage`, a path this app does not have (no URL routing, view not
+persisted), so it failed for a reason that did not exist — replaced with the
+static check, which is what actually holds. The other tested `roles.js` for the
+string `'sched'` and tripped over the comment explaining why `'sched'` had been
+removed.
+
+`schedcal.mjs` deleted — it drove Schedule's Calendar tab, and there is no
+Schedule tab to drive.
+
 ## 2026-08-30 — dead CSS out, and `.top` renamed so it cannot bite again
 
 Two jobs, one inventory. `scripts/class-audit.mjs` reads every class the JSX

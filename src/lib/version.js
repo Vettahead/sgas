@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.35.0', build: 176, date: '30 Aug 2026',
+    title: 'One place to schedule, and it says so',
+    notes: [
+      'THE SCHEDULE BOARD HAS GONE FROM THE MENU. It and the calendar had become two windows onto the same work, and by today the calendar did everything the board did \u2014 the ACS forms, the re-sit list, the filters, adding a qualification to somebody already booked on. Two screens doing one job is a question you have to answer every time you sit down.',
+      'THE CALENDAR IS WHERE COURSES ARE SCHEDULED, and the line under the page title now says exactly that instead of describing months and weeks. \u201cSet up a course\u201d is still there for the guided, one-question-at-a-time route \u2014 the two produce exactly the same thing, so use whichever suits the moment.',
+      'The Help has been rewritten to match rather than thrown away. The questions were all still the right questions \u2014 where do I schedule, what is the waiting list, what if somebody only needs part of the course, how do I print the forms \u2014 only the screen changed. There are new answers on the re-sit list and on what the coloured dots mean.',
+      'Anything that used to send you to the board sends you to the calendar instead, including the \u201cOpen schedule\u201d button on the dashboard.',
+      'Nothing has been lost. The old board is still in the code, out of the way, until you are happy.',
+    ],
+  },
+  {
     v: '1.34.2', build: 175, date: '30 Aug 2026',
     title: 'Clearing up after the old calendar',
     notes: [

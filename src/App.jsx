@@ -8,7 +8,6 @@ import Login from './views/Login.jsx'
 import Dashboard from './views/Dashboard.jsx'
 import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
-import Schedule from './views/Schedule.jsx'
 import CalendarNext from './views/CalendarNext.jsx'
 import SetupWizard from './views/SetupWizard.jsx'
 import Assess from './views/Assess.jsx'
@@ -39,11 +38,7 @@ const TITLES = {
   inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
-  sched: ['Schedule', 'Assign a trainer to each course block and add delegates (assessor & verifier are set in Assess)'],
-  // The old calendar is no longer in the menu (see roles.js) but Schedule still
-  // renders it as a tab, so it keeps its title.
-  calendar: ['Calendar', 'Drag to create courses, move or resize them, and see everything by month, week, day or year'],
-  calendarnext: ['Calendar', 'Courses, time off and diary entries by month, week, day or year. Drag to move, resize or book.'],
+  calendarnext: ['Calendar', 'Where courses are scheduled. Drag to book, move or resize; add trainers and delegates, print ACS forms, and book time off.'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
@@ -61,7 +56,6 @@ const NAV_GROUPS = [
     { v: 'inquiries', ic: '💬', label: 'Inquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'setup', ic: '🪄', label: 'Set up a course' },
-    { v: 'sched', ic: '▤', label: 'Schedule' },
     { v: 'calendarnext', ic: '📅', label: 'Calendar' },
     { v: 'assess', ic: '✓', label: 'Assess' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
@@ -191,7 +185,12 @@ export default function App() {
     if (typeof window !== 'undefined' && isDrawer()) setNavOpen(false)
   }
   // Guard: any view the current role can't see falls back to its default view.
-  const activeView = allowed.includes(view) ? view : defaultView(user.role)
+  // The Schedule board is gone; the calendar does what it did. Anyone who gets
+  // here on an old link or a bookmark lands on the calendar rather than being
+  // dumped on the Dashboard wondering where the screen went.
+  const VIEW_ALIAS = { sched: 'calendarnext', calendar: 'calendarnext' }
+  const asked = VIEW_ALIAS[view] || view
+  const activeView = allowed.includes(asked) ? asked : defaultView(user.role)
   const [title, sub] = TITLES[activeView]
 
   const today = new Date().toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -263,7 +262,6 @@ export default function App() {
           {activeView === 'inquiries' && <Inquiries go={go} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
-          {activeView === 'sched' && <Schedule user={user} isAdmin={isAdmin} go={go} />}
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}

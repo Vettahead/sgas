@@ -78,7 +78,7 @@ export const SECTIONS = [
         a: [
           '• Admin — sees everything, including the Admin screen for managing staff and logins.',
           '• Standard (reception) — Dashboard, Inquiries, Book a delegate, the Calendar, Delegates and Companies. No scheduling or assessing.',
-          '• Scheduler — Dashboard, Inquiries, Book, Schedule and the Calendar.',
+          '• Scheduler — Dashboard, Inquiries, Book, Set up a course and the Calendar.',
           '• Assessor — Dashboard (their own blocks to assess) and the Assess screen.',
           '• Accounts — Dashboard (outstanding to chase) and the Payments & chase screen.',
         ],
@@ -186,53 +186,73 @@ export const SECTIONS = [
     ],
   },
 
-  // ── 6. Schedule ──────────────────────────────────────────────────────────────
+  // ── 6. Scheduling ────────────────────────────────────────────────────────────
+  // This used to describe the Schedule board, which came out of the menu on
+  // 30 Aug 2026. The questions were all still the right questions — only the
+  // screen changed — so they were rewritten rather than thrown away.
   {
-    id: 'schedule', icon: '▤', title: 'Scheduling (the board)',
+    id: 'schedule', icon: '\u25a4', title: 'Scheduling',
     items: [
       {
-        q: 'What is the Schedule screen?',
+        q: 'Where do I schedule a course?',
         a: [
-          'It is the drag-and-drop board where you assign people to course blocks. A “block” is a run of a course on particular dates (for example a five-day course next month).',
-          'Each block shows its course, dates, and rows for the Trainer, Assessor and Verifier, plus the delegates placed on it.',
+          'On the Calendar. It is the one place courses are booked, moved, staffed and filled \u2014 there is no separate scheduling screen any more.',
+          'There are two ways in. Drag across the days on the Calendar to book a course there and then, or use \u201cSet up a course\u201d for a guided run through the same thing one question at a time. They produce exactly the same result.',
         ],
       },
       {
-        q: 'What is the “waiting pool”?',
+        q: 'What is the \u201cwaiting list\u201d?',
         a: [
-          'Every delegate you book lands in the waiting pool until you place them on a block. The pool is grouped by scheme (the family of qualifications) so it is easy to find the right people.',
-          'You drag a delegate from the pool onto a block to schedule them, and there is a “return to waiting pool” arrow (↩) if you place someone by mistake and want to take them back off.',
+          'Every delegate you book sits in \u201cWaiting to be placed\u201d, in the panel down the right of the Calendar, until you put them on a course. The coloured line beside each name is the scheme they are waiting for, so you can see at a glance who fits the course you are looking at.',
+          'Drag somebody onto a course to book them on, or tap them and then tap the course \u2014 which is how you do it on a tablet. Drag them back onto the list to take them off again.',
         ],
       },
       {
-        q: 'Who do I assign on this screen?',
+        q: 'What is \u201cWaiting to re-sit\u201d?',
         a: [
-          'You set the Trainer here and add the delegates. The Assessor and Verifier are recorded later, on the Assess screen, because that is when assessment happens.',
+          'Anyone who did not complete (NYC) or did not turn up gets their own list above the ordinary waiting one, tagged amber for NYC and red for a no-show.',
+          'Putting one of them on a course books them back in for ONLY the qualifications they did not pass. It is not a new booking and they are not charged again. They keep that amber or red on the course itself, so you can always see who is re-sitting.',
+        ],
+      },
+      {
+        q: 'Who do I assign, and where?',
+        a: [
+          'Open a course on the Calendar and you get rows for the Trainer, the Assessor and the Verifier, and the list of everyone booked on it.',
+          'In practice the Trainer is set when the course is booked and the Assessor and Verifier are confirmed around the assessment \u2014 but all three can be set here whenever you know them.',
         ],
       },
       {
         q: 'What if a delegate only needs part of the course?',
         a: [
-          'You can set the exact days they attend. By default a delegate is on for the “Full course”; press Change to set a narrower start and end within the block — useful when, say, a reassessment-only delegate just needs the last two days.',
+          'Open the course and press \u201csome days\u201d beside their name, then set the start and end within the course. By default everyone is on for the full course \u2014 useful when, say, a reassessment-only delegate just needs the last two days.',
         ],
       },
       {
-        q: 'Can I add an extra qualification to someone already on a block?',
+        q: 'Can I add an extra qualification to someone already booked on?',
         a: [
-          'Yes. On a delegate already placed on a block there is a small “+” button that lets you add another qualification to their existing booking (marking it New or Reassessment) without rebooking them from scratch.',
+          'Yes \u2014 \u201cadd a qual\u201d beside their name. Pick the qualification, say whether it is New or a Reassessment, and it goes onto the booking they already have rather than starting a second one.',
+          'The list starts narrowed to the course\u2019s own scheme, which is almost always what you want. Tick \u201cevery scheme\u201d if they are picking up something from elsewhere while they are in.',
         ],
       },
       {
-        q: 'What happens to finished courses?',
+        q: 'How do I print the ACS forms?',
         a: [
-          'Blocks whose end date has passed are hidden automatically to keep the board tidy. Tick “Show finished” if you need to see them again.',
+          'Open the course and look for \u201cACS application forms\u201d: \u201cPrint all\u201d gives you one PDF with a filled-in form for everybody on it, and \u201cOne file each\u201d gives you a zip with one per person. To print just one person, press \u201cform\u201d beside their name.',
+          'It checks before it prints. If anyone is missing something the form needs \u2014 a National Insurance number, a date of birth, an address \u2014 it tells you who and what, and asks you to press \u201cPrint anyway\u201d on purpose. Nothing is ever blocked.',
         ],
       },
       {
-        q: 'What do the colours and tags on a delegate mean?',
+        q: 'What happens to courses that have already run?',
         a: [
-          'A delegate’s tag shows what kind of attendance it is — Full (new), Re (reassessment), Mixed, NYC or No-show — and their qualification codes are listed next to their name. Courses are colour-coded so you can tell them apart at a glance.',
-          'If a delegate is carrying a qualification from a different scheme than the block, a small ⚠ warning shows — it is allowed, but flagged so it is not a surprise.',
+          'They stay on the Calendar as the record, but they cannot be changed \u2014 dragging somebody onto a course that has finished is refused, and it says so.',
+          'Use Filter \u2192 \u201chide courses that have already finished\u201d if you want them out of the way while you work.',
+        ],
+      },
+      {
+        q: 'What do the coloured dots on a course mean?',
+        a: [
+          'They tell you what the course is made up of \u2014 one dot per kind of delegate on it. Green is new, blue is a reassessment, purple is a mixture of both on one booking, amber is somebody re-sitting after an NYC and red after a no-show.',
+          'So a course showing green and amber has new delegates and a re-sit on it. Hover the course to see it written out.',
         ],
       },
     ],
@@ -324,7 +344,7 @@ export const SECTIONS = [
       {
         q: 'Who records the assessor and verifier?',
         a: [
-          'The assessor and verifier are set at this stage, since that is when the assessment is done — the trainer is set earlier on the Schedule.',
+          'The assessor and verifier are set at this stage, since that is when the assessment is done — the trainer is usually set earlier, when the course is booked on the Calendar.',
         ],
       },
     ],
@@ -345,7 +365,7 @@ export const SECTIONS = [
         q: 'Where are the buttons?',
         a: [
           'On the Assess screen there is a “📄 ACS form” button per delegate, and a “Generate ACS forms for this block” button to do everyone at once as one combined PDF.',
-          'On the Schedule board you can “Print ACS forms” for a whole block, or get a “Zip” with one PDF per delegate. A delegate’s name on the board is also clickable to print just their form.',
+          'Open the course on the Calendar: “Print all” gives one PDF holding a filled-in form for everybody on it, “One file each” gives a zip with one per person, and “form” beside somebody’s name prints just theirs. It checks first and tells you if anyone is missing a detail the form needs.',
         ],
       },
       {

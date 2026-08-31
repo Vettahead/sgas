@@ -290,7 +290,7 @@ function renderModule(id, c) {
                 <td><b>{b.course}</b></td>
                 <td className="nowrap">{fmt(b.start)} – {fmt(b.end)}</td>
                 <td>{b.missing.length ? b.missing.map((m) => <span key={m} className="b pend" style={{ marginRight: 4 }}>{m}</span>) : <span className="muted small">—</span>}</td>
-                <td><button className="btn ghost sm" onClick={() => go('sched')}>Open schedule</button></td>
+                <td><button className="btn ghost sm" onClick={() => go('calendarnext')}>Open the calendar</button></td>
               </tr>
             ))}
           </tbody>
