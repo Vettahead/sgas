@@ -39,7 +39,7 @@ function snapWeekday(d, dir) {
 }
 const addDaysISO = (d, n) => new Date(Date.parse(d + 'T00:00:00Z') + n * 86400000).toISOString().slice(0, 10)
 
-export default function SetupWizard({ go }) {
+export default function SetupWizard({ go, onClose, onCreated }) {
   const draft = loadDraft()
   const [step, setStep] = useState(draft.step || 0)
   const [resumed, setResumed] = useState(!!draft.courseId)
@@ -148,6 +148,7 @@ export default function SetupWizard({ go }) {
       if (picked.size) await addDelegatesToBlock(id, [...picked])
       clearDraft()
       setDone({ id, course: course?.name, from, to, trainer: trainer?.name, n: picked.size })
+      onCreated?.()   // so a calendar underneath a modal picks the new course up
     } catch (e) { toast(e.message || 'Could not set that up') } finally { setSaving(false) }
   }
 
@@ -172,7 +173,11 @@ export default function SetupWizard({ go }) {
           </p>
           <div className="inrow" style={{ justifyContent: 'center', marginTop: 16 }}>
             <button className="btn" onClick={reset}>Set up another</button>
-            <button className="btn ghost" onClick={() => go('calendarnext')}>See it on the calendar</button>
+            {/* In a modal on the calendar, "see it on the calendar" is where you
+                already are — so it just closes and the calendar refreshes. */}
+            {onClose
+              ? <button className="btn ghost" onClick={onClose}>Done</button>
+              : <button className="btn ghost" onClick={() => go('calendarnext')}>See it on the calendar</button>}
           </div>
         </div>
       </div>

@@ -19,63 +19,72 @@
 
 export const RELEASES = [
   {
-    v: '1.35.0', build: 176, date: '30 Aug 2026',
-    title: 'One place to schedule, and it says so',
+    v: '1.36.0', build: 177, date: '31 Aug 2026',
+    title: 'Setting up a course opens over the calendar',
     notes: [
-      'THE SCHEDULE BOARD HAS GONE FROM THE MENU. It and the calendar had become two windows onto the same work, and by today the calendar did everything the board did \u2014 the ACS forms, the re-sit list, the filters, adding a qualification to somebody already booked on. Two screens doing one job is a question you have to answer every time you sit down.',
-      'THE CALENDAR IS WHERE COURSES ARE SCHEDULED, and the line under the page title now says exactly that instead of describing months and weeks. \u201cSet up a course\u201d is still there for the guided, one-question-at-a-time route \u2014 the two produce exactly the same thing, so use whichever suits the moment.',
+      'Press \u201cNew course\u201d on the calendar and the set-up steps open in a window over it, so you stay where you were. Close it and the course is already there \u2014 nothing to reload, and you keep the month you were looking at.',
+      'Opened from the menu instead, \u201cSet up a course\u201d now uses the whole width of the page. It was capped at 840 pixels, which on a wide screen left it in a narrow column looking like a window that had lost its background.',
+      'The wording of these notes has been gone back over. Some of it read as though it had been written to sound clever rather than to say what changed, so the titles are plainer and the shouting in capitals is gone.',
+    ],
+  },
+  {
+    v: '1.35.0', build: 176, date: '30 Aug 2026',
+    title: 'Scheduling all happens on the calendar now',
+    notes: [
+      'THE SCHEDULE BOARD HAS GONE FROM THE MENU. It and the calendar had become two windows onto the same work, and by today the calendar did everything the board did \u2014 the ACS forms, the re-sit list, the filters, adding a qualification to somebody already booked on. Two screens doing the same job just means deciding which one to open every time.',
+      'The calendar is where courses are scheduled, and the line under the page title now says exactly that instead of describing months and weeks. \u201cSet up a course\u201d is still there for the guided, one-question-at-a-time route \u2014 the two produce exactly the same thing, so use whichever suits the moment.',
       'The Help has been rewritten to match rather than thrown away. The questions were all still the right questions \u2014 where do I schedule, what is the waiting list, what if somebody only needs part of the course, how do I print the forms \u2014 only the screen changed. There are new answers on the re-sit list and on what the coloured dots mean.',
       'Anything that used to send you to the board sends you to the calendar instead, including the \u201cOpen schedule\u201d button on the dashboard.',
-      'Nothing has been lost. The old board is still in the code, out of the way, until you are happy.',
+      'Nothing is lost. The old board is still in the code, out of the way, until you are happy with the calendar.',
     ],
   },
   {
     v: '1.34.2', build: 175, date: '30 Aug 2026',
-    title: 'Clearing up after the old calendar',
+    title: 'Tidying up after the old calendar',
     notes: [
       'The styling the deleted calendar left behind is gone \u2014 185 rules, an eighth of the whole stylesheet. Nothing looks any different: every one of the fifteen screens was measured before and after, element by element, and they come out identical to the pixel.',
-      'THE THING THAT BROKE THE COURSE PANEL TWICE CANNOT HAPPEN QUIETLY AGAIN. The strip across the top of every page was called \u201ctop\u201d \u2014 a name so ordinary that anything else labelling itself \u201ctop\u201d silently inherited it, which is exactly what went wrong on Saturday. It has a proper name now, and there is a check that hunts for that shape of mistake across the whole app and refuses to pass if it finds one.',
+      'The thing that broke the course panel twice cannot happen again without somebody noticing. The strip across the top of every page was called \u201ctop\u201d \u2014 a name so ordinary that anything else labelling itself \u201ctop\u201d silently inherited it, which is exactly what went wrong on Saturday. It has a proper name now, and there is a check that hunts for that shape of mistake across the whole app and refuses to pass if it finds one.',
       'That check tests itself. It carries the original fault as a sample and fails loudly if it ever stops recognising it \u2014 because a safety check that has quietly stopped working is worse than none at all, since it reads as an all-clear.',
       'It also lists what else is unused. Seventy-odd bits of styling from older versions are still in there; they are harmless and can go another day.',
     ],
   },
   {
     v: '1.34.1', build: 174, date: '30 Aug 2026',
-    title: 'The old calendar is deleted',
+    title: 'The old calendar has gone for good',
     notes: [
       'The date picker in \u201cSet up a course\u201d was the last thing still drawing the old calendar. It now uses the same grid as everywhere else \u2014 drag across the days to pick your dates, exactly the same gesture as booking a course on the calendar itself, with the same little chip telling you how many days you have picked. Month and Year both work.',
-      'WITH THAT, THE OLD CALENDAR IS GONE FROM THE SYSTEM \u2014 not just hidden from the menu, the file itself is deleted. There is one calendar now, in one place, and every screen that shows you a month is showing you the same one. The app is about 47KB smaller for it.',
-      'A FAULT I CAUSED AND CAUGHT: taking the old calendar out, I deleted the list of what each role is allowed to see along with the comment above it, which broke the whole app on load. Found before it went anywhere near you \u2014 but it got past thirteen checks first, because those checks were only looking for the word FAIL and a check that dies before it starts never prints one. They now have to prove they actually ran. That is the more useful fix of the two.',
+      'With that, the old calendar is gone from the system. It is not just hidden from the menu \u2014 the file itself has been deleted. There is one calendar now, in one place, and every screen that shows you a month is showing you the same one. The app is about 47KB smaller for it.',
+      'A fault I caused and caught: taking the old calendar out, I deleted the list of what each role is allowed to see along with the comment above it, which broke the whole app on load. Found before it went anywhere near you \u2014 but it got past thirteen checks first, because those checks were only looking for the word FAIL and a check that dies before it starts never prints one. They now have to prove they actually ran. That is the more useful fix of the two.',
     ],
   },
   {
     v: '1.34.0', build: 173, date: '30 Aug 2026',
-    title: 'The last thing the Schedule board could do that the calendar could not',
+    title: 'Add a qualification to somebody already booked on',
     notes: [
       'You can add another qualification to somebody already booked on a course, from the calendar. Open the course, find their name, press \u201cadd a qual\u201d, pick it, say whether it is new or a reassessment, Add. It only offered this on the old Schedule board before, so you had to leave the calendar to do it.',
       'The list starts narrowed to the course\u2019s own scheme, which is nearly always what you want. Tick \u201cevery scheme\u201d and you get all 110 \u2014 for the delegate who is picking up something from a different scheme while they are in.',
       'It says so if there is nothing left to add: \u201cJohn Hartley already has every OFTEC qualification.\u201d',
-      'THE MONTH ON YOUR DASHBOARD IS THE NEW CALENDAR NOW. \u201cYour month at a glance\u201d was still drawing the OLD calendar, which is why the retired screen was still staring at you from the front page. Same grid, same colours, same dots telling you what a course is made of \u2014 and clicking anything takes you to the real thing. The grid is now written once and used by both, so the two can never drift apart again.',
+      'The month on your dashboard is the new calendar now. \u201cYour month at a glance\u201d was still drawing the old calendar, which is why the retired screen was still staring at you from the front page. Same grid, same colours, same dots telling you what a course is made of \u2014 and clicking anything takes you to the real thing. The grid is now written once and used by both, so the two can never drift apart again.',
       'That is the Schedule board out of jobs. Everything it does, the calendar does.',
     ],
   },
   {
     v: '1.33.2', build: 172, date: '30 Aug 2026',
-    title: 'The course panel is wider, and the people on it take a third less room',
+    title: 'The course panel is wider and fits more in',
     notes: [
       'A course with three people on it no longer scrolls on a normal laptop. It did, and you had to scroll past the delegates to reach the forms and the scheme underneath.',
-      'THE PANEL IS WIDER \u2014 376 pixels to 458 \u2014 which is most of it: names, qualification codes and dates stop wrapping onto extra lines.',
-      'EACH PERSON ON THE COURSE now takes two lines instead of three, and is a third shorter: 94 pixels down to 57. Their name sits on the same line as the three little links beside it, and what they are there for runs underneath at full width. Before, the links could not fit next to a two-line block and dropped onto a line of their own, so every single person cost you an extra row.',
+      'The panel is wider, 376 pixels to 458, and that is most of it: names, qualification codes and dates stop wrapping onto extra lines.',
+      'Each person on the course now takes two lines instead of three, and is a third shorter: 94 pixels down to 57. Their name sits on the same line as the three little links beside it, and what they are there for runs underneath at full width. Before, the links could not fit next to a two-line block and dropped onto a line of their own, so every single person cost you an extra row.',
       '\u201conly some days\u201d is now just \u201csome days\u201d, and the spacing throughout the panel has been pulled in.',
       'On a shorter screen it still scrolls, but far less \u2014 about a fifth of what it was.',
     ],
   },
   {
     v: '1.33.1', build: 171, date: '30 Aug 2026',
-    title: 'A re-sit still looks like a re-sit once it is on the course',
+    title: 'A re-sit stays marked as one on the course',
     notes: [
       'The gap flagged an hour ago is closed. Put somebody back on a course to re-sit and they now stay amber (NYC) or red (no-show) \u2014 on their row inside the course, on the coloured dots along the course itself, and in the note you get when you hover it. Before this they turned green and read as an ordinary new booking the moment they were placed, and the reason they were there vanished.',
-      'THE COLOURED DOTS ON A COURSE now do what you asked: a course with a mixture shows one dot per kind, so amber-plus-green tells you at a glance it is a re-sit sitting alongside new bookings. Hovering it spells it out \u2014 \u201c2 booked \u00b7 1 new, 1 re-sitting\u201d.',
+      'The coloured dots on a course now do what you asked: a course with a mixture shows one dot per kind, so amber-plus-green tells you at a glance it is a re-sit sitting alongside new bookings. Hovering it spells it out \u2014 \u201c2 booked \u00b7 1 new, 1 re-sitting\u201d.',
       'Their row inside the course reads \u201cNYC \u00b7 Re-sitting\u201d rather than just \u201cNot yet competent\u201d, so you can tell somebody who is BEING re-sat apart from somebody who was marked NYC on that course.',
       'This needed one change to the database, already applied: a booking now records which earlier booking it is a second attempt at. That is worth having on its own \u2014 it is the answer to \u201cwhich sitting was this\u201d when an auditor asks.',
       'Nothing you have already booked changes. Older re-sits made before today have no record of where they came from and will still read as ordinary bookings; everything from here on carries it.',
@@ -83,21 +92,21 @@ export const RELEASES = [
   },
   {
     v: '1.33.0', build: 170, date: '30 Aug 2026',
-    title: 'People owed a re-sit are on the calendar now',
+    title: 'NYC and no-shows are on the calendar',
     notes: [
       'Anyone who did not complete (NYC) or did not turn up has their own list in the panel on the right \u2014 \u201cWaiting to re-sit\u201d \u2014 sitting above the ordinary waiting list. Until now that list only existed on the Schedule board, so if you worked off the calendar they were invisible. They are the people most easily forgotten and the ones most likely to ring up asking when they are going back on.',
       'They have their own card rather than being mixed into the waiting list on purpose: it keeps their count visible even when the panel is folded up, and it stops them dropping below the fold behind newer bookings.',
-      'THE COLOURS ARE THE ONES YOU ALREADY KNOW. Amber for NYC, red for no-show \u2014 the same two the course bars use for the dots that tell you what a mixed course is made of. Each person carries the tag, and the dot down the side still tells you which scheme they are waiting for, so nothing has changed meaning.',
-      'Dropping one onto a course books them back in FOR WHAT THEY DID NOT PASS \u2014 not a new booking, and not charged again. The panel that follows your finger says exactly that as you drag: \u201cHassan Iqbal re-sits Domestic Gas ACS \u2014 the 3 they did not pass\u201d. They are also in the \u201cAdd someone from the waiting list\u201d chips inside a course, tagged the same way and listed first.',
+      'The colours are the ones you already know. Amber for NYC, red for no-show \u2014 the same two the course bars use for the dots that tell you what a mixed course is made of. Each person carries the tag, and the dot down the side still tells you which scheme they are waiting for, so nothing has changed meaning.',
+      'Dropping one onto a course books them back in for what they did not pass. It is not a new booking and they are not charged again. The panel that follows your finger says exactly that as you drag: \u201cHassan Iqbal re-sits Domestic Gas ACS \u2014 the 3 they did not pass\u201d. They are also in the \u201cAdd someone from the waiting list\u201d chips inside a course, tagged the same way and listed first.',
       'If somebody is both owed a re-sit AND has a separate new booking waiting, both show, and the new one is marked \u201calso owed a re-sit\u201d. Two different things that must not be confused for one another \u2014 hiding either would lose a real booking.',
-      'ONE THING IT DOES NOT DO YET, worth knowing: once you put them on a course they read as an ordinary delegate, because re-booking creates a fresh booking and nothing on it records where it came from. The list of qualifications is right \u2014 only the ones they still need \u2014 but the amber or red does not follow them onto the course. That needs a small database change; ask me and I will do it.',
+      'One thing it does not do yet, worth knowing: once you put them on a course they read as an ordinary delegate, because re-booking creates a fresh booking and nothing on it records where it came from. The list of qualifications is right \u2014 only the ones they still need \u2014 but the amber or red does not follow them onto the course. That needs a small database change; ask me and I will do it.',
     ],
   },
   {
     v: '1.32.3', build: 169, date: '30 Aug 2026',
-    title: 'Found it: the course panel was borrowing the page header\u2019s styling',
+    title: 'Fixed: the course panel drawing itself wrong',
     notes: [
-      'THE ACTUAL FAULT, caught on your own screen. When a course sits low enough that its panel has to open ABOVE it rather than below, the panel was quietly picking up the styling of the strip across the top of every page \u2014 the one with the page name in it. That strip lays its contents out in a row, so the panel did too: the dates vanished, the writing was squeezed into a narrow column, and a scrollbar appeared along the bottom. The little arrow pointing back at the course was doing the same thing, which is why it drew as a big white lozenge.',
+      'The fault, caught on your own screen. When a course sits low enough that its panel has to open above it rather than below, the panel was quietly picking up the styling of the strip across the top of every page \u2014 the one with the page name in it. That strip lays its contents out in a row, so the panel did too: the dates vanished, the writing was squeezed into a narrow column, and a scrollbar appeared along the bottom. The little arrow pointing back at the course was doing the same thing, which is why it drew as a big white lozenge.',
       'The cause is one word. The panel labels itself with which side it opened on \u2014 top, bottom, left or right \u2014 and \u201ctop\u201d was already the name of the page header. Nothing anywhere warns you about that, and it only ever showed on a course near the bottom of the screen, which is why it survived every test until you filmed it. The labels are now named so they cannot clash with anything else.',
       'This is the second one of these: the same kind of name clash made a button unclickable back in 1.28.1. There is now a test that catches it \u2014 it checks the panel inherits nothing from any of its four labels, AND that the old name really did break it, so the test cannot quietly stop meaning anything.',
       'If the screen still goes white when you resize the window with a panel open, tell me \u2014 that may well have been the same fault, but I have not been able to prove it.',
@@ -105,27 +114,27 @@ export const RELEASES = [
   },
   {
     v: '1.32.2', build: 168, date: '30 Aug 2026',
-    title: 'The course panel drawing itself in pieces',
+    title: 'A first attempt at the course panel fault',
     notes: [
       'The panel that opens when you click a course was sometimes drawing itself wrong \u2014 the dates missing, the writing squashed into a narrow strip down one side, a scrollbar along the bottom that should not be there \u2014 and the whole screen could go white when the window was resized with a panel open, until you refreshed.',
       'It is not a fault in the panel itself. The panel follows the course it belongs to as you scroll, and it was being MOVED in a way that makes the browser redraw the whole thing from scratch every time. On some machines that redraw does not finish, and you are left looking at half of it. It is now moved the way browsers are built to move things \u2014 the panel slides as one piece instead of being redrawn \u2014 which should also make scrolling with it open noticeably smoother.',
-      'BEING HONEST: this could not be reproduced away from the machine it happens on, so it is the most likely cause rather than a proven one. If you still see it, say so \u2014 the next step is different and I know what it is.',
+      'To be straight with you, this could not be reproduced away from the machine it happens on, so it is the most likely cause rather than a proven one. If you still see it, say so \u2014 the next step is different and I know what it is.',
       'The panel now fades in rather than fading and sliding. That is deliberate: the slide was the same kind of movement that provokes the fault.',
     ],
   },
   {
     v: '1.32.1', build: 167, date: '30 Aug 2026',
-    title: 'The old calendar\u2019s last hiding place',
+    title: 'The old calendar taken off the Schedule screen',
     notes: [
       'The Calendar tab INSIDE Schedule was still the old calendar. That is why the old one never really went away \u2014 taking it out of the menu did not take it off that screen, and anyone landing there got the version with no time off, no diary entries, no filters and no ACS forms. It is now the same calendar as everywhere else, and there is genuinely only one left.',
     ],
   },
   {
     v: '1.32.0', build: 166, date: '30 Aug 2026',
-    title: 'The ACS forms print from the calendar \u2014 and it checks them first',
+    title: 'ACS forms print from the calendar',
     notes: [
       'The ACS application forms now print from the calendar. Open a course and there is a row for them: one PDF holding a filled-in form for everybody on it, a zip with one file each, or just one person\u2019s from the row with their name on it. Until today the only place this existed at all was the old Schedule board.',
-      'IT LOOKS BEFORE IT PRINTS, which is the new part. A form with an empty National Insurance box, or no date of birth, is not one LCL will accept \u2014 and you find that out a fortnight later when it comes back. It now says who is short of what and makes you press \u201cPrint anyway\u201d on purpose. Nothing is ever blocked: on the day, you can still print it.',
+      'It looks before it prints, which is the new part. A form with an empty National Insurance box, or no date of birth, is not one LCL will accept \u2014 and you find that out a fortnight later when it comes back. It now says who is short of what and makes you press \u201cPrint anyway\u201d on purpose. Nothing is ever blocked: on the day, you can still print it.',
       'It also catches something nothing could see before. If somebody is booked for a qualification the ACS form has no box for, the form used to print looking perfectly complete with nothing ticked for it. OFTEC101 is one of those, and it is on a booking already.',
       'Reception can print them. It only reads \u2014 it changes nothing \u2014 and the people who send the paperwork out are not always the people who move courses about, so it is not behind the right to edit the calendar.',
       'Two things found and fixed while doing it: the small links on a delegate\u2019s row were squeezing their name into a column an inch wide, and the buttons on a warning at the foot of a course panel could sit hidden behind the bar along the bottom.',
@@ -133,43 +142,43 @@ export const RELEASES = [
   },
   {
     v: '1.31.0', build: 165, date: '30 Aug 2026',
-    title: 'One calendar. The old one has gone.',
+    title: 'The old calendar is out of the menu',
     notes: [
       'There is now ONE Calendar in the menu instead of two. Everything the old one could do, the new one does \u2014 and it does more.',
-      'STAFF TIME OFF IS BACK ON THE CALENDAR, which was the big missing piece: you can see it, book it, ask for it, approve or reject a request, and remove it. Personal diary entries are there too \u2014 a title, a date, a start and end time, and anyone else who is going.',
+      'Staff time off is back on the calendar, which was the big missing piece: you can see it, book it, ask for it, approve or reject a request, and remove it. Personal diary entries are there too \u2014 a title, a date, a start and end time, and anyone else who is going.',
       'You can now REMOVE a course. There was no way to do that at all before. It asks you once first, and the system still refuses if anybody is booked on it \u2014 take them off first.',
       'Assessor and verifier are on the course panel. They were on the old screen and nowhere on the new one, which matters when an auditor asks who assessed what.',
       'A FILTER, next to \u201cWhat the marks mean\u201d: narrow by scheme, by trainer, hide courses that have already finished, or show courses only. It tells you how many it is hiding, and Clear puts everything back. Courses with NO trainer stay visible when you filter by trainer \u2014 hiding exactly the ones that need staffing would be the wrong way round.',
       'A course runs Monday to Friday again. You could previously drag one onto a Saturday; it now moves itself off the weekend and says so, and refuses a course that would run only over a weekend.',
-      'SCHEDULERS CAN SCHEDULE. The new calendar was read-only for everybody except an Admin \u2014 including the one role that exists to do this job. Reception now gets the calendar too, to look at.',
+      'Schedulers can now schedule. The new calendar was read-only for everybody except an Admin \u2014 including the one role that exists to do this job. Reception now gets the calendar too, to look at.',
       'The three places that used to jump to the old calendar \u2014 two on the Dashboard and \u201cSee it on the calendar\u201d at the end of the booking wizard \u2014 now open the new one.',
     ],
   },
   {
     v: '1.30.0', build: 164, date: '30 Aug 2026',
-    title: 'Turn the phone sideways for the calendar \u2014 and the menu bug that found',
+    title: 'The calendar sideways on a phone, and a menu you could not reach',
     notes: [
       'Turning your phone sideways now gives you the whole month on one screen with every course name written out in full. A column goes from about half an inch wide to well over an inch \u2014 which is the difference between \u201cDomestic Gas AC\u2026\u201d and the actual name. Nothing to switch on: rotate the phone and it changes.',
       'It needed doing properly rather than just letting it rotate. Measured beforehand, turning the phone was WORSE: two thirds of the shorter screen went on the heading and buttons and the month ran off the bottom. The heading and toolbar are now much tighter sideways, and the rows are only as tall as a course actually needs.',
-      'A REAL BUG THIS TURNED UP, and it was a bad one: sideways, the menu opened as the full desktop sidebar, taller than the screen, and would not scroll. Everything from \u201cCalendar \u2014 new look\u201d downwards \u2014 Assess, Payments, Delegates, Companies, Courses, Admin, Progress, Help \u2014 was simply unreachable. The menu scrolls now, opens as an overlay sideways as it does on a narrow phone, and closes itself again once you have picked something. It was doing none of those three.',
+      'This turned up a bad one. Sideways, the menu opened as the full desktop sidebar, taller than the screen, and would not scroll. Everything from \u201cCalendar \u2014 new look\u201d downwards \u2014 Assess, Payments, Delegates, Companies, Courses, Admin, Progress, Help \u2014 was simply unreachable. The menu scrolls now, opens as an overlay sideways as it does on a narrow phone, and closes itself again once you have picked something. It was doing none of those three.',
       'The cause is worth recording: the styling decided \u201cthis is a phone\u201d by width alone, and a phone held sideways is wider than many laptops. It now asks about height as well, and the code and the styling ask the same question in one place instead of two.',
     ],
   },
   {
     v: '1.29.0', build: 163, date: '30 Aug 2026',
-    title: 'Hover to see the detail \u2014 and two things the audit turned up',
+    title: 'Hover anything on the calendar for the detail',
     notes: [
       'Hover anything on the calendar and it tells you what it is. On a course: the dates, how long it runs, who is teaching it, how many are booked and what they are booked for, and a line telling you what it is still missing. On the side panel it gives you the full course or delegate name, which the narrow column has to cut short. On the buttons it says what they do, properly, instead of the browser\u2019s slow grey box.',
       'It works from the keyboard as well \u2014 tab to something and the same note appears, Escape closes it \u2014 and it never shows on a phone or tablet, where there is no such thing as hovering. Nothing is hover-only: everything a hover tells you, a tap or a click tells you too. That was the mistake on the old calendar and it is not repeated here.',
-      'A REAL FAULT, FIXED: you could drag somebody onto a course that had already finished, and the record would quietly change. The old Schedule board has always refused that; this screen did not. It now says so and declines.',
+      'A fault, now fixed: you could drag somebody onto a course that had already finished, and the record would quietly change. The old Schedule board has always refused that; this screen did not. It now says so and declines.',
       'The side panel used to say \u201cWaiting to be placed 8\u201d and then list six people, with no way to reach the other two. The count was honest and the list was not. Every list in that panel now has a \u201cShow the other N\u201d when it has more to show.',
     ],
   },
   {
     v: '1.28.1', build: 162, date: '30 Aug 2026',
-    title: 'The new calendar on a phone \u2014 and a button that could not be clicked',
+    title: 'The calendar on a phone, and a button you could not click',
     notes: [
-      'A REAL BUG, worth knowing about: on the little \u201cNew course\u201d panel, the \u201cFull set-up instead\u201d button had floated out of place, was sitting on top of the blue button, and could not be clicked at all. Two different things in the styling had been given the same name \u2014 that button, and the little card that follows your finger when you drag somebody onto a course \u2014 so the button had quietly been told to behave like the floating card. Both are fixed and separated.',
+      'A bug worth knowing about: on the little \u201cNew course\u201d panel, the \u201cFull set-up instead\u201d button had floated out of place, was sitting on top of the blue button, and could not be clicked at all. Two different things in the styling had been given the same name \u2014 that button, and the little card that follows your finger when you drag somebody onto a course \u2014 so the button had quietly been told to behave like the floating card. Both are fixed and separated.',
       'ON A PHONE, the calendar was spending a third of the screen on headings and buttons before you saw a single date. That is down by more than a hundred pixels: the toolbar sits on two tight rows instead of three, \u201cNew course\u201d is a \u002b button, and the paragraph of explanation under the page title no longer repeats on every screen. The whole month now fits on the screen without scrolling.',
       'Courses show on one line on a phone. The second line \u2014 trainer and how many are booked \u2014 was being cut off to nothing useful in a column an inch wide and was spilling over the dates above it. Tap the course to see the detail. On a laptop it stays as it was.',
       'Small things: \u201cSign out\u201d and the date no longer break across two lines at the top of a phone screen.',
@@ -177,10 +186,10 @@ export const RELEASES = [
   },
   {
     v: '1.28.0', build: 161, date: '30 Aug 2026',
-    title: 'The new calendar, properly finished',
+    title: 'The calendar finished off',
     notes: [
       'The new calendar looked unfinished and the panel down the right-hand side was hard work. Both are done. A course is now a proper block on the day it runs, with its name and, underneath, who is teaching it and how many people are booked \u2014 so you can read a month without opening anything.',
-      'A REAL FAULT WAS FOUND WHILE DOING IT. Roughly fifty of the instructions telling this screen what size and weight to draw its text were written in a form the browser silently throws away. Every heading, every date, every day number on the new calendar has been rendering at the browser\u2019s own default rather than the size it was meant to be \u2014 which is most of why it looked unfinished. That is now fixed, and it is worth knowing because nothing anywhere reports it: the page just quietly draws the wrong thing.',
+      'A real fault turned up while doing it. Roughly fifty of the instructions telling this screen what size and weight to draw its text were written in a form the browser silently throws away. Every heading, every date, every day number on the new calendar has been rendering at the browser\u2019s own default rather than the size it was meant to be \u2014 which is most of why it looked unfinished. That is now fixed, and it is worth knowing because nothing anywhere reports it: the page just quietly draws the wrong thing.',
       'The side panel has stopped shouting. No boxes, no capitals, no coloured badge around every number \u2014 headings sit back and the courses and people stand out, which is the right way round for something that lives next to the calendar rather than in front of it.',
       'The two rows explaining what the dots and colours mean are gone from above the calendar and are behind a \u201cWhat the marks mean\u201d link instead. That is about an inch of screen back on every laptop, every time anyone opens it.',
       'Also: the grid lines are far fainter so the courses stand out rather than the table; weekends are no longer shaded grey, which made them look switched off; and the month title was invisible in dark mode \u2014 black text on a black background \u2014 which is now fixed.',
@@ -208,7 +217,7 @@ export const RELEASES = [
   },
   {
     v: '1.25.0', build: 154, date: '30 Aug 2026',
-    title: 'The customer data is behind the lock now',
+    title: 'The customer data is locked down',
     notes: [
       'The biggest thing wrong with this system has been fixed, and it was invisible from the screens. The key the website uses to reach the database was published inside every page \u2014 that is normal and unavoidable \u2014 but the database had been set up to trust it completely. Anyone who knew where to look could have read every delegate\u2019s name, date of birth, National Insurance number and address, and could have changed them.',
       'The database now tells the difference between a signed-in member of staff and somebody merely holding that key, and only answers the first. Checked from both sides afterwards: as the public key, every table and the reporting view refuse to answer; signed in, everything is there as normal.',
@@ -218,7 +227,7 @@ export const RELEASES = [
   },
   {
     v: '1.24.2', build: 143, date: '29 Aug 2026',
-    title: 'The history filled in',
+    title: 'The earlier history filled in',
     notes: [
       'This screen only really started keeping track in late August. June was four months of work squeezed into seven lines, and two of the bigger days were missing outright \u2014 so it has been gone back over against what was actually built.',
       'Added: the scheduling board being rebuilt around dragging, the calendar being written from scratch (27 June, not 28 as it said), personal diary entries, the daily task list, and the renewal chase log.',
@@ -257,7 +266,7 @@ export const RELEASES = [
   },
   {
     v: '1.22.0', build: 139, date: '29 Aug 2026',
-    title: 'The import list answers itself \u2014 you just confirm it',
+    title: 'The import list fills itself in, you just confirm it',
     notes: [
       'Employers are now on the Data import tab alongside qualifications and staff \u2014 115 of them, once the history is cut to seven years. Without that cut it was 1,492 and would never have been matched by hand.',
       'Where there is an exact or close match the dropdown already has it selected: the job is to press Confirm rather than to find the right line in a list of 110.',
@@ -344,7 +353,7 @@ export const RELEASES = [
   },
   {
     v: '1.15.1', build: 127, date: '28 Aug 2026',
-    title: 'Calendar (new look): course names no longer run past their dates',
+    title: 'Calendar: course names no longer run past their dates',
     notes: [
       'In the Year view a short course put its name out to the side of its bar, over days it was not running on. The name now sits inside the bar and is shortened to fit; a course too short to hold any of it shows just its colour, and hovering still names it.',
       'Same fault found and fixed on a phone: a long course name pushed the number of people booked on outside the bar.',
@@ -352,7 +361,7 @@ export const RELEASES = [
   },
   {
     v: '1.15.0', build: 125, date: '28 Aug 2026',
-    title: 'Calendar (new look): the side panel folds up',
+    title: 'Calendar: the side panel folds up',
     notes: [
       'Every card in the side panel folds \u2014 Needs attention, the month, the waiting list, Trainers. Click the heading to fold or open it, and it remembers what you left open.',
       'Trainers starts folded, since it is the one you reach for least.',
@@ -363,7 +372,7 @@ export const RELEASES = [
   },
   {
     v: '1.14.0', build: 124, date: '28 Aug 2026',
-    title: 'Calendar (new look): drag people straight onto the calendar',
+    title: 'Calendar: drag people straight onto the calendar',
     notes: [
       'Drag anybody from the waiting list onto a course to book them on it, or onto empty days to book a new course for them \u2014 the course list opens with what they are waiting for at the top, and they go on it as soon as you book it.',
       'A new Trainers list in the side panel: drag one onto a course to put them on it. It tells you how many courses each already has on.',
@@ -376,7 +385,7 @@ export const RELEASES = [
   },
   {
     v: '1.13.1', build: 123, date: '28 Aug 2026',
-    title: 'Calendar (new look): fixed the panel coming unstuck when you scroll',
+    title: 'Calendar: fixed the panel coming unstuck when you scroll',
     notes: [
       'With a course open, scrolling the page left the panel stuck to the screen while the calendar moved away underneath it, and it ended up drawn over the wrong part of the page. It now moves with the course it belongs to and the arrow stays on it.',
       'If the course you have open disappears \u2014 you page to another month, say \u2014 the panel closes with it, instead of sitting there pointing at nothing.',
@@ -384,7 +393,7 @@ export const RELEASES = [
   },
   {
     v: '1.13.0', build: 122, date: '28 Aug 2026',
-    title: 'Calendar (new look): book a course from any view',
+    title: 'Calendar: book a course from any view',
     notes: [
       'Drag across days in the Year view to book a course \u2014 the same as the Month view already did. It works in Week and Day too.',
       'In the Year view you can drag from the end of one month into the next, and the course spans both.',
@@ -397,7 +406,7 @@ export const RELEASES = [
   },
   {
     v: '1.12.0', build: 121, date: '28 Aug 2026',
-    title: 'Calendar (new look): the side panel folds away',
+    title: 'Calendar: the side panel folds away',
     notes: [
       'The panel on the right folds away with the button in the toolbar, and the calendar takes the space back. It remembers whether you had it open, and starts closed on a smaller screen.',
       'While it is closed the button carries a count, so you still know when something needs a trainer.',
@@ -409,7 +418,7 @@ export const RELEASES = [
   },
   {
     v: '1.11.0', build: 120, date: '28 Aug 2026',
-    title: 'Calendar (new look): a lighter way to open a course',
+    title: 'Calendar: a lighter way to open a course',
     notes: [
       'Clicking a course now opens a panel beside it rather than a window over the middle of the screen \u2014 the calendar stays visible behind it, and a small arrow points back at the course you opened.',
       'It never covers the course you clicked, and it flips to whichever side has room.',
@@ -426,7 +435,7 @@ export const RELEASES = [
   },
   {
     v: '1.10.0', build: 119, date: '28 Aug 2026',
-    title: 'Calendar (new look): Week, Day and Year',
+    title: 'Calendar: Week, Day and Year',
     notes: [
       'Day, Week, Month and Year all present in the new-look calendar, and moving between them keeps the date you were looking at instead of throwing you back to today.',
       'Click the month name to jump straight to any month — July to November is one click, not four.',

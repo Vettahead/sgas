@@ -4,6 +4,55 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-31 — the wizard as a dialog, and a pass over the release notes
+
+**Two asks from Chris.**
+
+**1. The wizard.** `.wz` was capped at `max-width:840px`, so on a wide screen it
+sat in a narrow column and read as a dialog that had lost its backdrop. Now
+`max-width:none` on its own page, and it becomes an actual dialog when opened
+from the calendar.
+
+The obvious implementation — `CalendarNext` importing `SetupWizard` — is a
+circular import, because `SetupWizard` imports `MiniMonth`/`MiniYear` from
+`CalendarNext`. So **App owns the modal instead**: `CalendarNext` takes an
+`onSetup` prop and calls it in place of `go('setup')`, App renders
+`<Modal className="wizmodal"><SetupWizard/></Modal>` over whatever view is
+active. No cycle, and it works from anywhere.
+
+`SetupWizard` gained `onClose` and `onCreated`. In a modal the done step offers
+**Done** rather than "See it on the calendar" — you are already there.
+`onCreated` bumps a counter App passes to `CalendarNext` as `reload`, and a
+`useEffect` on it re-fetches: **reload, not remount**, so the month you were on
+and any open panel survive.
+
+`.cal-modal.wizmodal` is `min(1080px,94vw)` / `92vh`, full-screen under 760px.
+
+New `wizmodal.mjs`, 12 checks: full width on its own page and not in a dialog;
+a dialog from the calendar with the calendar still behind it; fits on screen;
+Escape closes; the date grid draws inside it; the done step offers Done; and —
+the one that matters — booking through the dialog and finding the course on the
+calendar afterwards **by name**. The first version of that last check compared
+bar counts on the current month, which passed trivially because the wizard
+suggests a date a fortnight out and the new course lands in the NEXT month. It
+now reads the name off the done step and pages forward to find it.
+
+**2. The release notes.** Chris: *"sentences like 'One place to schedule, and it
+says so' is clearly AI written… remember clients are reading these parts."* Fair.
+
+- 19 titles rewritten to say what changed rather than perform it. `One place to
+  schedule, and it says so` → `Scheduling all happens on the calendar now`;
+  `The old calendar's last hiding place` → `The old calendar taken off the
+  Schedule screen`; `Found it: …` → `Fixed: …`; and the `X — and Y` reveal
+  construction gone from six more.
+- `Calendar (new look): …` → `Calendar: …` on nine older entries. "New look" was
+  a temporary label for a screen that is now just the calendar.
+- **Every shouted phrase de-capped** — 19 of them, `THE COLOURS ARE THE ONES YOU
+  ALREADY KNOW`, `A REAL BUG THIS TURNED UP`, `IT LOOKS BEFORE IT PRINTS` and so
+  on. Checked to zero with a regex that ignores genuine acronyms (ACS, NYC, LCL,
+  OFTEC…). The two remaining runs are in the maintenance comment at the top of
+  the file, which no client sees.
+
 ## 2026-08-30 — the Schedule board leaves the menu
 
 Confirmed with Chris that the system is not in daily use yet, so there is no

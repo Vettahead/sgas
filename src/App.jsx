@@ -10,6 +10,7 @@ import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import CalendarNext from './views/CalendarNext.jsx'
 import SetupWizard from './views/SetupWizard.jsx'
+import Modal from './components/Modal.jsx'
 import Assess from './views/Assess.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
@@ -107,6 +108,11 @@ export default function App() {
   })
   const [view, setView] = useState(() => defaultView(loadSession()?.role))
   const [openDelegate, setOpenDelegate] = useState(null)
+  // Setting up a course FROM THE CALENDAR happens over the calendar, not by
+  // sending you to another screen and back. The menu item still opens the same
+  // wizard on its own full-width page.
+  const [wizard, setWizard] = useState(false)
+  const [calReload, setCalReload] = useState(0)
   const [bookPrefill, setBookPrefill] = useState(null)
   // ── one definition of "the menu is a drawer over the page" ────────────────
   // The CSS switches to the drawer at (max-width:760px) OR (max-height:500px) —
@@ -262,7 +268,8 @@ export default function App() {
           {activeView === 'inquiries' && <Inquiries go={go} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
-          {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user} />}
+          {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user}
+            onSetup={() => setWizard(true)} reload={calReload} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
@@ -274,6 +281,11 @@ export default function App() {
           {activeView === 'help' && <Help />}
         </div>
       </div>
+      {wizard && (
+        <Modal label="Set up a course" className="wizmodal" onClose={() => setWizard(false)}>
+          <SetupWizard go={go} onClose={() => setWizard(false)} onCreated={() => setCalReload((n) => n + 1)} />
+        </Modal>
+      )}
       <ToastHost />
       <TipHost />
     </div>

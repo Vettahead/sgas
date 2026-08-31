@@ -341,7 +341,7 @@ export function MiniYear({ year, blocks, selection, onPick }) {
   )
 }
 
-export default function CalendarNext({ canWrite, user, go }) {
+export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   // `canWrite` is the scheduler capability, not admin-ness — see canSchedule()
   // in lib/roles.js. Everything that changes a course, a holiday or a diary
   // entry is gated on it; everything else is visible to anyone who can open
@@ -484,6 +484,10 @@ export default function CalendarNext({ canWrite, user, go }) {
     return all
   }
   useEffect(() => { (async () => { try { await loadPool() } catch { /* optional */ } await load() })() }, [])
+  // Something outside changed the courses — the set-up wizard finishing in a
+  // modal over this screen. Reload rather than remount, so the month you were
+  // looking at and the panel you had open both survive.
+  useEffect(() => { if (reload) { loadPool().catch(() => {}).then(() => load()) } }, [reload])
   useEffect(() => { try { localStorage.setItem(THEME_KEY, theme) } catch { /* private */ } }, [theme])
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
   useEffect(() => { try { localStorage.setItem(RAIL_KEY, rail ? '1' : '0') } catch { /* private */ } }, [rail])
@@ -1084,7 +1088,7 @@ export default function CalendarNext({ canWrite, user, go }) {
               difference between the toolbar fitting on two rows and spilling
               onto a third. The ＋ and the tooltip carry it. */}
           {canWrite && (
-            <button className="cx-primary" onClick={() => go?.('setup')} data-tip="Set up a new course">
+            <button className="cx-primary" onClick={() => (onSetup ? onSetup() : go?.('setup'))} data-tip="Set up a new course">
               ＋<span className="cx-lbl">New course</span>
             </button>
           )}
@@ -1507,7 +1511,7 @@ export default function CalendarNext({ canWrite, user, go }) {
 
           <footer className="cx-pop-foot actions">
             {(creating.kind || 'course') === 'course' && (
-              <button className="cx-ghost" onClick={() => { setCreating(null); go?.('setup') }}>
+              <button className="cx-ghost" onClick={() => { setCreating(null); if (onSetup) onSetup(); else go?.('setup') }}>
                 Full set-up instead
               </button>
             )}

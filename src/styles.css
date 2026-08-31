@@ -708,7 +708,15 @@ select,select option{color:#1d2733;background:#fff}
 .mv-grip.r{right:0;cursor:ew-resize}
 
 /* ── Set up a course (wizard) ────────────────────────────────────────────── */
-.wz{max-width:840px}
+/* The wizard gets the page. It was capped at 840px, which on a wide screen
+   left it sitting in a narrow column looking like a dialog that had lost its
+   backdrop — so it now fills the screen it is given, and only wears a box when
+   it IS one (opened over the calendar). */
+.wz{max-width:none}
+.cal-modal.wizmodal{width:min(1080px,94vw);max-height:92vh;padding:20px 24px}
+.cal-modal.wizmodal .wz-cal{max-height:44vh}
+.cal-modal.wizmodal .wz-done{margin:12px auto}
+@media (max-width:760px){ .cal-modal.wizmodal{width:100%;max-height:100%;height:100%;border-radius:0;padding:14px} }
 .wz-steps{display:flex;list-style:none;margin:0 0 16px;padding:0;gap:6px;flex-wrap:wrap}
 .wz-steps li{flex:1 1 auto}
 .wz-steps button{display:flex;align-items:center;gap:8px;width:100%;background:#fff;border:1px solid var(--line);
