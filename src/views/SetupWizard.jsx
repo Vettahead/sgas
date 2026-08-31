@@ -3,7 +3,7 @@ import {
   listCourses, listStaff, listHolidays, getPool, loadPool, listBlocks,
   createBlock, assignBlockRole, addDelegatesToBlock, staffOnHoliday, weekdayDays,
 } from '../lib/api.js'
-import { MonthView, YearView, cal } from './Calendar.jsx'
+import { MiniMonth, MiniYear, shiftMonth, monthName } from './CalendarNext.jsx'
 import { todayISO, fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 
@@ -49,7 +49,8 @@ export default function SetupWizard({ go }) {
   const [pool, setPool] = useState([])
   const [existing, setExisting] = useState([])          // what is already booked, for context
   const [pickView, setPickView] = useState('Month')     // Month | Year
-  const [anchor, setAnchor] = useState(() => cal(todayISO()))
+  // A plain 'YYYY-MM' now, not the old calendar's date object.
+  const [anchor, setAnchor] = useState(() => todayISO().slice(0, 7))
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(null)
@@ -108,7 +109,7 @@ export default function SetupWizard({ go }) {
     if (!from) {
       const start = snapWeekday(addDaysISO(todayISO(), 14), 'start')
       setFrom(start); setTo(snapWeekday(addDaysISO(start, 4), 'end'))
-      setAnchor(cal(start))
+      setAnchor(start.slice(0, 7))
     }
     setStep(1)
   }
@@ -230,36 +231,34 @@ export default function SetupWizard({ go }) {
                   <button className={pickView === 'Year' ? 'on' : ''} onClick={() => setPickView('Year')}>Year</button>
                 </div>
                 <div className="cal-nav-grp">
-                  <button className="cal-nav" onClick={() => setAnchor((a) => a.addMonths(pickView === 'Year' ? -12 : -1))}>‹</button>
-                  <span className="wz-caltitle">{anchor.toString(pickView === 'Year' ? 'yyyy' : 'MMMM yyyy')}</span>
-                  <button className="cal-nav" onClick={() => setAnchor((a) => a.addMonths(pickView === 'Year' ? 12 : 1))}>›</button>
+                  <button className="cal-nav" aria-label="Back"
+                    onClick={() => setAnchor((m) => shiftMonth(m, pickView === 'Year' ? -12 : -1))}>‹</button>
+                  <span className="wz-caltitle">{pickView === 'Year' ? anchor.slice(0, 4) : monthName(anchor)}</span>
+                  <button className="cal-nav" aria-label="Forward"
+                    onClick={() => setAnchor((m) => shiftMonth(m, pickView === 'Year' ? 12 : 1))}>›</button>
                 </div>
-                <button className="btn ghost sm" onClick={() => setAnchor(cal(from || todayISO()))}>
+                <button className="btn ghost sm" onClick={() => setAnchor((from || todayISO()).slice(0, 7))}>
                   {from ? 'Back to the dates' : 'Today'}
                 </button>
               </div>
 
               <div className="wz-cal">
+                {/* The SAME grid and the SAME drag as the Calendar screen —
+                    this step used to draw the old calendar, which is the last
+                    reason that file existed. */}
                 {pickView === 'Month' ? (
-                  <MonthView
-                    anchor={anchor}
+                  <MiniMonth
+                    month={anchor} onMonth={setAnchor} nav={false}
                     blocks={existing}
-                    colourFor={(b) => b.color || 'var(--slate)'}
-                    onOpen={() => {}}
-                    onDragCommit={() => {}}
-                    onCreate={applyRange}
                     selection={from && to ? { from, to } : null}
+                    onPick={applyRange}
                   />
                 ) : (
-                  <YearView
-                    anchor={anchor}
-                    numMonths={12}
+                  <MiniYear
+                    year={anchor.slice(0, 4)}
                     blocks={existing}
-                    colourFor={(b) => b.color || 'var(--slate)'}
-                    onOpen={() => {}}
-                    onDragCommit={() => {}}
-                    onCreate={applyRange}
                     selection={from && to ? { from, to } : null}
+                    onPick={applyRange}
                   />
                 )}
               </div>

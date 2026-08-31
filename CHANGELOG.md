@@ -4,6 +4,55 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — Calendar.jsx is deleted
+
+`SetupWizard.jsx` was the last importer. Its date-picking step needed more than
+the read-only grid the Dashboard got, so the pieces were generalised:
+
+- `dragSelectDays(d, e, {onSel, onHint, onDone})` — lifted out of
+  `CalendarNext`'s `cellDown`. The calendar finishes a drag by booking a course;
+  the wizard finishes it by filling the dates in. Identical gesture, one
+  implementation, including "a plain click picks nothing" (judged on whether the
+  pointer MOVED, not on whether the dates differ — or a one-day course could
+  never be dragged out).
+- `MonthGlance` → **`MiniMonth`**, now optionally pickable: `selection`,
+  `onPick`, controlled `month`/`onMonth`, and `nav` to suppress its own header
+  when the host has one.
+- **`MiniYear`** wraps the existing `YearGrid` with the same drag-select; its
+  cells already carried `data-d`, so the shared helper works unchanged.
+
+`SetupWizard`'s `anchor` is a plain `'YYYY-MM'` now rather than the old file's
+date object, using the exported `shiftMonth`/`monthName`.
+
+Then: `App.jsx`'s import and its unreachable `activeView === 'calendar'` route
+removed, and **`src/views/Calendar.jsx` deleted** — 1,344 lines. Bundle
+1,268.99 kB → 1,222.19 kB (gzip 417.04 → 403.19).
+
+`.cal-*` CSS stays: `.cal-nav` and `.cal-nav-grp` are still used by the wizard's
+toolbar, so a blanket sweep would break it. Dead-CSS pass is a separate job.
+
+New `wizard.mjs`: 9 checks — the new grid is drawn and nothing of the old one
+is, the title reads properly, the drag chip appears, dragging fills the dates,
+picked days highlight, a plain click picks nothing, and Year both renders and
+picks.
+
+### The fault worth recording
+
+Removing the old calendar's entry from `roles.js`, the comment above
+`ROLE_VIEWS` and the object itself had no blank line between them, so a
+comment-replacing edit took the object with it. `ROLE_VIEWS is not defined` —
+the whole app blank on load.
+
+**It then passed thirteen suites in a row.** The runner was
+`node $s | grep -E '^(FAIL|ERROR)' || echo clean`: a script that threw before
+printing anything produced no FAIL lines, so it was reported clean. Absence of
+failure is not evidence of success.
+
+`runall.sh` replaces it and demands the evidence: non-zero exit is CRASHED, any
+FAIL/ERROR line is reported with the lines, and **zero PASS lines is itself a
+failure** ("NO ASSERTIONS RAN"). 18 suites, 128 assertions, green under the new
+runner.
+
 ## 2026-08-30 — add-a-qualification, and the Dashboard stops drawing the old calendar
 
 **The last Schedule-only feature.** `AddQualRow` on the board became `AddQual`

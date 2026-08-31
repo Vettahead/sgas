@@ -17,11 +17,12 @@ export const ROLE_LABELS = {
   ACCOUNTS: 'Accounts',
 }
 
-// 'calendar' — the ORIGINAL calendar — is deliberately absent from every role
-// as of 30 Aug 2026: the new one now does everything it did. The view and the
-// file both remain, because Schedule renders the Calendar component as its own
-// tab and Dashboard/SetupWizard import MonthView and YearView from it. To put
-// the old tab back, add 'calendar' here and restore its NAV_GROUPS entry.
+// 'calendar' — the ORIGINAL calendar — is GONE, not merely out of the menu:
+// src/views/Calendar.jsx was deleted once nothing imported it any more.
+// Everything it did lives in CalendarNext, including the two grids the
+// Dashboard and the "Set up a course" wizard used to borrow from it — they are
+// MiniMonth and MiniYear, exported from CalendarNext.jsx. It is in git history
+// if it is ever wanted back.
 //
 // Views each role may open, listed in nav order. Used to build the sidebar AND
 // to guard the active view (a hand-typed/stale view falls back to the default).

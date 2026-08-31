@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { MonthGlance } from './CalendarNext.jsx'
+import { MiniMonth } from './CalendarNext.jsx'
 import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
@@ -375,7 +375,7 @@ function MonthGlance2({ go, user }) {
       {/* The SAME grid the Calendar screen draws. This used to be the old
           calendar's MonthView, which is why the retired screen was still
           staring at you from the Dashboard. */}
-      <MonthGlance blocks={shown.filter((b) => b.start && b.end)} onOpen={() => go('calendarnext')} />
+      <MiniMonth blocks={shown.filter((b) => b.start && b.end)} onOpen={() => go('calendarnext')} />
     </div>
   )
 }

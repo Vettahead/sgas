@@ -206,24 +206,66 @@ export const shiftMonth = (month, n) => {
 }
 export const monthName = (month) => MONTHS[Number(month.slice(5, 7)) - 1] + ' ' + month.slice(0, 4)
 
+/* Drag across days to pick a range. Shared by the calendar (where finishing a
+   drag books a course) and by the "Set up a course" wizard (where it fills in
+   the dates), so the gesture is identical in both and cannot drift.
+   A plain CLICK picks nothing: judged on whether the pointer moved, not on
+   whether the dates differ, or a one-day course could never be dragged out. */
+export function dragSelectDays(d, e, { onSel, onHint, onDone }) {
+  if (e.button != null && e.button !== 0) return
+  onSel({ from: d, to: d })
+  const x0 = e.clientX, y0 = e.clientY
+  let moved = false
+  let last = { from: d, to: d }
+  const move = (ev) => {
+    if (Math.abs(ev.clientX - x0) > 3 || Math.abs(ev.clientY - y0) > 3) moved = true
+    const c = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.('[data-d]')
+    if (c?.dataset.d) {
+      last = { from: d < c.dataset.d ? d : c.dataset.d, to: d < c.dataset.d ? c.dataset.d : d }
+      onSel(last)
+    }
+    const n = between(last.from, last.to) + 1
+    onHint?.({ x: ev.clientX, y: ev.clientY,
+      text: `${n} day${n === 1 ? '' : 's'} \u00b7 ${fmt(last.from)} \u2013 ${fmt(last.to)}` })
+  }
+  const end = (ok) => () => {
+    window.removeEventListener('pointermove', move)
+    window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cx)
+    onHint?.(null)
+    onDone(ok && moved ? last : null)
+  }
+  const up = end(true), cx = end(false)
+  window.addEventListener('pointermove', move)
+  window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cx)
+}
+
 /* ── The Dashboard's "month at a glance" ──────────────────────────────────
    The same grid, the same bars, the same colours as the Calendar screen —
    read-only, and every click opens the real thing. The Dashboard used to draw
    this with the OLD calendar's MonthView, which is why the old screen still
    looked like it was part of the app after it left the menu. */
-export function MonthGlance({ blocks, onOpen, title }) {
-  const [month, setMonth] = useState(() => todayISO().slice(0, 7))
+export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMonth, nav = true }) {
+  const [mOwn, setMOwn] = useState(() => todayISO().slice(0, 7))
+  const month = mIn || mOwn
+  const setMonth = (fn) => { const next = typeof fn === 'function' ? fn(month) : fn; if (onMonth) onMonth(next); else setMOwn(next) }
+  // While you are dragging, the range under the pointer wins over what is saved.
+  const [live, setLive] = useState(null)
+  const [hint, setHint] = useState(null)
+  const range = live || selection
+  const inSel = (d) => range && d >= range.from && d <= range.to
   const grid = useMemo(() => monthGrid(month), [month])
   const segs = useMemo(() => layOutMonth(blocks || [], grid), [blocks, grid])
   const lanesIn = (r) => Math.max(0, ...segs.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
   return (
     <div className="cx cx-glance">
-      <div className="cx-glance-head">
-        <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month">‹</button>
-        <b>{monthName(month)}</b>
-        <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month">›</button>
-        <button className="cx-x" onClick={() => onOpen?.()}>Open the calendar →</button>
-      </div>
+      {nav && (
+        <div className="cx-glance-head">
+          <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month">‹</button>
+          <b>{monthName(month)}</b>
+          <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month">›</button>
+          {onOpen && <button className="cx-x" onClick={() => onOpen()}>Open the calendar →</button>}
+        </div>
+      )}
       <section className="cx-cal">
         <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>
         <div className="cx-grid" key={month}>
@@ -235,7 +277,11 @@ export function MonthGlance({ blocks, onOpen, title }) {
                 const today = d === todayISO()
                 return (
                   <div key={d} data-d={d}
-                    className={'cx-cell' + (out ? ' out' : '') + (isWknd(d) ? ' wknd' : '') + (today ? ' today' : '')}>
+                    className={'cx-cell' + (out ? ' out' : '') + (isWknd(d) ? ' wknd' : '') + (today ? ' today' : '') + (inSel(d) ? ' sel' : '')}
+                    onPointerDown={onPick ? (e) => dragSelectDays(d, e, {
+                      onSel: setLive, onHint: setHint,
+                      onDone: (picked) => { setLive(null); if (picked) onPick(picked.from, picked.to) },
+                    }) : undefined}>
                     <span className="cx-num">{today ? <b>{Number(d.slice(8))}</b> : Number(d.slice(8))}</span>
                   </div>
                 )
@@ -249,7 +295,7 @@ export function MonthGlance({ blocks, onOpen, title }) {
                     top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
                     '--c': s.b.color || '#5b6b80',
                   }}
-                  onClick={() => onOpen?.(s.b)}
+                  onClick={onOpen ? () => onOpen(s.b) : undefined}
                   data-tip={barTip(s.b)}>
                   <span className="cx-bar-t">
                     <span className="cx-bar-r1">
@@ -267,8 +313,30 @@ export function MonthGlance({ blocks, onOpen, title }) {
             </div>
           ))}
         </div>
-        {segs.length === 0 && <p className="cx-empty" style={{ padding: '10px 4px' }}>Nothing on in {monthName(month)}.</p>}
+        {segs.length === 0 && !onPick && <p className="cx-empty" style={{ padding: '10px 4px' }}>Nothing on in {monthName(month)}.</p>}
       </section>
+      {hint && <div className="cx-chip-len float" style={{ left: hint.x, top: hint.y - 26 }}>{hint.text}</div>}
+    </div>
+  )
+}
+
+/* The year, for picking dates further out than the month in front of you.
+   The same grid the Calendar screen's Year view draws. */
+export function MiniYear({ year, blocks, selection, onPick }) {
+  const [live, setLive] = useState(null)
+  const [hint, setHint] = useState(null)
+  const range = live || selection
+  return (
+    <div className="cx cx-glance">
+      <YearGrid year={String(year)} blocks={blocks || []} canWrite={!!onPick}
+        onOpen={() => {}} onBarDown={() => {}} flash={null} chip={null}
+        inSel={(d) => range && d >= range.from && d <= range.to}
+        dropClass={() => ''}
+        onCellDown={onPick ? (d, e) => dragSelectDays(d, e, {
+          onSel: setLive, onHint: setHint,
+          onDone: (picked) => { setLive(null); if (picked) onPick(picked.from, picked.to) },
+        }) : () => {}} />
+      {hint && <div className="cx-chip-len float" style={{ left: hint.x, top: hint.y - 26 }}>{hint.text}</div>}
     </div>
   )
 }
@@ -840,41 +908,17 @@ export default function CalendarNext({ canWrite, user, go }) {
   // its day cells with data-d, so this one handler serves the month grid, the
   // week and day all-day band, and the year rows.
   function cellDown(d, e) {
-    if (!canWrite || (e.button != null && e.button !== 0)) return
-    setSel({ from: d, to: d })
-    const x0 = e.clientX, y0 = e.clientY
-    let moved = false
-    let last = { from: d, to: d }
-    const move = (ev) => {
-      if (Math.abs(ev.clientX - x0) > 3 || Math.abs(ev.clientY - y0) > 3) moved = true
-      const el = document.elementFromPoint(ev.clientX, ev.clientY)
-      const c = el?.closest?.('[data-d]')
-      if (c?.dataset.d) {
-        last = { from: d < c.dataset.d ? d : c.dataset.d, to: d < c.dataset.d ? c.dataset.d : d }
-        setSel(last)
-      }
-      const n = between(last.from, last.to) + 1
-      setSelHint({ x: ev.clientX, y: ev.clientY,
-        text: `${n} day${n === 1 ? '' : 's'} · ${fmt(last.from)} – ${fmt(last.to)}` })
-    }
-    const end = (ok) => () => {
-      window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', up); window.removeEventListener('pointercancel', cx)
-      setSelHint(null)
-      // A drag books a course; a plain click does not. Judged on whether the
-      // pointer moved, not on whether the dates differ — otherwise a one-day
-      // course could never be booked by dragging.
-      setSel((sl) => {
-        if (ok && sl && moved) {
-          setAt({ sel: `[data-d="${sl.to}"]`, fx: 0.5 })
-          setCreating({ from: sl.from, to: sl.to })
-        }
-        return null
-      })
-    }
-    const up = end(true), cx = end(false)
-    window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', up); window.addEventListener('pointercancel', cx)
+    if (!canWrite) return
+    dragSelectDays(d, e, {
+      onSel: setSel,
+      onHint: setSelHint,
+      onDone: (picked) => {
+        setSel(null)
+        if (!picked) return
+        setAt({ sel: `[data-d="${picked.to}"]`, fx: 0.5 })
+        setCreating({ from: picked.from, to: picked.to })
+      },
+    })
   }
   // Dragging a course. Three things make this feel right and all three were
   // missing: the bar has to follow in WHOLE DAY steps (pixel-following then

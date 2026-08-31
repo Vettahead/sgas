@@ -9,7 +9,6 @@ import Dashboard from './views/Dashboard.jsx'
 import Inquiries from './views/Inquiries.jsx'
 import Book from './views/Book.jsx'
 import Schedule from './views/Schedule.jsx'
-import Calendar from './views/Calendar.jsx'
 import CalendarNext from './views/CalendarNext.jsx'
 import SetupWizard from './views/SetupWizard.jsx'
 import Assess from './views/Assess.jsx'
@@ -261,7 +260,6 @@ export default function App() {
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'sched' && <Schedule user={user} isAdmin={isAdmin} go={go} />}
-          {activeView === 'calendar' && <Calendar go={go} isAdmin={isAdmin} user={user} />}
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user} />}
           {activeView === 'assess' && <Assess />}
           {activeView === 'pay' && <Payments />}

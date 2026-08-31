@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.34.1', build: 174, date: '30 Aug 2026',
+    title: 'The old calendar is deleted',
+    notes: [
+      'The date picker in \u201cSet up a course\u201d was the last thing still drawing the old calendar. It now uses the same grid as everywhere else \u2014 drag across the days to pick your dates, exactly the same gesture as booking a course on the calendar itself, with the same little chip telling you how many days you have picked. Month and Year both work.',
+      'WITH THAT, THE OLD CALENDAR IS GONE FROM THE SYSTEM \u2014 not just hidden from the menu, the file itself is deleted. There is one calendar now, in one place, and every screen that shows you a month is showing you the same one. The app is about 47KB smaller for it.',
+      'A FAULT I CAUSED AND CAUGHT: taking the old calendar out, I deleted the list of what each role is allowed to see along with the comment above it, which broke the whole app on load. Found before it went anywhere near you \u2014 but it got past thirteen checks first, because those checks were only looking for the word FAIL and a check that dies before it starts never prints one. They now have to prove they actually ran. That is the more useful fix of the two.',
+    ],
+  },
+  {
     v: '1.34.0', build: 173, date: '30 Aug 2026',
     title: 'The last thing the Schedule board could do that the calendar could not',
     notes: [
