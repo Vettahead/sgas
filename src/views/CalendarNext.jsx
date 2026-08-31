@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
-  getReschedulePool, rescheduleDelegate,
+  getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
@@ -152,6 +152,127 @@ const THEME_KEY = 'sgas_cx_theme'
 const DENSE_KEY = 'sgas_cx_dense'
 const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { return d } }
 
+/* ── The month grid, as pure functions ────────────────────────────────────
+   Lifted out of the component so the Dashboard's "month at a glance" can draw
+   the SAME grid instead of the old calendar's. One implementation, so the two
+   can never drift apart again. */
+export function monthGrid(month) {
+  const first = month + '-01'
+  const lead = (dow(first) + 6) % 7                       // Monday-first
+  const start = addDays(first, -lead)
+  const days = Array.from({ length: 42 }, (_, i) => addDays(start, i))
+  // Six rows are only needed when the month actually spills into one.
+  const rows = days[35] && days[35].slice(0, 7) === month ? 6 : 5
+  return { start, days: days.slice(0, rows * 7), rows }
+}
+
+/* Where every course sits in that grid. A course crossing a week boundary
+   becomes one segment per week, and each row is lane-packed so overlapping
+   courses stack instead of hiding behind each other. */
+export function layOutMonth(list, grid) {
+  const out = []
+  const last = grid.days[grid.days.length - 1]
+  for (const b of list || []) {
+    if (!b.start || !b.end || b.end < grid.start || b.start > last) continue
+    let cur = b.start < grid.start ? grid.start : b.start
+    const fin = b.end > last ? last : b.end
+    while (cur <= fin) {
+      const i = between(grid.start, cur)
+      const col = i % 7, row = Math.floor(i / 7)
+      const span = Math.min(7 - col, between(cur, fin) + 1)
+      out.push({ b, row, col, span, key: b.id + ':' + cur, head: cur === b.start,
+        tail: addDays(cur, span - 1) >= fin })
+      cur = addDays(cur, span)
+    }
+  }
+  const byRow = new Map()
+  for (const s of out) { if (!byRow.has(s.row)) byRow.set(s.row, []); byRow.get(s.row).push(s) }
+  for (const list2 of byRow.values()) {
+    list2.sort((a, z) => a.col - z.col || z.span - a.span)
+    const lanes = []
+    for (const s of list2) {
+      let i = 0
+      while (i < lanes.length && lanes[i] > s.col) i++
+      if (i === lanes.length) lanes.push(0)
+      lanes[i] = s.col + s.span; s.lane = i
+    }
+  }
+  return out
+}
+export const shiftMonth = (month, n) => {
+  const d = new Date(month + '-01T00:00:00Z')
+  d.setUTCMonth(d.getUTCMonth() + n)
+  return d.toISOString().slice(0, 7)
+}
+export const monthName = (month) => MONTHS[Number(month.slice(5, 7)) - 1] + ' ' + month.slice(0, 4)
+
+/* ── The Dashboard's "month at a glance" ──────────────────────────────────
+   The same grid, the same bars, the same colours as the Calendar screen —
+   read-only, and every click opens the real thing. The Dashboard used to draw
+   this with the OLD calendar's MonthView, which is why the old screen still
+   looked like it was part of the app after it left the menu. */
+export function MonthGlance({ blocks, onOpen, title }) {
+  const [month, setMonth] = useState(() => todayISO().slice(0, 7))
+  const grid = useMemo(() => monthGrid(month), [month])
+  const segs = useMemo(() => layOutMonth(blocks || [], grid), [blocks, grid])
+  const lanesIn = (r) => Math.max(0, ...segs.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
+  return (
+    <div className="cx cx-glance">
+      <div className="cx-glance-head">
+        <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month">‹</button>
+        <b>{monthName(month)}</b>
+        <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, 1))} aria-label="Next month">›</button>
+        <button className="cx-x" onClick={() => onOpen?.()}>Open the calendar →</button>
+      </div>
+      <section className="cx-cal">
+        <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>
+        <div className="cx-grid" key={month}>
+          {Array.from({ length: grid.rows }, (_, r) => (
+            <div className="cx-week" data-cols="7" key={r} style={{ '--lanes': lanesIn(r) }}>
+              {Array.from({ length: 7 }, (_, c) => {
+                const d = grid.days[r * 7 + c]
+                const out = d.slice(0, 7) !== month
+                const today = d === todayISO()
+                return (
+                  <div key={d} data-d={d}
+                    className={'cx-cell' + (out ? ' out' : '') + (isWknd(d) ? ' wknd' : '') + (today ? ' today' : '')}>
+                    <span className="cx-num">{today ? <b>{Number(d.slice(8))}</b> : Number(d.slice(8))}</span>
+                  </div>
+                )
+              })}
+              {segs.filter((s) => s.row === r).map((s) => (
+                <button key={s.key} type="button"
+                  className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '')}
+                  style={{
+                    left: `calc(${(s.col / 7) * 100}% + 4px)`,
+                    width: `calc(${(s.span / 7) * 100}% - 8px)`,
+                    top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
+                    '--c': s.b.color || '#5b6b80',
+                  }}
+                  onClick={() => onOpen?.(s.b)}
+                  data-tip={barTip(s.b)}>
+                  <span className="cx-bar-t">
+                    <span className="cx-bar-r1">
+                      <span className="cx-bar-n">{s.head ? (s.b.course || s.b.title) : '\u21b3 ' + (s.b.course || '')}</span>
+                      {s.head && s.b.delegates?.length > 0 && (
+                        <span className="cx-kinds" aria-hidden="true">
+                          {kindsOn(s.b.delegates).map((c) => <i key={c} style={{ background: c }} />)}
+                        </span>
+                      )}
+                      {s.head && !s.b.ready && !s.b.isHoliday && <em className="cx-warnflag" />}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
+        {segs.length === 0 && <p className="cx-empty" style={{ padding: '10px 4px' }}>Nothing on in {monthName(month)}.</p>}
+      </section>
+    </div>
+  )
+}
+
 export default function CalendarNext({ canWrite, user, go }) {
   // `canWrite` is the scheduler capability, not admin-ness — see canSchedule()
   // in lib/roles.js. Everything that changes a course, a holiday or a diary
@@ -167,6 +288,9 @@ export default function CalendarNext({ canWrite, user, go }) {
      bookings is how they get forgotten. This existed only on the Schedule
      board, which is why the board could not be retired. */
   const [resits, setResits] = useState([])
+  // The bookable catalogue, for adding a qualification to somebody already on a
+  // course. The last thing that existed only on the Schedule board.
+  const [cats, setCats] = useState([])
   /* The same person can appear in BOTH lists, and they are NOT the same thing:
      the waiting pool holds unplaced bookings, the re-sit list is derived from
      bookings that came back NYC or no-show. One entry takes a NEW booking, the
@@ -259,11 +383,12 @@ export default function CalendarNext({ canWrite, user, go }) {
      per kind — is what makes calendars unmaintainable. `isHoliday` and
      `isEngagement` were already threaded through this file waiting for them. */
   async function load() {
-    const [b, s, h, cs, eng, set, rb] = await Promise.all([
+    const [b, s, h, cs, eng, set, rb, cat] = await Promise.all([
       listBlocks(), listStaff(), listHolidays(), listCourses(),
       listEngagements(user?.user_id, user?.staffId).catch(() => []),
       getSettings().catch(() => ({})),
       getReschedulePool().catch(() => []),
+      listBookableCategories().catch(() => []),
     ])
     const holBlocks = h.map((x) => ({
       id: 'h' + x.holidayId, holidayId: x.holidayId, isHoliday: true,
@@ -285,7 +410,7 @@ export default function CalendarNext({ canWrite, user, go }) {
       trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const all = [...b, ...holBlocks, ...engBlocks]
-    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool()); setResits(rb)
+    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool()); setResits(rb); setCats(cat)
     setSettings(set)
     setCourses(cs.filter((c) => c.is_active !== false))
     return all
@@ -456,50 +581,10 @@ export default function CalendarNext({ canWrite, user, go }) {
   )), [filtered, preview])
 
   // ── The six-week grid ─────────────────────────────────────────────────────
-  const grid = useMemo(() => {
-    const first = month + '-01'
-    const lead = (dow(first) + 6) % 7                       // Monday-first
-    const start = addDays(first, -lead)
-    const days = Array.from({ length: 42 }, (_, i) => addDays(start, i))
-    // Six rows are only needed when the month actually spills into one.
-    const rows = days[35] && days[35].slice(0, 7) === month ? 6 : 5
-    return { start, days: days.slice(0, rows * 7), rows }
-  }, [month])
+  const grid = useMemo(() => monthGrid(month), [month])
 
   // A block becomes one segment per week row it crosses.
-  const segments = useMemo(() => {
-    const out = []
-    if (!blocks) return out
-    const blocksForLayout = shown
-    const last = grid.days[grid.days.length - 1]
-    for (const b of blocksForLayout) {
-      if (!b.start || !b.end || b.end < grid.start || b.start > last) continue
-      let cur = b.start < grid.start ? grid.start : b.start
-      const fin = b.end > last ? last : b.end
-      while (cur <= fin) {
-        const i = between(grid.start, cur)
-        const col = i % 7, row = Math.floor(i / 7)
-        const span = Math.min(7 - col, between(cur, fin) + 1)
-        out.push({ b, row, col, span, key: b.id + ':' + cur, head: cur === b.start,
-          tail: addDays(cur, span - 1) >= fin })
-        cur = addDays(cur, span)
-      }
-    }
-    // Lane-pack each row so overlapping courses stack instead of hiding.
-    const byRow = new Map()
-    for (const s of out) { if (!byRow.has(s.row)) byRow.set(s.row, []); byRow.get(s.row).push(s) }
-    for (const list of byRow.values()) {
-      list.sort((a, z) => a.col - z.col || z.span - a.span)
-      const lanes = []
-      for (const s of list) {
-        let i = 0
-        while (i < lanes.length && lanes[i] > s.col) i++
-        if (i === lanes.length) lanes.push(0)
-        lanes[i] = s.col + s.span; s.lane = i
-      }
-    }
-    return out
-  }, [shown, blocks, grid])
+  const segments = useMemo(() => (blocks ? layOutMonth(shown, grid) : []), [shown, blocks, grid])
 
   const lanesIn = (r) => Math.max(0, ...segments.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
 
@@ -1538,6 +1623,15 @@ export default function CalendarNext({ canWrite, user, go }) {
                   : <ul className="cx-delg">{open.delegates.map((d) => (
                       <Delegate key={d.bookingId} d={d} block={open} canWrite={canWrite} busy={busy}
                         formBusy={formBusy} onPrint={() => printForms('one', d)}
+                        cats={cats}
+                        onAddQual={async (categoryId, kind) => {
+                          setBusy(true)
+                          try {
+                            const n = await addQualsToBooking(Number(d.bookingId), [{ category_id: Number(categoryId), kind }])
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null)
+                            toast(n ? `Added to ${d.name}` : 'Already on their booking')
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
                         onDragStart={(e) => dragStart('delegate', { ...d, blockId: open.id }, d.name, schemeColour(open.scheme), e)}
                         onSplit={async (f, t) => {
                           setBusy(true)
@@ -1871,8 +1965,12 @@ function RailCard({ id, title, count, shut, onToggle, className = '', children }
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDragStart, onPrint }) {
+function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove, onDragStart, onPrint, onAddQual }) {
   const [edit, setEdit] = useState(false)
+  // Adding a qualification to somebody already booked on. It opens under THEM,
+  // rather than as a separate screen, because the question is always "another
+  // one for this person" and never "another one for somebody".
+  const [addq, setAddq] = useState(false)
   const [f, setF] = useState(d.attendFrom || block.start)
   const [t, setT] = useState(d.attendTo || block.end)
   const part = isPart(d)
@@ -1899,6 +1997,8 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
             <button className="cx-x" disabled={formBusy} onClick={onPrint}
               data-tip={`Print ${d.name}’s ACS application form`}>form</button>
           )}
+          {canWrite && onAddQual && <button className="cx-x" onClick={() => setAddq((v) => !v)}
+            data-tip={`Add another qualification to ${d.name}'s booking`}>add a qual</button>}
           {canWrite && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'some days'}</button>}
           {canWrite && (
             <button className="cx-x danger" disabled={busy}
@@ -1918,6 +2018,11 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
         {d.codes?.length ? ' · ' + d.codes.join(', ') : ''}
         {part ? ` · ${fmt(d.attendFrom || block.start)}–${fmt(d.attendTo || block.end)} only` : ' · full course'}
       </small>
+      {addq && canWrite && onAddQual && (
+        <AddQual d={d} block={block} cats={cats} busy={busy}
+          onCancel={() => setAddq(false)}
+          onAdd={(id, kind) => { onAddQual(id, kind); setAddq(false) }} />
+      )}
       {edit && (
         <span className="cx-split">
           <input type="date" value={f} min={block.start} max={block.end} onChange={(e) => setF(e.target.value)} />
@@ -1928,6 +2033,49 @@ function Delegate({ d, block, canWrite, busy, formBusy, onSplit, onRemove, onDra
         </span>
       )}
     </li>
+  )
+}
+
+/* Another qualification for somebody already on the course.
+   Two rows rather than the board's single cramped line: the catalogue is 110
+   entries long and the dropdown needs the width more than the buttons do. */
+function AddQual({ d, block, cats, busy, onAdd, onCancel }) {
+  const [catId, setCatId] = useState('')
+  const [kind, setKind] = useState('REASSESS')   // the common case, per the review meeting
+  const [all, setAll] = useState(false)
+  const held = new Set(d.categoryIds || [])
+  const scheme = block.scheme
+  const inScope = (all || !scheme) ? (cats || []) : (cats || []).filter((c) => c.scheme === scheme)
+  const free = inScope.filter((c) => !held.has(c.category_id))
+  return (
+    <span className="cx-addq" onPointerDown={(e) => e.stopPropagation()}>
+      <select value={catId} disabled={busy} onChange={(e) => setCatId(e.target.value)} aria-label="Qualification">
+        <option value="">Pick a qualification…</option>
+        {free.map((c) => (
+          <option key={c.category_id} value={c.category_id}>
+            {c.code} · {c.description}{all && scheme && c.scheme !== scheme ? ` [${c.scheme}]` : ''}
+          </option>
+        ))}
+      </select>
+      <span className="cx-addq-row">
+        <span className="cx-seg cx-addq-seg" role="group" aria-label="New or reassessment">
+          <button className={kind === 'REASSESS' ? 'on' : ''} onClick={() => setKind('REASSESS')}>Reassessment</button>
+          <button className={kind === 'NEW' ? 'on' : ''} onClick={() => setKind('NEW')}>New</button>
+        </span>
+        <label className="cx-addq-all">
+          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
+          every scheme
+        </label>
+        <button className="cx-x" disabled={busy || !catId} onClick={() => onAdd(catId, kind)}>Add</button>
+        <button className="cx-x" onClick={onCancel}>Cancel</button>
+      </span>
+      {free.length === 0 && (
+        <em className="cx-addq-none">
+          {d.name} already has every {all || !scheme ? '' : scheme + ' '}qualification.
+          {!all && scheme ? ' Tick “every scheme” to look wider.' : ''}
+        </em>
+      )}
+    </span>
   )
 }
 

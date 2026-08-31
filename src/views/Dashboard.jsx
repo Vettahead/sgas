@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { MonthView, cal } from './Calendar.jsx'
+import { MonthGlance } from './CalendarNext.jsx'
 import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
@@ -212,7 +212,7 @@ function renderModule(id, c) {
   if (id === 'calendar') {
     return (
       <DashCard id="calendar" title="📅 Your month at a glance" open={c.isOpen('calendar')} onToggle={c.toggleCard}>
-        <MonthGlance go={c.go} user={c.user} />
+        <MonthGlance2 go={c.go} user={c.user} />
       </DashCard>
     )
   }
@@ -361,34 +361,21 @@ function renderModule(id, c) {
 
 // Month at a glance — the SAME month grid as the calendar page, with
 // hover detail handled by the shared grid itself.
-function MonthGlance({ go, user }) {
+function MonthGlance2({ go, user }) {
   const { data: blocks } = useData(listBlocks)
-  const [anchor, setAnchor] = useState(cal(new Date().toISOString().slice(0, 10)))
   if (!blocks) return <div className="body"><div className="muted small">Loading…</div></div>
-  // Admin sees every block; a staff member sees only the courses they're on.
+  // Admin sees every course; a staff member sees only the ones they are on.
   const myName = user?.name
   const myStaffId = user?.staffId
   const shown = user?.role === 'ADMIN'
     ? blocks
     : blocks.filter((b) => (myStaffId != null ? [b.trainerId, b.assessorId, b.verifierId].includes(myStaffId) : [b.trainer, b.assessor, b.verifier].includes(myName)))
-  const move = (n) => setAnchor((a) => a.addMonths(n))
   return (
     <div className="body">
-      <div className="mc-head">
-        <button className="cal-nav" onClick={() => move(-1)}>‹</button>
-        <span className="mc-title">{anchor.toString('MMMM yyyy')}</span>
-        <button className="cal-nav" onClick={() => move(1)}>›</button>
-        <button className="btn ghost sm" style={{ marginLeft: 'auto' }} onClick={() => go('calendarnext')}>Open calendar →</button>
-      </div>
-      <MonthView
-        anchor={anchor}
-        blocks={shown.filter((b) => b.start && b.end)}
-        colourFor={(b) => b.color || '#48566a'}
-        onOpen={() => go('calendarnext')}
-        onCreate={() => go('calendarnext')}
-        onDragCommit={() => {}}
-        readOnly
-      />
+      {/* The SAME grid the Calendar screen draws. This used to be the old
+          calendar's MonthView, which is why the retired screen was still
+          staring at you from the Dashboard. */}
+      <MonthGlance blocks={shown.filter((b) => b.start && b.end)} onOpen={() => go('calendarnext')} />
     </div>
   )
 }

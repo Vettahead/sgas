@@ -4,6 +4,43 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-30 — add-a-qualification, and the Dashboard stops drawing the old calendar
+
+**The last Schedule-only feature.** `AddQualRow` on the board became `AddQual`
+in the course panel, opened by a fourth link on the delegate's row. Two rows
+rather than the board's single cramped line — the catalogue is 110 entries and
+the dropdown needs the width more than the buttons do. Scheme-filtered by
+default with an "every scheme" override (4 → 109 in the demo data), Reassessment
+preselected (the common case, per the review meeting), Add disabled until
+something is picked, and a plain sentence when there is nothing left to add.
+`addQualsToBooking` and `listBookableCategories` already existed; `listBlocks`
+now feeds `cats` into the panel. Adding a NEW qualification to a REASSESS
+booking correctly flips the delegate to `Mixed`, which the model already had.
+
+**`MonthGlance`, and one month grid instead of two.** `Dashboard.jsx` imported
+`MonthView` and `cal` from the old `Calendar.jsx` — so the retired screen was
+still being drawn on the front page. The month grid's two pure pieces are now
+module-level exports of `CalendarNext.jsx`:
+
+- `monthGrid(month)` — Monday-first, five rows or six only when the month
+  actually spills.
+- `layOutMonth(list, grid)` — one segment per week for a course that crosses a
+  boundary, then lane-packed per row so overlaps stack rather than hide.
+
+The component uses them, and so does the new exported `MonthGlance` — the same
+`.cx-` grid, bars, course colours and delegate-kind dots, read-only, every click
+going to the real calendar. Plus `shiftMonth` and `monthName` so the Dashboard
+no longer needs the old file's date helper at all. `.cx-glance` tightens
+`--barh` and `--rowmin` for a card.
+
+`Calendar.jsx` now has exactly one caller left: `SetupWizard.jsx`, for
+`MonthView`/`YearView` in the date-picking step.
+
+New `addqual.mjs`: 9 checks plus a read-only pass — the picker opens under that
+person, is scheme-narrowed, offers both kinds with Reassessment first, widens on
+"every scheme", refuses Add until something is chosen, actually lands on the
+booking, closes itself, and Cancel changes nothing.
+
 ## 2026-08-30 — the course panel: wider, and a third off every delegate
 
 Measured first. With three delegates at 1512x950: panel 376px wide, each

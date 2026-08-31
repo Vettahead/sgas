@@ -1318,6 +1318,21 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-dsub{flex:0 0 100%;font-size:11.5px;line-height:1.35;color:var(--cx-mute);margin-top:1px}
 .cx-kind{align-self:stretch}
 .cx-split{display:flex;align-items:center;gap:6px;flex-wrap:wrap;width:100%;margin-top:8px}
+/* Another qualification for somebody already booked on. Two rows: the catalogue
+   dropdown gets the full width because 110 entries need it more than the
+   buttons do, and the choices sit underneath. */
+.cx-addq{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:7px;
+  padding:8px 9px;border-radius:9px;background:var(--cx-panel);border:1px solid var(--cx-line)}
+.cx-addq select{width:100%;font-size:12px;padding:7px 9px}
+.cx-addq-row{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.cx-addq-seg{flex:0 0 auto}
+.cx-addq-seg button{font-size:11px;padding:5px 9px;line-height:1}
+.cx-addq-all{display:flex;align-items:center;gap:5px;font-weight:500;font-size:11px;
+  color:var(--cx-mute);cursor:pointer;white-space:nowrap}
+.cx-addq-all input{width:13px;height:13px;margin:0}
+.cx-addq .cx-x{margin-left:0}
+.cx-addq .cx-x:first-of-type{margin-left:auto}
+.cx-addq-none{font-style:normal;font-weight:500;font-size:10.5px;line-height:1.45;color:var(--cx-mute)}
 .cx-split input[type=date]{width:auto;padding:7px 9px;font-size:12px}
 .cx-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .cx-ghost{background:none;border:1px solid var(--cx-line);color:var(--cx-mute);border-radius:10px;
@@ -1662,6 +1677,15 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-pchip .cx-resit-tag{margin:0 0 0 6px;vertical-align:1px}
 .cx-row.cx-resit small{opacity:1}
 .cx-alsoresit{font-style:normal;color:var(--cx-warn);font-weight:600}
+
+/* The Dashboard's month-at-a-glance: the calendar's own grid, read-only and a
+   little tighter, inside a dashboard card. */
+.cx-glance{--barh:24px;--rowmin:56px}
+.cx-glance .cx-glance-head{display:flex;align-items:center;gap:8px;padding:0 2px 9px}
+.cx-glance .cx-glance-head b{font-weight:700;font-size:14px;color:var(--cx-ink)}
+.cx-glance .cx-glance-head .cx-x{margin-left:auto}
+.cx-glance .cx-bar{cursor:pointer}
+.cx-glance .cx-bar-n{font-size:11.5px}
 
 .cx-pchip.already{opacity:.55}
 .cx-pchip.already small{color:var(--cx-warn);font-weight:600}

@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.34.0', build: 173, date: '30 Aug 2026',
+    title: 'The last thing the Schedule board could do that the calendar could not',
+    notes: [
+      'You can add another qualification to somebody already booked on a course, from the calendar. Open the course, find their name, press \u201cadd a qual\u201d, pick it, say whether it is new or a reassessment, Add. It only offered this on the old Schedule board before, so you had to leave the calendar to do it.',
+      'The list starts narrowed to the course\u2019s own scheme, which is nearly always what you want. Tick \u201cevery scheme\u201d and you get all 110 \u2014 for the delegate who is picking up something from a different scheme while they are in.',
+      'It says so if there is nothing left to add: \u201cJohn Hartley already has every OFTEC qualification.\u201d',
+      'THE MONTH ON YOUR DASHBOARD IS THE NEW CALENDAR NOW. \u201cYour month at a glance\u201d was still drawing the OLD calendar, which is why the retired screen was still staring at you from the front page. Same grid, same colours, same dots telling you what a course is made of \u2014 and clicking anything takes you to the real thing. The grid is now written once and used by both, so the two can never drift apart again.',
+      'That is the Schedule board out of jobs. Everything it does, the calendar does.',
+    ],
+  },
+  {
     v: '1.33.2', build: 172, date: '30 Aug 2026',
     title: 'The course panel is wider, and the people on it take a third less room',
     notes: [
