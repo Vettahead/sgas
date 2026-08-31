@@ -714,7 +714,18 @@ select,select option{color:#1d2733;background:#fff}
    it IS one (opened over the calendar). */
 .wz{max-width:none}
 .cal-modal.wizmodal{width:min(1080px,94vw);max-height:92vh;padding:20px 24px}
-.cal-modal.wizmodal .wz-cal{max-height:44vh}
+/* NO scroller on the month, and never two at once. The month now fits — see
+   .cx-glance below — so this cap is only ever reached by the YEAR view, which
+   is twelve months tall and has to scroll somewhere. Better inside its own box
+   than by pushing the dialog's foot off the bottom of the screen. */
+.cal-modal.wizmodal .wz-cal{max-height:min(46vh,420px);overflow:auto}
+/* Picking DATES. What matters is which days are already busy, not reading the
+   name off every course — so the courses become slim coloured strips and the
+   whole month fits without the dialog scrolling. Hover still names them. */
+.cx-glance.compact{--barh:11px;--rowmin:46px}
+.cx-glance.compact .cx-cell{padding:4px 6px}
+.cx-glance.compact .cx-bar{padding:0;border-radius:4px}
+.cx-glance.compact .cx-bar-t{display:none}
 .cal-modal.wizmodal .wz-done{margin:12px auto}
 @media (max-width:760px){ .cal-modal.wizmodal{width:100%;max-height:100%;height:100%;border-radius:0;padding:14px} }
 .wz-steps{display:flex;list-style:none;margin:0 0 16px;padding:0;gap:6px;flex-wrap:wrap}
@@ -871,7 +882,9 @@ select,select option{color:#1d2733;background:#fff}
 /* layout */
 .cx-body{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:18px;align-items:start}
 .cx-cal{background:var(--cx-panel);border:1px solid var(--cx-line);border-radius:16px;overflow:hidden;box-shadow:var(--cx-shadow)}
-.cx-dow{display:grid;grid-template-columns:repeat(7,1fr);border-bottom:1px solid var(--cx-line-soft)}
+.cx-dow{display:grid;grid-template-columns:repeat(var(--cols,7),1fr);border-bottom:1px solid var(--cx-line-soft)}
+.cx-dow[data-cols='5'],.cx-week[data-cols='5']{--cols:5}
+.cx-dow[data-cols='7'],.cx-week[data-cols='7']{--cols:7}
 .cx-dow div{padding:12px 12px 8px;font-weight:500;font-size:10.5px;line-height:1;letter-spacing:.07em;
   text-transform:uppercase;color:var(--cx-mute);opacity:.7}
 
@@ -882,7 +895,7 @@ select,select option{color:#1d2733;background:#fff}
 @keyframes cxfade{from{opacity:0}to{opacity:1}}
 @keyframes cxright{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 @keyframes cxleft{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
-.cx-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid var(--cx-line-faint);
+.cx-week{position:relative;display:grid;grid-template-columns:repeat(var(--cols,7),1fr);border-top:1px solid var(--cx-line-faint);
   min-height:max(var(--rowmin), calc(var(--numh) + (var(--lanes) * (var(--barh) + 3px)) + 12px))}
 .cx-cell{border-right:1px solid var(--cx-line-faint);padding:6px 8px;touch-action:pan-y;transition:background .12s}
 .cx-cell:last-child{border-right:none}
@@ -1493,8 +1506,17 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
 .cx-alsoresit{font-style:normal;color:var(--cx-warn);font-weight:600}
 
 /* The Dashboard's month-at-a-glance: the calendar's own grid, read-only and a
-   little tighter, inside a dashboard card. */
-.cx-glance{--barh:24px;--rowmin:56px}
+   little tighter, inside a dashboard card.
+
+   IT HAS TO UNDO .cx's PAGE FRAME. The grid carries the `cx` class so it can
+   read the calendar's colours and sizes, but `.cx` is also the full-screen
+   page: it bleeds out of its container by -24px/-28px, paints the page
+   background, and — the one that hurt — sets a min-height of a whole viewport.
+   Dropped into a card or the set-up dialog, that left a five-row month 888px
+   tall with 600-odd pixels of nothing under it, which is what put the
+   scrollbar in the dialog. The month was never too big; it just was not the
+   page. */
+.cx-glance{--barh:24px;--rowmin:56px;margin:0;padding:0;background:none;min-height:0}
 .cx-glance .cx-glance-head{display:flex;align-items:center;gap:8px;padding:0 2px 9px}
 .cx-glance .cx-glance-head b{font-weight:700;font-size:14px;color:var(--cx-ink)}
 .cx-glance .cx-glance-head .cx-x{margin-left:auto}
@@ -1683,13 +1705,27 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
    which is also how it stays legible over a coloured course bar. */
 .tip{
   position:fixed; z-index:900; transform:translate(-50%,-100%);
-  max-width:280px; padding:7px 10px; border-radius:8px;
-  background:#0f1729; color:#f2f5fa;
-  font-weight:450; font-size:11.5px; line-height:1.45; letter-spacing:.005em;
-  white-space:pre-line; text-align:left; pointer-events:none;
-  box-shadow:0 6px 22px rgba(15,23,42,.28);
+  display:flex; flex-direction:column; gap:2px;
+  max-width:290px; padding:8px 11px 9px; border-radius:10px;
+  background:#0f1729; color:#dbe3ee;
+  font-weight:450; font-size:11.5px; line-height:1.42; letter-spacing:.005em;
+  text-align:left; pointer-events:none;
+  box-shadow:0 10px 28px rgba(15,23,42,.38);
   animation:tip-in .1s ease-out;
 }
+/* The name of the thing, then the facts about it. Three weights and nothing
+   else: the name in white, the line that says WHEN a shade brighter than the
+   rest, and the detail underneath in grey. */
+.tip .tip-t{font-weight:650;font-size:12.5px;line-height:1.3;color:#fff;
+  margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tip .tip-l{color:#aebbcd}
+.tip .tip-l.lead{color:#dbe3ee;font-weight:500}
+/* Whatever is wrong with it, pulled out under a hairline rather than buried at
+   the end of the list. */
+.tip .tip-warn{display:flex;align-items:baseline;gap:6px;
+  margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1);
+  font-weight:600;color:#f5c469}
+.tip .tip-warn::before{content:'\26a0';font-size:10px;flex:none}
 .tip-below{transform:translate(-50%,0)}
 /* The little point, so it is obvious which thing is being described. */
 .tip::after{

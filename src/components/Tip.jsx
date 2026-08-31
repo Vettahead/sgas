@@ -97,9 +97,23 @@ export default function TipHost() {
   if (!tip) return null
   // Clamped so a tip on a bar at the edge of the screen does not hang off it.
   const x = Math.min(Math.max(tip.x, 96), window.innerWidth - 96)
+  // A tip is usually a NAME and then facts about it, so it is drawn that way
+  // rather than as one grey block of pre-wrapped text: the first line reads as a
+  // heading, the rest sit under it, and anything flagged with a warning sign is
+  // pulled out in amber. A one-line tip stays one plain line.
+  const lines = String(tip.text).split('\n').map((l) => l.trim()).filter(Boolean)
+  const many = lines.length > 1
   return (
     <div className={'tip tip-' + tip.place} role="tooltip" style={{ left: x, top: tip.y }}>
-      {tip.text}
+      {lines.map((l, i) => {
+        const warn = /^[\u26a0\u2757]/.test(l)
+        if (warn) return <span key={i} className="tip-warn">{l.replace(/^[\u26a0\u2757]\uFE0F?\s*/, '')}</span>
+        if (i === 0 && many) return <b key={i} className="tip-t">{l}</b>
+        // The line straight under the name is the one being looked for — when
+        // it runs, how long it is — so it keeps full contrast and the detail
+        // below it steps back.
+        return <span key={i} className={'tip-l' + (i === 1 && many ? ' lead' : '')}>{l}</span>
+      })}
     </div>
   )
 }

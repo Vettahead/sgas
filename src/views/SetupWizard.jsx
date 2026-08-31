@@ -253,7 +253,7 @@ export default function SetupWizard({ go, onClose, onCreated }) {
                     reason that file existed. */}
                 {pickView === 'Month' ? (
                   <MiniMonth
-                    month={anchor} onMonth={setAnchor} nav={false}
+                    month={anchor} onMonth={setAnchor} nav={false} compact
                     blocks={existing}
                     selection={from && to ? { from, to } : null}
                     onPick={applyRange}

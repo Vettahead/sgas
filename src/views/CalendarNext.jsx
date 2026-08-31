@@ -156,6 +156,16 @@ const readLS = (k, d) => { try { return localStorage.getItem(k) ?? d } catch { r
    Lifted out of the component so the Dashboard's "month at a glance" can draw
    the SAME grid instead of the old calendar's. One implementation, so the two
    can never drift apart again. */
+/* Courses run Monday to Friday, so Saturday and Sunday are two empty columns
+   taking a fifth of the width. They are hidden unless asked for. Everywhere the
+   month grid is drawn reads the SAME setting, so the calendar, the dashboard and
+   the wizard's date picker never disagree about how many days a week has. */
+export const WEEKENDS_KEY = 'cx.weekends'
+export const weekendsShown = () => {
+  try { return localStorage.getItem(WEEKENDS_KEY) === '1' } catch { return false }
+}
+export const COLS = (weekends) => (weekends ? 7 : 5)
+
 export function monthGrid(month) {
   const first = month + '-01'
   const lead = (dow(first) + 6) % 7                       // Monday-first
@@ -169,7 +179,7 @@ export function monthGrid(month) {
 /* Where every course sits in that grid. A course crossing a week boundary
    becomes one segment per week, and each row is lane-packed so overlapping
    courses stack instead of hiding behind each other. */
-export function layOutMonth(list, grid) {
+export function layOutMonth(list, grid, weekends = true) {
   const out = []
   const last = grid.days[grid.days.length - 1]
   for (const b of list || []) {
@@ -180,9 +190,20 @@ export function layOutMonth(list, grid) {
       const i = between(grid.start, cur)
       const col = i % 7, row = Math.floor(i / 7)
       const span = Math.min(7 - col, between(cur, fin) + 1)
-      out.push({ b, row, col, span, key: b.id + ':' + cur, head: cur === b.start,
+      const nextCur = addDays(cur, span)
+      // With the weekend hidden, a segment is clipped to Mon–Fri: one that runs
+      // into Saturday simply stops at Friday, and one that starts on a Saturday
+      // is not drawn at all. A course cannot START on a weekend (the weekend
+      // guard sees to that), so nothing is ever lost — only the empty tail of a
+      // long course that happens to cross a Saturday.
+      let c = col, sp = span
+      if (!weekends) {
+        if (col > 4) { cur = nextCur; continue }
+        sp = Math.min(col + span - 1, 4) - col + 1
+      }
+      out.push({ b, row, col: c, span: sp, key: b.id + ':' + cur, head: cur === b.start,
         tail: addDays(cur, span - 1) >= fin })
-      cur = addDays(cur, span)
+      cur = nextCur
     }
   }
   const byRow = new Map()
@@ -244,7 +265,7 @@ export function dragSelectDays(d, e, { onSel, onHint, onDone }) {
    read-only, and every click opens the real thing. The Dashboard used to draw
    this with the OLD calendar's MonthView, which is why the old screen still
    looked like it was part of the app after it left the menu. */
-export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMonth, nav = true }) {
+export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMonth, nav = true, weekends = weekendsShown(), compact = false }) {
   const [mOwn, setMOwn] = useState(() => todayISO().slice(0, 7))
   const month = mIn || mOwn
   const setMonth = (fn) => { const next = typeof fn === 'function' ? fn(month) : fn; if (onMonth) onMonth(next); else setMOwn(next) }
@@ -254,10 +275,11 @@ export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMon
   const range = live || selection
   const inSel = (d) => range && d >= range.from && d <= range.to
   const grid = useMemo(() => monthGrid(month), [month])
-  const segs = useMemo(() => layOutMonth(blocks || [], grid), [blocks, grid])
+  const segs = useMemo(() => layOutMonth(blocks || [], grid, weekends), [blocks, grid, weekends])
+  const cols = COLS(weekends)
   const lanesIn = (r) => Math.max(0, ...segs.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
   return (
-    <div className="cx cx-glance">
+    <div className={'cx cx-glance' + (compact ? ' compact' : '')}>
       {nav && (
         <div className="cx-glance-head">
           <button className="cx-icon" onClick={() => setMonth((m) => shiftMonth(m, -1))} aria-label="Previous month">‹</button>
@@ -267,11 +289,11 @@ export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMon
         </div>
       )}
       <section className="cx-cal">
-        <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>
+        <div className="cx-dow" data-cols={cols}>{DOW.slice(0, cols).map((d) => <div key={d}>{d}</div>)}</div>
         <div className="cx-grid" key={month}>
           {Array.from({ length: grid.rows }, (_, r) => (
-            <div className="cx-week" data-cols="7" key={r} style={{ '--lanes': lanesIn(r) }}>
-              {Array.from({ length: 7 }, (_, c) => {
+            <div className="cx-week" data-cols={cols} key={r} style={{ '--lanes': lanesIn(r) }}>
+              {Array.from({ length: cols }, (_, c) => {
                 const d = grid.days[r * 7 + c]
                 const out = d.slice(0, 7) !== month
                 const today = d === todayISO()
@@ -290,8 +312,8 @@ export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMon
                 <button key={s.key} type="button"
                   className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '')}
                   style={{
-                    left: `calc(${(s.col / 7) * 100}% + 4px)`,
-                    width: `calc(${(s.span / 7) * 100}% - 8px)`,
+                    left: `calc(${(s.col / cols) * 100}% + 4px)`,
+                    width: `calc(${(s.span / cols) * 100}% - 8px)`,
                     top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
                     '--c': s.b.color || '#5b6b80',
                   }}
@@ -440,6 +462,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     catch { return { schemes: [], staff: [], hideDone: false, onlyCourses: false } }
   })
   const [showFilt, setShowFilt] = useState(false)
+  // Saturday and Sunday are two empty columns on a Monday-to-Friday operation,
+  // so they are off unless asked for. Shared with the wizard's picker through
+  // localStorage, so the two never draw a different week.
+  const [weekends, setWeekends] = useState(() => weekendsShown())
+  useEffect(() => { try { localStorage.setItem(WEEKENDS_KEY, weekends ? '1' : '0') } catch { /* private */ } }, [weekends])
+  const cols = COLS(weekends)
   const toggleIn = (key, v) => setFilt((f) => ({
     ...f, [key]: f[key].includes(v) ? f[key].filter((x) => x !== v) : [...f[key], v],
   }))
@@ -626,7 +654,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     const mon = addDays(anchor, -back)
     return Array.from({ length: 7 }, (_, i) => addDays(mon, i))
   }, [anchor])
-  const viewDays = view === 'Day' ? [anchor] : weekDays
+  const viewDays = view === 'Day' ? [anchor] : (weekends ? weekDays : weekDays.filter((d) => !isWknd(d)))
 
   // Blocks as they should currently be drawn — the live drag included.
   /* ── filters ──────────────────────────────────────────────────────────────
@@ -656,7 +684,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const grid = useMemo(() => monthGrid(month), [month])
 
   // A block becomes one segment per week row it crosses.
-  const segments = useMemo(() => (blocks ? layOutMonth(shown, grid) : []), [shown, blocks, grid])
+  const segments = useMemo(() => (blocks ? layOutMonth(shown, grid, weekends) : []), [shown, blocks, grid, weekends])
 
   const lanesIn = (r) => Math.max(0, ...segments.filter((s) => s.row === r).map((s) => s.lane + 1), 0)
 
@@ -1115,6 +1143,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               onClick={() => toggleIn('staff', String(s.staff_id))}>{s.name}</button>
           ))}
           <span className="cx-l-sep" />
+          <button type="button" className={'cx-chip' + (weekends ? ' on' : '')}
+            aria-pressed={weekends}
+            data-tip={weekends
+              ? 'Hide Saturday and Sunday — courses run Monday to Friday'
+              : 'Show Saturday and Sunday'}
+            onClick={() => setWeekends((v) => !v)}>Weekends</button>
           <button type="button" className={'cx-chip' + (filt.hideDone ? ' on' : '')}
             aria-pressed={filt.hideDone}
             onClick={() => setFilt((f) => ({ ...f, hideDone: !f.hideDone }))}>Hide finished</button>
@@ -1173,7 +1207,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
         onPointerDownCapture={(e) => { if (placing) placeAt(e) }}>
         {/* ── Month grid ──────────────────────────────────────────────── */}
         <section className="cx-cal" aria-label={'Courses — ' + title}>
-          {view === 'Month' && <div className="cx-dow">{DOW.map((d) => <div key={d}>{d}</div>)}</div>}
+          {view === 'Month' && <div className="cx-dow" data-cols={cols}>{DOW.slice(0, cols).map((d) => <div key={d}>{d}</div>)}</div>}
 
           {blocks === null ? (
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
@@ -1188,8 +1222,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           ) : (
             <div className={'cx-grid ' + (dir < 0 ? 'from-left' : dir > 0 ? 'from-right' : 'fade')} key={month}>
               {Array.from({ length: grid.rows }, (_, r) => (
-                <div className="cx-week" data-cols="7" key={r} style={{ '--lanes': lanesIn(r) }}>
-                  {Array.from({ length: 7 }, (_, c) => {
+                <div className="cx-week" data-cols={cols} key={r} style={{ '--lanes': lanesIn(r) }}>
+                  {Array.from({ length: cols }, (_, c) => {
                     const d = grid.days[r * 7 + c]
                     const out = d.slice(0, 7) !== month
                     const today = d === todayISO()
@@ -1205,8 +1239,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                     <button key={s.key} type="button" data-bid={s.b.id} data-head={s.head ? '1' : '0'}
                       className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
                       style={{
-                        left: `calc(${(s.col / 7) * 100}% + 4px)`,
-                        width: `calc(${(s.span / 7) * 100}% - 8px)`,
+                        left: `calc(${(s.col / cols) * 100}% + 4px)`,
+                        width: `calc(${(s.span / cols) * 100}% - 8px)`,
                         top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
                         '--c': s.b.color || '#5b6b80',
                       }}

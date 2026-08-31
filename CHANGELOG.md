@@ -4,6 +4,71 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-08-31 — the weekend hidden, the set-up dialog made to fit, hovers restructured
+
+### Monday to Friday, by default
+
+Courses run Monday to Friday. Saturday and Sunday were two permanently empty
+columns eating two sevenths of the month, so they are now hidden unless asked
+for, and the working days get the width instead — a bar on a five-column week
+is 356px where it was 252px, which is the difference between reading the course
+name and not.
+
+One setting (`cx.weekends` in localStorage, read through `weekendsShown()`) is
+consumed by the calendar, the dashboard's month and the wizard's date picker, so
+the three can never disagree about how many days a week has. The column count
+travels to CSS as `data-cols` → `--cols`, and `layOutMonth(list, grid, weekends)`
+clips segments to Mon–Fri: a course running into Saturday stops at Friday, and a
+segment starting on a Saturday is not drawn. Nothing is lost, because the weekend
+guard already forbids a course starting on one.
+
+### The set-up dialog: one 888px lie
+
+The dates step scrolled inside the dialog on every laptop. The cause was not the
+month being too big — it was 264px — but `.cx`:
+
+```css
+.cx{background:var(--cx-bg);margin:-24px -28px;padding:22px 26px;min-height:calc(100vh - 62px)}
+```
+
+The mini month carries `cx` so it can read the calendar's colours and sizes, and
+inherited the full-screen PAGE with it: a viewport-tall min-height, a page
+background and a negative margin bleeding out of its container. At 950px high
+that is exactly the 888px the picker measured. `.cx-glance` now undoes the frame
+(`margin:0;padding:0;background:none;min-height:0`), which fixes the dashboard
+card at the same time.
+
+`.wz-cal` keeps a cap of `min(46vh,420px)` — the month never reaches it, but the
+Year view is twelve months tall and has to scroll somewhere; inside its own box
+beats pushing the dialog's foot off the bottom of the screen.
+
+`scrollchk.mjs` is now an assertion suite rather than a printout: five viewport
+sizes × four checks, including that the month measures like a month (<420px) and
+that the year view never bursts the dialog.
+
+### Hover tips
+
+`data-tip` text was drawn as one pre-wrapped grey block. Tip.jsx now splits on
+newlines and gives the parts different jobs: the name in white as a heading, the
+line under it (the dates) at full contrast, the detail in grey, and anything
+prefixed ⚠ pulled out under a hairline in amber with the sign redrawn from CSS.
+
+### Two harness faults this turn found
+
+**The tests were measuring an hour-old build.** Four `serve` processes from
+earlier sessions were still holding port 4173, pointing at a stale copy of
+`dist`. Every measurement of the `.cx-glance` fix reported it had done nothing —
+twice — because the browser was being handed the old stylesheet. `runall.sh` now
+builds, kills everything on the port, restarts the server, and refuses to run a
+single suite unless the page it serves names the CSS the build just wrote.
+
+**Two suites were asking the wrong question.** `e2e.mjs`'s weekend guard dragged
+across cells 5 and 6 expecting Saturday and Sunday; with the weekend hidden those
+are Monday and Tuesday, so it now turns weekends on first. `verify.mjs`'s resize
+check pulled the first bar's handle 340px right — after the previous check had
+already dragged that bar to the end of the row, where Friday is a wall. It now
+picks whichever bar has room to its right and pulls it one column wider.
+
 ## 2026-08-31 — the wizard as a dialog, and a pass over the release notes
 
 **Two asks from Chris.**

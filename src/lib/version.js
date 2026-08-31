@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.37.0', build: 178, date: '31 Aug 2026',
+    title: 'The weekend is out of the way, and the set-up window fits',
+    notes: [
+      'Saturday and Sunday are hidden. Courses run Monday to Friday, so two empty columns were taking up a fifth of the month for nothing \u2014 the five working days are wider now and the course names fit on them. If you want the weekend back, it is a switch under Filter, and it stays how you leave it.',
+      'Setting up a course no longer scrolls. The dates step is a full month you can drag across, and on a laptop screen the window had grown tall enough to need scrolling to reach Next. It fits on every size we have tried it on, down to a 1280-wide laptop.',
+      'The hover labels have been tidied up. The course name reads as a heading, the dates sit under it, and anything that still needs doing \u2014 no trainer yet, nobody booked \u2014 is pulled out on its own line in amber instead of being buried at the bottom.',
+    ],
+  },
+  {
     v: '1.36.0', build: 177, date: '31 Aug 2026',
     title: 'Setting up a course opens over the calendar',
     notes: [
@@ -31,7 +40,7 @@ export const RELEASES = [
     v: '1.35.0', build: 176, date: '30 Aug 2026',
     title: 'Scheduling all happens on the calendar now',
     notes: [
-      'THE SCHEDULE BOARD HAS GONE FROM THE MENU. It and the calendar had become two windows onto the same work, and by today the calendar did everything the board did \u2014 the ACS forms, the re-sit list, the filters, adding a qualification to somebody already booked on. Two screens doing the same job just means deciding which one to open every time.',
+      'The Schedule board has gone from the menu. It and the calendar had become two windows onto the same work, and by today the calendar did everything the board did \u2014 the ACS forms, the re-sit list, the filters, adding a qualification to somebody already booked on. Two screens doing the same job just means deciding which one to open every time.',
       'The calendar is where courses are scheduled, and the line under the page title now says exactly that instead of describing months and weeks. \u201cSet up a course\u201d is still there for the guided, one-question-at-a-time route \u2014 the two produce exactly the same thing, so use whichever suits the moment.',
       'The Help has been rewritten to match rather than thrown away. The questions were all still the right questions \u2014 where do I schedule, what is the waiting list, what if somebody only needs part of the course, how do I print the forms \u2014 only the screen changed. There are new answers on the re-sit list and on what the coloured dots mean.',
       'Anything that used to send you to the board sends you to the calendar instead, including the \u201cOpen schedule\u201d button on the dashboard.',
@@ -126,7 +135,7 @@ export const RELEASES = [
     v: '1.32.1', build: 167, date: '30 Aug 2026',
     title: 'The old calendar taken off the Schedule screen',
     notes: [
-      'The Calendar tab INSIDE Schedule was still the old calendar. That is why the old one never really went away \u2014 taking it out of the menu did not take it off that screen, and anyone landing there got the version with no time off, no diary entries, no filters and no ACS forms. It is now the same calendar as everywhere else, and there is genuinely only one left.',
+      'The Calendar tab inside Schedule was still the old calendar. That is why the old one never really went away \u2014 taking it out of the menu did not take it off that screen, and anyone landing there got the version with no time off, no diary entries, no filters and no ACS forms. It is now the same calendar as everywhere else, and there is genuinely only one left.',
     ],
   },
   {
@@ -146,7 +155,7 @@ export const RELEASES = [
     notes: [
       'There is now ONE Calendar in the menu instead of two. Everything the old one could do, the new one does \u2014 and it does more.',
       'Staff time off is back on the calendar, which was the big missing piece: you can see it, book it, ask for it, approve or reject a request, and remove it. Personal diary entries are there too \u2014 a title, a date, a start and end time, and anyone else who is going.',
-      'You can now REMOVE a course. There was no way to do that at all before. It asks you once first, and the system still refuses if anybody is booked on it \u2014 take them off first.',
+      'You can now remove a course. There was no way to do that at all before. It asks you once first, and the system still refuses if anybody is booked on it \u2014 take them off first.',
       'Assessor and verifier are on the course panel. They were on the old screen and nowhere on the new one, which matters when an auditor asks who assessed what.',
       'A FILTER, next to \u201cWhat the marks mean\u201d: narrow by scheme, by trainer, hide courses that have already finished, or show courses only. It tells you how many it is hiding, and Clear puts everything back. Courses with NO trainer stay visible when you filter by trainer \u2014 hiding exactly the ones that need staffing would be the wrong way round.',
       'A course runs Monday to Friday again. You could previously drag one onto a Saturday; it now moves itself off the weekend and says so, and refuses a course that would run only over a weekend.',
