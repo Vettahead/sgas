@@ -4,6 +4,76 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-02 — Sage, phase 1: the read-only groundwork
+
+Jen returned the integration proposal on 01 Sep with "stay with phase 1", so
+SGAS reads from Sage and never writes to it. Nothing in this release is visible
+in the app yet; it is the schema, the token handling and the read client.
+
+### The promise, kept in three places
+
+Phase 1 was sold on "nothing is ever written to Sage, so your accounts cannot be
+affected". That is enforced three times over, deliberately:
+
+1. the OAuth scope requested is `readonly`, so a write is refused by Sage
+   itself rather than by our own good intentions;
+2. `supabase/functions/sage/sage.ts` exports exactly one request maker, `get()`,
+   and there is no post, put or delete anywhere in the Sage surface — the single
+   `POST` in the file is the OAuth token endpoint, which is not an accounting
+   write;
+3. no RPC in `20260902100100_sage_rpcs.sql` composes anything sendable.
+
+Adding a write is therefore a change to what we told the client, not a refactor.
+
+### Tokens
+
+Sage access tokens last about five minutes and refresh tokens are **single use**
+— refreshing invalidates the old one and issues a new one. So the rotated token
+is stored *before* it is used, because a crash between the refresh and the write
+would leave the connection dead and need a human to sign in to Sage again. A
+refresh token also expires after ~31 days unused, which means the scheduled pull
+is not only about fresh data: it is what keeps the connection alive at all.
+
+Secrets follow the SMTP pattern exactly (`vault.create_secret`, ids in the
+table, RLS on with no policies, admin RPCs for the screen and service_role-only
+RPCs for the edge function). No token ever reaches the browser, on any action or
+in any error — `scrub()` covers the error path.
+
+### The join problem, named rather than solved
+
+Read-only means SGAS never creates the invoice, so nothing links a Sage invoice
+to a booking. `sage_invoice.booking_id` + `match_state` is where that lives.
+`app_sage_cache_invoices` deliberately omits the match columns from its upsert,
+so a human decision about which booking an invoice belongs to survives every
+future sync. The matcher itself is the next build, and the auto/manual split
+needs a steer from Jen first.
+
+### Payment status is a cache, and says so
+
+`booking.payment_outstanding_amount` + `payment_checked_at` + `payment_source`.
+Sage owns money; SGAS keeps a copy with a timestamp on it, because a number on a
+screen with no "as at" will eventually pass itself off as more current than it
+is. `flag_payment_outstanding` is kept in step for the screens that still read
+the old boolean. Rows nobody has matched keep whatever a human set, and keep
+saying that is where it came from.
+
+### Files
+
+| file | what it does |
+|---|---|
+| `supabase/migrations/20260902100000_sage_connection_and_invoice_cache.sql` | `sage_connection`, `sage_invoice`, the booking payment-cache columns. RLS on, **no policies**. |
+| `supabase/migrations/20260902100100_sage_rpcs.sql` | admin RPCs (`app_sage_get`/`save_app`/`disconnect`) and service_role-only RPCs (`dispatch`/`store_tokens`/`sync_result`/`cache_invoices`/`apply_payments`). |
+| `supabase/functions/sage/sage.ts` | OAuth URLs, token exchange and rotating refresh, the GET-only reader, `mapInvoice`. |
+| `supabase/functions/sage/index.ts` | four actions: `status`, `start`, `exchange`, `sync`. |
+
+### Still to do
+
+No Admin screen yet, so nothing can be connected by clicking. That is the next
+build, along with the invoice→booking matcher. Endpoints and field names come
+from Sage's v3.1 docs and two independent client libraries but have **not** been
+exercised against a live business — there is no developer account yet, and
+`mapInvoice` carries a warning to check it against the first real response.
+
 ## 2026-08-31 — the weekend hidden, the set-up dialog made to fit, hovers restructured
 
 ### Monday to Friday, by default

@@ -342,3 +342,38 @@ isn't — not the migration, not the build. Only calling it will.
 2. Separately, and after that: the app is already on a publishable key
    (`sb_publishable_…`), so the anon-key half of the end-of-2026 deprecation is
    effectively done. Confirm and close it off.
+
+## Sage, phase 1 — read only (02 Sep 2026)
+
+| file | what it does |
+|---|---|
+| `migrations/20260902100000_sage_connection_and_invoice_cache.sql` | `sage_connection` (one row, token ids only), `sage_invoice` (the cache + the match columns), payment-cache columns on `booking`. RLS on, **no policies**. |
+| `migrations/20260902100100_sage_rpcs.sql` | admin doors and service_role-only doors, same two-sizes-of-door shape as the SMTP RPCs. |
+| `functions/sage/sage.ts` | the Sage client. One request maker, `get()`. No write verbs. |
+| `functions/sage/index.ts` | `status`, `start`, `exchange`, `sync`. |
+
+**The connection is read only and three things enforce it** — the `readonly`
+OAuth scope, a client with no write verbs, and no RPC that composes anything
+sendable. Do not "just add a POST": phase 2 was declined by the client, and this
+is what we promised instead.
+
+**Sage's token behaviour is unusual and the code depends on it.** Access tokens
+last ~5 minutes. Refresh tokens are single use and rotate on every refresh, so
+`app_sage_store_tokens` runs *before* the new access token is used. A refresh
+token dies after ~31 days unused, so the scheduled sync keeps the connection
+alive as much as it keeps the data fresh. `pg_cron` and `pg_net` are available
+on the project but **not yet installed** — that goes in with the scheduler.
+
+**Why the OAuth callback does not come back to the edge function.** Sage
+redirects a browser, and a browser arriving at a function carries no
+credentials, which would mean publishing an unauthenticated endpoint that
+accepts an OAuth code. Sage is pointed at the SGAS Admin screen instead, which
+receives the code as a normal page load and calls `exchange` with the admin
+credentials it already holds. Same handshake, no public door. The redirect URI
+registered with Sage must therefore be the app's admin route, not a function URL.
+
+**Before this can be connected**, someone has to register a developer app at
+developerselfservice.sageone.com and paste the client id and secret into the
+Admin screen (which does not exist yet). `app_sage_get` reports `no_app` until
+they do, and `no_client_secret` / `not_connected` after that, so the screen can
+say which step is missing rather than "failed".
