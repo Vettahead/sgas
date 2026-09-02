@@ -14,17 +14,19 @@
 // the browser. They are admin-gated in the database and never come near a
 // secret, so routing them through here would add a hop and nothing else.
 //
-// HOW THE ADMIN DOOR WORKS, and why the obvious version is wrong. This function
-// holds the service-role key, so app_is_admin('', '') would be asked with no
-// signed-in user and no password and would always answer no. The Admin screen
-// stopped asking for a second password when sign-in moved to session tokens, so
-// there IS no password to send. The token is the credential: supabase-js puts
-// the signed-in browser's token in the Authorization header, and the DATABASE
-// verifies it (app_token_is_admin — signature, expiry, then the user looked up
-// for real). This function never holds the signing secret. Username and
-// password remain as a second door because pg_cron and anything else running
-// server-side has no token of its own. This is deliberately the same shape as
-// send-email's door 2 — one auth model for the whole app, not two.
+// HOW THE ADMIN DOOR WORKS, and the two ways it was wrong first. This function
+// holds the service-role key, so app_is_admin('', '') asked on THIS connection
+// has no signed-in user and no password and always answers no. And the app does
+// not put its session token in the Authorization header — supabase.js sends it
+// in a custom header, x-sgas-session, which PostgREST exposes to SQL. So the
+// question is asked as the USER, on a second client carrying that header, where
+// app_user_id() resolves normally. See requireAdmin for all three proofs.
+//
+// DEPLOY THIS FUNCTION WITH verify_jwt=false, as send-email is. With it on, the
+// platform rejects the request at the gateway before any of the above runs, and
+// its CORS preflight does not allow content-type — which a browser reports as
+// "Failed to send a request to the Edge Function", i.e. as a network fault
+// rather than as a refusal. Auth is done here, in code, on purpose.
 //
 // WHY THE OAUTH CALLBACK COMES BACK TO THE APP, NOT HERE. Sage redirects a
 // BROWSER, and a browser arriving here carries no credentials, which would mean
@@ -46,6 +48,14 @@ const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 // Lets trusted server-side jobs (pg_cron) run a sync without a token,
 // exactly as send-email does.
 const INTERNAL_SECRET = Deno.env.get('SGAS_INTERNAL_SECRET') ?? ''
+// Needed to ask the database a question AS THE SIGNED-IN USER rather than as
+// the service role — see requireAdmin.
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+// How this app says who is asking. PostgREST exposes request headers to SQL and
+// app_session_user_id() looks this one up in app_session. It must be in the CORS
+// list below or the browser will not send it. See src/lib/supabase.js.
+const SESSION_HEADER = 'x-sgas-session'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -53,7 +63,7 @@ const json = (body: unknown, status = 200) =>
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-sgas-session',
     },
   })
 
@@ -68,15 +78,43 @@ function scrub(message: string, secrets: (string | null | undefined)[]) {
 }
 
 // ── the admin door ───────────────────────────────────────────────────────────
+// THREE proofs, in the order they are actually used, and the order matters
+// because the first two were both got wrong before this worked:
+//
+//   1. the x-sgas-session header. This is how the app says who is asking. It is
+//      NOT in the Authorization header — src/lib/supabase.js puts the session
+//      token in a custom header and leaves Authorization to supabase-js. So the
+//      question has to be asked of the database AS THAT USER: a second client,
+//      anon key, that header forwarded, and app_is_admin('','') then resolves
+//      through app_user_id() → app_session_user_id() exactly as every admin
+//      screen does. Asking with the service-role client instead gets a
+//      confident "no", because there is no user on that connection at all.
+//
+//   2. the legacy JWT in Authorization, for browsers that have not signed in
+//      since the session-token changeover. Verified in the database, never here
+//      — this function must not hold the signing secret.
+//
+//   3. username and password, for pg_cron and anything else server-side with
+//      neither a header nor a token.
 async function requireAdmin(req: Request, body: any) {
+  const session = req.headers.get(SESSION_HEADER)
+  if (session && ANON_KEY) {
+    const asUser = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { [SESSION_HEADER]: session } },
+    })
+    const { data } = await asUser.rpc('app_is_admin', { p_user: '', p_pw: '' })
+    if (data === true) return
+  }
+
   const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
   if (bearer) {
-    // The anon key is itself a JWT and arrives here when nobody is signed in.
-    // It verifies, but it carries no app_user_id, so it fails on the only
-    // thing that matters.
+    // The anon key is itself a JWT and arrives here whenever nobody has a
+    // legacy token. It verifies, but it carries no app_user_id, so it fails on
+    // the only thing that matters.
     const { data: tokOk } = await db.rpc('app_token_is_admin', { p_token: bearer })
     if (tokOk === true) return
   }
+
   if (body?.admin && body?.admin_pw) {
     const { data: isAdmin, error } = await db.rpc('app_is_admin', {
       p_user: body.admin, p_pw: body.admin_pw,
@@ -85,6 +123,7 @@ async function requireAdmin(req: Request, body: any) {
     if (error) throw new Error(`Could not check the admin login: ${error.message}`)
     if (isAdmin === true) return
   }
+
   throw new Error('Not authorized')
 }
 

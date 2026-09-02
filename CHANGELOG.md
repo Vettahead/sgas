@@ -4,6 +4,67 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-02 (evening) — "Failed to send a request to the Edge Function", and the two faults behind it
+
+Pressing Connect to Sage failed with a network error. Two separate faults, and
+the first one hid the second.
+
+### Why it looked like a network fault
+
+The function was deployed with `verify_jwt=true`. `send-email` is deployed with
+it **false**, and that is not an oversight — this app has never used Supabase
+Auth, so there is no Supabase JWT to verify. With it on, the platform rejects
+the request at the gateway before a line of our code runs, and its CORS
+preflight does not allow `content-type`. A browser reports that as *"Failed to
+send a request to the Edge Function"* — a network fault, not a refusal — which
+sends you looking at the wrong thing entirely.
+
+Redeployed with `verify_jwt=false`. The preflight now returns 200 allowing
+`content-type` and `x-sgas-session`. Auth is done in code, on purpose, and the
+function comment says so, so nobody turns it back on.
+
+### The admin check was still wrong
+
+Yesterday's fix swapped `app_is_admin('','')` for the bearer token. Also wrong.
+`src/lib/supabase.js` does not put the session token in `Authorization` — it
+sends it in a custom header, `x-sgas-session`, through a wrapped `fetch`, and
+leaves `Authorization` to supabase-js (which supplies the legacy JWT, or the
+anon key once that is gone). So the bearer path only ever worked for browsers
+that had not signed in since the session-token changeover.
+
+`requireAdmin` now tries three proofs in the order they actually occur: the
+`x-sgas-session` header, asked of the database **as that user** on a second
+anon-key client carrying the header, so `app_is_admin('','')` resolves through
+`app_user_id()` → `app_session_user_id()` exactly as every admin screen does;
+then the legacy JWT; then username and password for pg_cron. Asking with the
+service-role client was always going to get a confident no, because there is no
+user on that connection at all.
+
+### And then a third, which the first two were hiding
+
+With the door finally open, `start` answered `not_connected` — telling you to
+press the button you had just pressed. `app_sage_dispatch` was REPLACING its
+whole answer with `{"error": …}`, discarding the client id, and `start` needs
+the client id to build the sign-in URL. `not_connected` is the state it exists
+to get you out of. The error is now returned alongside the fields rather than
+instead of them (migration `20260902190000`).
+
+### Verified against the deployed function
+
+Preflight with the browser's real header list → 200, allowing `content-type`
+and `x-sgas-session`. A real admin session token → `start` returns a Sage URL
+with `scope=readonly`, `country=GB`, `response_type=code` and the redirect exact
+to the trailing slash. No session header → 401. A made-up session token → 401.
+The verification session was revoked by its own hash rather than with
+`app_session_revoke_all`, which would have signed Chris out mid-test.
+
+### Note for whoever touches send-email next
+
+It authenticates admins by bearer token only. That works today because the
+legacy JWT is still being issued, and will quietly stop working for admin sends
+the moment the JWT half of sign-in is dropped — which is already on the list.
+It wants the same three-proof treatment.
+
 ## 2026-09-02 — v1.38.0: Admin → Sage, and the admin door that could never have opened
 
 ### The bug found while wiring the screen up
