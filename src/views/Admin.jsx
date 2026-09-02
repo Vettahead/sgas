@@ -9,6 +9,7 @@ import { ROLES, ROLE_LABELS } from '../lib/roles.js'
 import { accreditationStatus, listStaffAccreditations } from '../lib/api.js'
 import StaffAccreditations from '../components/StaffAccreditations.jsx'
 import EmailSettings from './EmailSettings.jsx'
+import SageSettings, { SAGE_CODE_KEY } from './SageSettings.jsx'
 import { toast } from '../lib/toast.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -47,6 +48,7 @@ const TABS = [
   ['staff', '🎓 Staff'],
   ['access', '🔑 Logins & access'],
   ['email', '✉️ Email'],
+  ['sage', '🧾 Sage'],
 ]
 
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '')
@@ -195,7 +197,13 @@ function SignedInNow({ adminAuth }) {
 }
 
 export default function Admin({ currentUser }) {
-  const [tab, setTab] = useState('staff')
+  // Coming back from Sage lands on the app root, not on a route, so the only
+  // way this screen knows to open on the Sage tab is the code App.jsx parked in
+  // sessionStorage on the way in. Without this you return from authorising and
+  // are dropped on the staff list wondering whether it worked.
+  const [tab, setTab] = useState(() => {
+    try { return sessionStorage.getItem(SAGE_CODE_KEY) ? 'sage' : 'staff' } catch { return 'staff' }
+  })
   // No second password. Until the anon lockdown every request reached the
   // database as `anon`, so re-typing the admin password was the only way to
   // prove who was asking. The request now carries a signed token naming the
@@ -660,6 +668,8 @@ export default function Admin({ currentUser }) {
       )}
 
       {tab === 'email' && <EmailSettings adminAuth={adminAuth} />}
+
+      {tab === 'sage' && <SageSettings adminAuth={adminAuth} currentUser={currentUser} />}
 
       {created && <CreatedModal u={created} onClose={() => setCreated(null)} />}
     </>

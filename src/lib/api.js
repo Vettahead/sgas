@@ -2355,3 +2355,146 @@ export async function listEmailLog(adminAuth, limit = 50) {
   }
   return (store.emailLog || []).slice(0, limit)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SAGE — phase 1, read only.
+//
+// Jen's answer to the integration proposal was "stay with phase 1", so SGAS
+// reads payment status out of Sage and never writes to it. Three things enforce
+// that and none of them is politeness: the OAuth scope asked for is `readonly`
+// so Sage itself refuses a write, the Edge Function's Sage client has no write
+// verb, and no RPC composes anything sendable.
+//
+// WHICH CALLS GO WHERE. Status, saving the app credentials and disconnecting
+// are plain RPCs — admin-gated in the database, never near a secret, exactly
+// like the SMTP settings. Only `start`, `exchange` and `sync` go through the
+// Edge Function, because only they need the client secret and the tokens, and
+// those must never reach a browser.
+//
+// The client secret box is WRITE-ONLY, same convention as the SMTP passwords:
+// it starts empty, goes back to empty after a save, and nothing the server
+// returns can fill it — the API only ever reports WHETHER one is stored.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DEMO_SAGE = {
+  business_id: null, business_name: null,
+  client_id: '', client_secret_set: false, connected: false,
+  scope: 'readonly', connected_at: null, connected_by: null,
+  refresh_expires_at: null,
+  last_sync_at: null, last_sync_ok: null, last_sync_error: null,
+  unmatched_invoices: 0,
+}
+
+export async function getSageStatus(adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_sage_get', {
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  if (!store.sage) store.sage = JSON.parse(JSON.stringify(DEMO_SAGE))
+  return JSON.parse(JSON.stringify(store.sage))
+}
+
+// A blank secret means "leave the stored one alone" — that is the point of the
+// empty box. '__CLEAR__' removes it.
+export async function saveSageApp({ clientId, clientSecret }, adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_sage_save_app', {
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+      p_client_id: clientId ?? '', p_client_secret: clientSecret ?? '',
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  if (!store.sage) store.sage = JSON.parse(JSON.stringify(DEMO_SAGE))
+  if (clientId) store.sage.client_id = clientId
+  if (clientSecret === '__CLEAR__') store.sage.client_secret_set = false
+  else if (clientSecret) store.sage.client_secret_set = true
+  return JSON.parse(JSON.stringify(store.sage))
+}
+
+export async function disconnectSage(adminAuth) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_sage_disconnect', {
+      p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+    return data
+  }
+  if (!store.sage) store.sage = JSON.parse(JSON.stringify(DEMO_SAGE))
+  Object.assign(store.sage, {
+    connected: false, business_id: null, business_name: null,
+    connected_at: null, connected_by: null, refresh_expires_at: null,
+    last_sync_ok: null, last_sync_error: null,
+  })
+  return JSON.parse(JSON.stringify(store.sage))
+}
+
+// Where Sage sends the browser back to. It must match what was registered with
+// Sage CHARACTER FOR CHARACTER, so it is derived in one place and used by both
+// the start and the exchange — a trailing slash in one and not the other is a
+// failed connection with a famously unhelpful error message.
+//
+// The app has no router: it is one page that switches screens in state, and
+// there is no rewrite rule, so any path other than the root would be a 404 on
+// Vercel. The root carries the code in the query string, which is exactly how
+// the password-reset link already works.
+export function sageRedirectUri() {
+  if (typeof window === 'undefined') return ''
+  return window.location.origin + '/'
+}
+
+async function callSage(payload, adminAuth) {
+  const { data, error } = await supabase.functions.invoke('sage', {
+    body: {
+      admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '',
+      ...payload,
+    },
+  })
+  if (error) throw await functionError(error, 'Sage did not answer')
+  if (!data || !data.ok) throw new Error(SAGE_ERROR[data && data.error] || (data && data.error) || 'Sage did not answer')
+  return data
+}
+
+// The Edge Function's short error keys, said in a way that names the next step.
+// "no_app" on a screen is not an error message, it is a puzzle.
+const SAGE_ERROR = {
+  no_app: 'No Sage app is registered yet — enter the client id and secret above first.',
+  no_client_secret: 'The client id is saved but the secret is not. Enter the secret above.',
+  not_connected: 'Not connected to Sage yet — press Connect to Sage.',
+  no_code: 'Sage did not send an authorisation code back.',
+  no_redirect_uri: 'The return address was missing.',
+  no_row: 'The Sage settings row is missing from the database.',
+  unknown_action: 'The app asked Sage for something it does not know how to do.',
+}
+
+export async function startSageConnect(adminAuth) {
+  if (!LIVE) return { ok: true, url: null, state: 'demo', demo: true }
+  return callSage({ action: 'start', redirect_uri: sageRedirectUri() }, adminAuth)
+}
+
+export async function exchangeSageCode({ code, connectedBy }, adminAuth) {
+  if (!LIVE) {
+    if (!store.sage) store.sage = JSON.parse(JSON.stringify(DEMO_SAGE))
+    Object.assign(store.sage, {
+      connected: true, business_id: 'demo', business_name: 'Demo business',
+      connected_at: new Date().toISOString(), connected_by: connectedBy || 'demo',
+    })
+    return { ok: true, business: 'Demo business', demo: true }
+  }
+  return callSage({
+    action: 'exchange', code, redirect_uri: sageRedirectUri(), connected_by: connectedBy || null,
+  }, adminAuth)
+}
+
+export async function syncSage({ since = null } = {}, adminAuth) {
+  if (!LIVE) {
+    if (!store.sage) store.sage = JSON.parse(JSON.stringify(DEMO_SAGE))
+    store.sage.last_sync_at = new Date().toISOString()
+    store.sage.last_sync_ok = true
+    return { ok: true, read: 0, cached: 0, applied: 0, demo: true }
+  }
+  return callSage({ action: 'sync', since }, adminAuth)
+}

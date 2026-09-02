@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.38.0', build: 183, date: '2 Sep 2026',
+    title: 'Sage: the connection screen',
+    notes: [
+      'There is a Sage tab in Admin now. It is where the connection to Sage is set up, switched on and checked \u2014 you will not need it day to day, but it is the place to look if payment status ever stops updating.',
+      'The connection only ever READS from Sage. It asks whether an invoice has been paid; it cannot create, change or delete anything in your accounts, and Sage itself enforces that rather than us simply promising it.',
+      'Nothing on the booking screens changes yet. Tying a Sage invoice to the right booking is the next piece of work, and until that exists no booking will start showing a payment status from Sage.',
+    ],
+  },
+  {
     v: '1.37.0', build: 178, date: '31 Aug 2026',
     title: 'The weekend is out of the way, and the set-up window fits',
     notes: [

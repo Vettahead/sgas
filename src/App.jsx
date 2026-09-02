@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { SAGE_CODE_KEY, SAGE_STATE_KEY } from './views/SageSettings.jsx'
 import { LIVE } from './lib/supabase.js'
 import logoUrl from './assets/sgas-logo-white.png'
 import { viewsForRole, defaultView, roleLabel, canSchedule } from './lib/roles.js'
@@ -98,6 +99,48 @@ function loadSession() {
   try { return JSON.parse(localStorage.getItem(SESSION_KEY)) } catch { return null }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Coming back from Sage.
+//
+// Sage sends the browser to the app root with ?code=…&state=…, the same shape
+// as the password-reset link arriving with ?reset=…. The code is lifted into
+// sessionStorage and the address bar cleaned IMMEDIATELY, at import time, before
+// any component renders — an authorisation code should not sit in browser
+// history or survive into a screenshot. Admin → Sage picks it up and completes
+// the handshake.
+//
+// The `state` check is the point of the exercise: it was issued by our own
+// server when Connect was pressed and kept in this tab. If what comes back does
+// not match, somebody else's code is being fed to this connection and it is
+// dropped without being used.
+// ─────────────────────────────────────────────────────────────────────────────
+function captureSageReturn() {
+  if (typeof window === 'undefined') return false
+  try {
+    const q = new URLSearchParams(window.location.search)
+    const code = q.get('code')
+    if (!code) return false
+
+    const expected = sessionStorage.getItem(SAGE_STATE_KEY)
+    const got = q.get('state')
+    let kept = false
+    if (expected && got && expected === got) {
+      sessionStorage.setItem(SAGE_CODE_KEY, code)
+      kept = true
+    }
+    sessionStorage.removeItem(SAGE_STATE_KEY)
+
+    // Clean the address bar either way, so a rejected code cannot be retried by
+    // reloading the page.
+    if (window.history?.replaceState) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+    return kept
+  } catch { return false }
+}
+
+const SAGE_RETURN = captureSageReturn()
+
 export default function App() {
   const [user, setUser] = useState(loadSession)
   // Read once, at start-up: the token is in the query string of the link the
@@ -106,7 +149,13 @@ export default function App() {
     if (typeof window === 'undefined') return null
     try { return new URLSearchParams(window.location.search).get('reset') || null } catch { return null }
   })
-  const [view, setView] = useState(() => defaultView(loadSession()?.role))
+  const [view, setView] = useState(() => {
+    // Back from Sage with a good code: go straight to Admin, which opens itself
+    // on the Sage tab. Anyone who is not an admin cannot use the code anyway.
+    const role = loadSession()?.role
+    if (SAGE_RETURN && role === 'ADMIN') return 'admin'
+    return defaultView(role)
+  })
   const [openDelegate, setOpenDelegate] = useState(null)
   // Setting up a course FROM THE CALENDAR happens over the calendar, not by
   // sending you to another screen and back. The menu item still opens the same

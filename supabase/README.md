@@ -350,7 +350,7 @@ isn't — not the migration, not the build. Only calling it will.
 | `migrations/20260902100000_sage_connection_and_invoice_cache.sql` | `sage_connection` (one row, token ids only), `sage_invoice` (the cache + the match columns), payment-cache columns on `booking`. RLS on, **no policies**. |
 | `migrations/20260902100100_sage_rpcs.sql` | admin doors and service_role-only doors, same two-sizes-of-door shape as the SMTP RPCs. |
 | `functions/sage/sage.ts` | the Sage client. One request maker, `get()`. No write verbs. |
-| `functions/sage/index.ts` | `status`, `start`, `exchange`, `sync`. |
+| `functions/sage/index.ts` | `start`, `exchange`, `sync`. Status/save/disconnect are RPCs the browser calls directly. |
 
 **The connection is read only and three things enforce it** — the `readonly`
 OAuth scope, a client with no write verbs, and no RPC that composes anything
@@ -372,8 +372,14 @@ receives the code as a normal page load and calls `exchange` with the admin
 credentials it already holds. Same handshake, no public door. The redirect URI
 registered with Sage must therefore be the app's admin route, not a function URL.
 
+**The admin door is the session token, not a password.** This function holds the
+service-role key, so `app_is_admin('','')` is asked with no signed-in user and
+always says no — the first version got this wrong and could never have let
+anybody in. It reads the bearer token and verifies it with `app_token_is_admin`,
+exactly as `send-email` does, falling back to username+password for pg_cron.
+
 **Before this can be connected**, someone has to register a developer app at
-developerselfservice.sageone.com and paste the client id and secret into the
-Admin screen (which does not exist yet). `app_sage_get` reports `no_app` until
+developerselfservice.sageone.com and paste the client id and secret into
+Admin → Sage. `app_sage_get` reports `no_app` until
 they do, and `no_client_secret` / `not_connected` after that, so the screen can
 say which step is missing rather than "failed".

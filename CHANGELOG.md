@@ -4,6 +4,76 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-02 — v1.38.0: Admin → Sage, and the admin door that could never have opened
+
+### The bug found while wiring the screen up
+
+The Edge Function checked the caller with `app_is_admin('', '')`. That could
+never have returned true. The function holds the service-role key, so
+`app_user_id()` is null, and the Admin screen stopped asking for a second
+password when sign-in moved to session tokens — so there is no password to send
+either. Both halves of that `or` were always false. Every call would have come
+back "Not authorized" and it would have looked like a credentials problem.
+
+It now does exactly what `send-email` does: read the bearer token from the
+Authorization header and verify it in the DATABASE with `app_token_is_admin`
+(signature, expiry, then the user looked up for real), falling back to username
+and password for anything server-side with no token of its own. One auth model
+for the whole app rather than a second one invented here.
+
+Verified against the deployed function: anon key + `sync` → 401, anon key +
+`start` → 401.
+
+### Which calls go where, and why
+
+`status`, `save` and `disconnect` are plain RPCs the browser calls directly —
+they are admin-gated in the database and never come near a secret, exactly like
+the SMTP settings. Only `start`, `exchange` and `sync` go through the Edge
+Function, because only they need the client secret and the tokens. The `status`
+action was dropped from the function entirely.
+
+### The return from Sage
+
+Sage redirects a browser, so the callback cannot be the Edge Function — a
+browser arriving there carries no credentials, which would mean an
+unauthenticated endpoint that accepts OAuth codes. It comes back to the app root
+instead, which is also the only address that exists: SGAS has no router and no
+rewrite rule, so `/admin` would have been a 404 on Vercel holding a live
+authorisation code.
+
+`captureSageReturn()` in `App.jsx` runs at import time, before any component
+renders: it checks the returned `state` against the one this tab issued, keeps
+the code in sessionStorage if they match, and cleans the address bar either way
+so a rejected code cannot be retried by reloading. Admin opens itself on the
+Sage tab when a code is waiting. Same shape as the `?reset=` link, which was
+already doing this.
+
+### The screen
+
+`src/views/SageSettings.jsx`, built from the existing classes and adding no CSS.
+Client id and a write-only secret box (empty means "keep the stored one",
+identical to the SMTP passwords), then connect, then a Sync now with the last
+check, whether it worked, and what went wrong if it did not. Four stages —
+no app, no secret, not connected, connected — each wording the next step rather
+than reporting a code. The read-only promise is stated on the screen, not just
+in the code, because the person reading it in a year will not be reading the
+code.
+
+### Files
+
+| file | what changed |
+|---|---|
+| `supabase/functions/sage/index.ts` | the admin door rewritten; `status` dropped; three actions |
+| `src/lib/api.js` | `getSageStatus` / `saveSageApp` / `disconnectSage` / `startSageConnect` / `exchangeSageCode` / `syncSage` / `sageRedirectUri`, with demo-mode equivalents and the error keys said in English |
+| `src/views/SageSettings.jsx` | new |
+| `src/views/Admin.jsx` | fourth tab; opens on Sage when a code is waiting |
+| `src/App.jsx` | `captureSageReturn()` — state check, then a clean address bar |
+
+### Still to do
+
+Matching invoices to bookings. Nothing on a booking screen changes until that
+exists, and the screen says so rather than leaving someone to wonder.
+
 ## 2026-09-02 — Sage, phase 1: the read-only groundwork
 
 Jen returned the integration proposal on 01 Sep with "stay with phase 1", so

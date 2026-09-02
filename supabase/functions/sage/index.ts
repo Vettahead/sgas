@@ -1,19 +1,37 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // The one place SGAS talks to Sage. Phase 1: READ ONLY.
 //
-// FOUR ACTIONS, and the reason each one needs the door it has:
+// THREE ACTIONS. Only the ones that need the client secret live here; the
+// rest are plain RPCs the browser calls directly, exactly as the SMTP screen
+// does:
 //
-//   status    admin  — what the Admin screen shows. No secrets come back.
-//   start     admin  — hands back the Sage sign-in URL. Does not touch Sage.
-//   exchange  admin  — swaps the ?code= for tokens and finds the business.
-//   sync      admin or internal secret — pulls invoices and payments.
+//   start     — hands back the Sage sign-in URL. Does not touch Sage.
+//   exchange  — swaps the ?code= for tokens and finds the business.
+//   sync      — pulls invoices and payment status.
 //
-// WHY THE CALLBACK COMES BACK TO THE APP, NOT TO THIS FUNCTION. Sage redirects
-// a BROWSER, and a browser arriving here carries no credentials, which would
-// mean publishing an unauthenticated endpoint that accepts an OAuth code. So
-// Sage is pointed at the SGAS Admin screen instead: it receives the code as a
-// normal page load and calls `exchange` with the admin credentials it already
-// holds. Same handshake, no public door.
+// Reading the status, saving the app credentials and disconnecting are
+// app_sage_get / app_sage_save_app / app_sage_disconnect, called straight from
+// the browser. They are admin-gated in the database and never come near a
+// secret, so routing them through here would add a hop and nothing else.
+//
+// HOW THE ADMIN DOOR WORKS, and why the obvious version is wrong. This function
+// holds the service-role key, so app_is_admin('', '') would be asked with no
+// signed-in user and no password and would always answer no. The Admin screen
+// stopped asking for a second password when sign-in moved to session tokens, so
+// there IS no password to send. The token is the credential: supabase-js puts
+// the signed-in browser's token in the Authorization header, and the DATABASE
+// verifies it (app_token_is_admin — signature, expiry, then the user looked up
+// for real). This function never holds the signing secret. Username and
+// password remain as a second door because pg_cron and anything else running
+// server-side has no token of its own. This is deliberately the same shape as
+// send-email's door 2 — one auth model for the whole app, not two.
+//
+// WHY THE OAUTH CALLBACK COMES BACK TO THE APP, NOT HERE. Sage redirects a
+// BROWSER, and a browser arriving here carries no credentials, which would mean
+// publishing an unauthenticated endpoint that accepts an OAuth code. So Sage is
+// pointed at the app's own address instead: it reads the code out of the query
+// string (the same trick the password-reset link already uses), and calls
+// `exchange` with the token it already holds. Same handshake, no public door.
 //
 // The tokens never come back to the browser. Not on any action, not in any
 // error. The refresh token in particular is single use and lives only in Vault.
@@ -25,7 +43,7 @@ import {
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-// Lets trusted server-side jobs (pg_cron) run a sync without an admin password,
+// Lets trusted server-side jobs (pg_cron) run a sync without a token,
 // exactly as send-email does.
 const INTERNAL_SECRET = Deno.env.get('SGAS_INTERNAL_SECRET') ?? ''
 
@@ -49,12 +67,25 @@ function scrub(message: string, secrets: (string | null | undefined)[]) {
   return out
 }
 
-// Admin credentials are proved the same way every other admin screen proves
-// them: by successfully calling an admin-only RPC. It raises if they are wrong.
-async function requireAdmin(admin: string, adminPw: string) {
-  const { data, error } = await db.rpc('app_sage_get', { p_admin: admin, p_admin_pw: adminPw })
-  if (error) throw new Error('Not authorized')
-  return data
+// ── the admin door ───────────────────────────────────────────────────────────
+async function requireAdmin(req: Request, body: any) {
+  const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
+  if (bearer) {
+    // The anon key is itself a JWT and arrives here when nobody is signed in.
+    // It verifies, but it carries no app_user_id, so it fails on the only
+    // thing that matters.
+    const { data: tokOk } = await db.rpc('app_token_is_admin', { p_token: bearer })
+    if (tokOk === true) return
+  }
+  if (body?.admin && body?.admin_pw) {
+    const { data: isAdmin, error } = await db.rpc('app_is_admin', {
+      p_user: body.admin, p_pw: body.admin_pw,
+    })
+    // An RPC that errors and an admin check that says no are different things.
+    if (error) throw new Error(`Could not check the admin login: ${error.message}`)
+    if (isAdmin === true) return
+  }
+  throw new Error('Not authorized')
 }
 
 // ── sync: refresh the token if needed, then read ─────────────────────────────
@@ -115,29 +146,26 @@ Deno.serve(async (req) => {
 
   try {
     switch (action) {
-      // ── what the Admin screen shows ──────────────────────────────────────
-      case 'status':
-        return json({ ok: true, status: await requireAdmin(body.admin, body.admin_pw) })
-
       // ── the sign-in URL ──────────────────────────────────────────────────
       case 'start': {
-        const status = await requireAdmin(body.admin, body.admin_pw)
-        if (!status?.client_id) return json({ ok: false, error: 'no_app' }, 400)
+        await requireAdmin(req, body)
         if (!body.redirect_uri) return json({ ok: false, error: 'no_redirect_uri' }, 400)
+        const { data: d } = await db.rpc('app_sage_dispatch')
+        // 'not_connected' is fine here — connecting is the point. A missing app
+        // is not, and says so in a way the screen can act on.
+        if (!d?.client_id) return json({ ok: false, error: d?.error || 'no_app' }, 400)
         // The caller keeps this and checks it on the way back, which is what
         // stops somebody else's ?code= being fed into this connection.
         const state = crypto.randomUUID()
-        return json({ ok: true, url: authoriseUrl(status.client_id, body.redirect_uri, state), state })
+        return json({ ok: true, url: authoriseUrl(d.client_id, body.redirect_uri, state), state })
       }
 
       // ── swap the code for tokens ─────────────────────────────────────────
       case 'exchange': {
-        await requireAdmin(body.admin, body.admin_pw)
+        await requireAdmin(req, body)
         if (!body.code) return json({ ok: false, error: 'no_code' }, 400)
 
         const { data: d, error } = await db.rpc('app_sage_dispatch')
-        // 'not_connected' is expected here — that is the whole point of this
-        // call — but a missing app or secret is a real problem.
         if (error) throw new Error(error.message)
         if (d?.error && d.error !== 'not_connected') return json({ ok: false, error: d.error }, 400)
 
@@ -158,7 +186,7 @@ Deno.serve(async (req) => {
           p_refresh_expires_in: t.refresh_token_expires_in ?? null,
           p_business_id: first?.id ?? null,
           p_business_name: first?.displayed_as ?? first?.name ?? null,
-          p_connected_by: body.admin ?? null,
+          p_connected_by: body.connected_by ?? null,
         })
         if (sErr) throw new Error(sErr.message)
 
@@ -173,7 +201,7 @@ Deno.serve(async (req) => {
       // ── pull invoices and payment status ─────────────────────────────────
       case 'sync': {
         const internal = INTERNAL_SECRET && body.internal_secret === INTERNAL_SECRET
-        if (!internal) await requireAdmin(body.admin, body.admin_pw)
+        if (!internal) await requireAdmin(req, body)
         try {
           const out = await runSync(body.since ?? null)
           await db.rpc('app_sage_sync_result', { p_ok: true, p_error: null })
@@ -190,6 +218,7 @@ Deno.serve(async (req) => {
         return json({ ok: false, error: 'unknown_action' }, 400)
     }
   } catch (e) {
-    return json({ ok: false, error: scrub(String(e), [body?.admin_pw, body?.code, INTERNAL_SECRET]) }, 400)
+    const msg = scrub(String(e), [body?.admin_pw, body?.code, INTERNAL_SECRET])
+    return json({ ok: false, error: msg.replace(/^Error:\s*/, '') }, /Not authorized/.test(msg) ? 401 : 400)
   }
 })
