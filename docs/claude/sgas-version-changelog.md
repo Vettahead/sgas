@@ -21,3 +21,40 @@ Built 27 Aug 2026 (Chris: "lets add a version in the bottom left on the taskbar 
 Backfilled 8 releases from v0.1.0 (7 Jun, first live) → v1.6.0 (27 Aug). Build-verified (vite OK in /tmp/sgasv6).
 
 See [[sgas-progress-page]], [[sgas-frontend]], [[sgas-deploy-flow]].
+
+## How to title a release (31 Aug 2026 — Chris, twice)
+
+Chris has now pulled this up twice: *"is claerly ai written"*, and then
+*"your doing it again with the srtupid headers"*. The offending title was
+
+> The weekend is out of the way, and the set-up window fits
+
+**The rule: a title is one plain sentence about the one biggest change.**
+The notes underneath carry everything else. Say it the way you would say it out
+loud to him.
+
+The shape to stop writing is the balanced list — two or three changes strung
+together with commas and an "and", usually with no verb in sight:
+
+- ✗ "The weekend is out of the way, and the set-up window fits"
+- ✗ "dead CSS out, and `.top` renamed so it cannot bite again"
+- ✗ "the weekend hidden, the set-up dialog made to fit, hovers restructured"
+- ✓ "Saturday and Sunday are hidden"
+- ✓ "Setting up a course opens over the calendar"
+- ✓ "The old calendar has gone for good"
+
+Also out, for the same reason:
+
+- a colon followed by something clever — "The set-up dialog: one 888px lie"
+- shouting mid-sentence — "A REAL FAULT WAS FOUND DOING IT"
+- "properly", "for good", "once and for all", "and it says so"
+- an em-dash aside tacked on to sound considered
+
+**The test before you write it down:** would Chris say this sentence to Simon on
+the phone? If not, it is a header written to sound like a header. Rewrite it.
+
+This applies to all three places the same words end up: `title` in
+`RELEASES` (client-facing, the strictest), the `##` headings in `CHANGELOG.md`,
+and the subject line of the git commit. Same sentence in all three where it can
+be. The **body** of a note is different — that can be as long and as technical
+as it needs to be, and Chris has never complained about those.

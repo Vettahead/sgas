@@ -33,6 +33,21 @@ The **Vercel MCP tools work**: `list_teams` → `team_nACzQmlAWdxQhFK0CcZeteHO`,
 
 **How to apply:** When a dependency is added, the only action for Chris is to commit+push BOTH `package.json` AND `package-lock.json` (Vercel installs it during its build — Vite bakes env at build time). Never instruct a local npm/dev/build step. State actions as: (1) run SQL X in Supabase (only if a migration exists), (2) commit+push in GitHub Desktop with the Summary/Description supplied. Build-verification with vite is MY check, not a step for Chris.
 
-**Do NOT run `git` commands** from a sandbox/agent shell — they leave a `.git/index.lock` that can't be unlinked, which blocks his GitHub Desktop commit. Read `.git/logs/HEAD` and `.git/refs/remotes/origin/main` directly instead.
+**Git from an agent shell: ask for delete permission FIRST.** (Updated 31 Aug
+2026 — the old advice here was "never run git", which is no longer right.)
+
+Git commands do work on the mounted folder, but every one that writes leaves a
+`.git/index.lock` or `HEAD.lock` behind, because the mount refuses `unlink`. The
+next git command then fails with *"Another git process seems to be running"* —
+and so does Chris's GitHub Desktop, until the file is gone. Moving the lock
+aside is not reliable either: `ls` stops seeing it while git still does.
+
+So at the START of any session that will commit, call
+`device_request_delete_permission` on `Sgas project`. Chris approves once and
+`rm` works in that folder for the rest of the session, which makes
+`rm -f .git/*.lock` a one-liner whenever git complains.
+
+If permission is refused, fall back to the old rule: read `.git/logs/HEAD` and
+`.git/refs/remotes/origin/main` directly and let Chris do the git in the app.
 
 See [[sgas-frontend]], [[sgas-mount-write-gotcha]], [[sgas-version-changelog]], [[sgas-client-meeting-aug26]].
