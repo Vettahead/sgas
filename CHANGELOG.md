@@ -4,6 +4,70 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-06 (evening) — v1.42.0 The Access import is loaded
+
+**3,164 delegates · 4,674 bookings · 16,341 booking_categories.**
+
+### Matching
+
+`client` was empty, so this was never "match an existing delegate" — it was
+"how many people are in here". N1 settled 4,557 of 4,674 (97.5%). Then 8 adopted
+by surname+DOB onto an N1 person, 59 standing alone on name+DOB, 44 on name
+alone, 6 split where one N1 held two genuinely different surnames.
+
+**The rule that decided every close call: split, never merge.** Two people
+merged into one record is unrecoverable — tickets, expiries and renewal letters
+mixed with nothing in the data saying so. A split is a visible, one-click
+duplicate. Every judgement leaned that way, so the residue is duplicates.
+
+Mechanism: per N1, the surname on the most records is the anchor; others join it
+on `levenshtein <= 2` or prefix (PENRITH/PENTITH, FEGUSON/FERGUSON, CLARK/CLARKE,
+BEN/BENJAMIN TELFORD, the SAFHILL-JONES spacing variants). Surnames normalised by
+stripping non-alphabetics. A different surname splits off AND is flagged, because
+a marriage looks exactly like two people to a computer.
+
+One split is "BRUCE WAYNE" sharing Andy Williamson's N1, which says something
+about how that field has been used.
+
+### Two calls made in the data, both stated rather than hidden
+
+- **`overall_result` = PASS on all 4,674.** `PassedResult` said COMP on 4,020,
+  blank on 654 — and *all 654 blanks carry an expiry date*. Nobody is given a
+  five-year expiry for a fail; a blank is an unfilled box.
+- **1,801 dates of birth were in the future** (2069, 2071, 2075) — a two-digit
+  century pivot out of Access. Corrected by −100 years, and `dob_corrected`
+  marks every touched row. DOB is a matching key; left alone a man fails to
+  match himself.
+
+### The trail back
+
+`booking.legacy_access_id` (unique partial index) and `client.legacy_access_id`
+hold the Access `src_row`. The first booking insert omitted it; the 4,674 rows
+were deleted and redone rather than reverse-engineering the link from dates.
+**Do not drop these columns.**
+
+Qualifications resolve through `import_mapping` at load time (`decision='map'`),
+so Simon's answers drive the load and no second copy of the mapping exists.
+8,551 ticks fell away on `ignore` rows. 92 distinct qualifications landed.
+`is_reassessment` is false throughout — the Access file does not say, though the
+Teamup notes do ("COCN1, ICPN1 R + BMP1 I"), which is a later job.
+
+### Import review
+
+`app_import_review` / `app_import_review_act` + `src/views/ImportReview.jsx`,
+fourth tab on Progress. Three actions and no others: `set_dob`, `merge`, `ok`.
+Merge moves bookings first and deletes the duplicate second, so a failure
+half-way leaves a duplicate rather than orphaned assessments.
+
+No confidence score, deliberately. Each of these needs a human to look at two
+names or two birthdays; what the screen owes them is the evidence — every
+spelling, every DOB, every date they attended — not a number.
+
+### What it produced
+
+2,601 people currently qualified · **251 expiring within six months** ·
+**642 expired in the last twelve months**.
+
 ## 2026-09-06 (late) — v1.41.0 Where everyone is
 
 ### The Spare calendars were a symptom, not a mistake

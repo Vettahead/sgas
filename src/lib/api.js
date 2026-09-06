@@ -2583,3 +2583,32 @@ export async function teamupPull(adminAuth) {
   if (!data || !data.ok) throw new Error((data && data.error) || 'Teamup did not answer')
   return data
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMPORT REVIEW — the questions the matcher would not answer for itself.
+//
+// Matching leaned towards splitting rather than merging, because two people
+// merged into one is unrecoverable and a duplicate is not. This is where a
+// person settles the ones it would not call.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function listImportReview(adminAuth) {
+  if (!LIVE) return []
+  const { data, error } = await supabase.rpc('app_import_review', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || []
+}
+
+// action: 'ok' | 'set_dob' | 'merge'
+export async function actOnImportReview({ personKey, action, intoClientId = null, dob = null }, adminAuth) {
+  if (!LIVE) return { ok: true }
+  const { data, error } = await supabase.rpc('app_import_review_act', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    p_person_key: personKey, p_action: action,
+    p_into_client_id: intoClientId, p_dob: dob,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || { ok: true }
+}

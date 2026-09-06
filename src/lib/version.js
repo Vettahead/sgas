@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.42.0', build: 188, date: '6 Sep 2026',
+    title: 'The old database is in',
+    notes: [
+      'Twenty years of records from the old Access database are now in the system: 3,164 delegates, 4,674 assessments and 16,341 qualifications, covering the last seven years. Everybody\u2019s tickets, when they were assessed, who verified it and when it runs out.',
+      'What that gives you straight away: 2,601 people currently hold a live qualification, 251 of them expire within six months, and 642 expired in the last year. Those last two are a renewal list and a call list that did not exist in a usable form before.',
+      'Working out which records belonged to the same person was done on the National Insurance number, which settled 97.5% of them. Where it was not certain, records were kept apart rather than joined \u2014 two people merged into one record cannot be untangled afterwards, whereas a duplicate is joined back in one click.',
+      'The 124 it would not call are on a new Progress \u2192 Import review tab, each showing every spelling of the name, every date of birth on file and every date they were in, with the choice left to you. Nothing there is urgent and nothing expires \u2014 those records work normally in the meantime.',
+      'One thing worth knowing: 1,801 dates of birth came out of Access reading 2069, 2071 and so on \u2014 a two-digit year going in the wrong direction, not eighteen hundred typing mistakes. They have been corrected and each one is marked as corrected, so a date we changed is never mistaken for one you gave us.',
+    ],
+  },
+  {
     v: '1.41.0', build: 187, date: '6 Sep 2026',
     title: 'Where everyone is',
     notes: [
