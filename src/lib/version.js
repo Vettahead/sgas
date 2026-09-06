@@ -19,6 +19,19 @@
 
 export const RELEASES = [
   {
+    v: '1.45.0', build: 196, date: '6 Sep 2026',
+    title: 'Reading Teamup properly, and a waiting list that is actually waiting',
+    notes: [
+      'The waiting list was showing 967 people for Domestic alone. None of them were waiting. Waiting means two things and only one was being checked \u2014 no course yet AND no result yet. Every one of the 4,674 assessments imported from the old database is marked as passed, and 4,055 of them had no course attached, so twenty years of finished work was queueing up as if it needed booking. They sat it, they passed, they went home. Same for \u201cto assess\u201d, which was counting 261 courses that finished years ago.',
+      'The Teamup calendars are now read for what they actually are. There is no single grid: some calendars name a course family (Domestic, OFTEC, LPG, F-Gas), some name a person and say nothing about the course (Keith Assessments, Denis Assessments, Phil Training, Simon), one says the day is not a working day at all (Hols / Not Available), and two say where the day happened (On Site / Consultancy, Meeting / Maintenance). An event sits on two or three at once and the combination is the answer.',
+      'That fixes a class of error rather than a handful of entries. \u201cDOCTORS 3.15pm\u201d had become an assessment day, because the old rule was \u201cif nothing else fits, call it a course\u201d. Nothing falls through to being a course now: where nothing says which course, the answer is that we do not know, and it stays off the calendar rather than being guessed at. 23 events are in that position and they are listed for you.',
+      'The four calendars called Spare are not spare. Three are Steve Johnston\u2019s \u2014 office days, assessments, and time off \u2014 and the fourth is Simon\u2019s. That is 180 events that had no reading at all.',
+      'Delegates are now matched on the SGAS number written next to their name in the Candidates list, which is the same number the old database keeps. It is an exact key rather than a guess, and it reaches people no name matching could: \u201cBarnacle SGAS no 20678\u201d is a surname on its own and it resolves correctly. 786 matched, and 11 rejected where the number and the name disagreed \u2014 those turned out to be notes copied forward from an older event with the number never updated.',
+      'Half days are read as well. \u201cSJ-Office AM/ PM Off\u201d is two halves of one day and was being stored as whichever half won.',
+      'Assessment day drops from 260 courses to 25, because the course family was written on the calendar the whole time. What still needs your eye is down from 280 to 95, and those are real questions rather than the computer\u2019s own failures.',
+    ],
+  },
+  {
     v: '1.44.0', build: 193, date: '6 Sep 2026',
     title: 'Teamup is on the calendar',
     notes: [

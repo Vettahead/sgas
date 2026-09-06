@@ -101,7 +101,10 @@ function blockSummaries(blocks) {
     id: b.id, course: b.course, start: b.start, end: b.end, scheme: b.scheme,
     missing: [(!b.trainerId || b.trainerGone) && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
   }))
-  const assessBlocks = (blocks || []).filter((b) => b.delegates.length > 0).map((b) => ({
+  // Same again: a course that has already run is not waiting to be assessed.
+  // 261 imported courses going back to 2022 have delegates on them and every
+  // one of them finished years ago.
+  const assessBlocks = (blocks || []).filter((b) => b.delegates.length > 0 && (!b.end || b.end >= todayISO())).map((b) => ({
     id: b.id, course: b.course, start: b.start, end: b.end, count: b.delegates.length,
   }))
   return { awaitingBlocks, assessBlocks }
@@ -723,13 +726,20 @@ export async function addToPool(client, cats, opts = {}) {
   return added
 }
 
-// Hydrate the in-memory pool from the DB (LIVE = bookings with no block yet).
+// Hydrate the in-memory pool from the DB.
+//
+// Waiting means TWO things, not one: no course yet AND no result yet. Missing
+// the second was showing every finished assessment from the last twenty years
+// as somebody waiting to be booked - 4,055 of them, which is what put 967
+// people on the Domestic list. They sat it, they passed, they went home. A
+// booking with a result is history; only a PENDING one is a queue.
 export async function loadPool() {
   if (LIVE) {
     const { data } = await supabase
       .from('booking')
       .select('booking_id,client_id,company_id,is_reassessment,flag_mlp,flag_igas,pref_date_from,pref_date_to,client:client_id(forename,surname),booking_category(category_id,is_reassessment,category:category_id(scheme))')
       .is('session_id', null)
+      .eq('overall_result', 'PENDING')
     poolList.length = 0
     for (const b of data || []) {
       const bcs = b.booking_category || []
