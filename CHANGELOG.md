@@ -4,6 +4,62 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-06 — v1.39.0 The import worklist can be acted on
+
+### The decisions were never real
+
+`import_mapping` recorded intentions and nothing else. 109 employers and one
+assessor were confirmed with `decision='create'` and `target_id` NULL, and
+`company` was still on its original ten rows. `ImportMapping.jsx` saves a
+decision; no code anywhere created the record or wrote the id back. Nothing
+further in the import could be built on that, because a delegate row has nothing
+to point at.
+
+New RPC `app_import_apply(p_admin, p_admin_pw)`
+(`supabase/migrations/20260906120100_import_apply.sql`), plus
+`applyImportMappings()` in `api.js` and a "Make the decisions real" card at the
+top of the Data import tab. Three properties worth keeping:
+
+- **Idempotent.** Rows already carrying a `target_id` are skipped; a name that
+  already exists is linked, not created again. Press it, decide six more rows,
+  press it again.
+- **Grouped by `lower(btrim(target_code))`.** Two rows sharing a target name
+  collapse to one record and both point at it — that is the whole "EDINA" /
+  "EDINA UK LTD" merge story, with no merge UI.
+- **Only `create` may create.** A `map` row naming something absent is left
+  alone and counted in `unresolved`, so a mistyped map surfaces instead of
+  silently spawning a duplicate.
+
+Created staff get `left_on = current_date` — everyone on that list left before
+the current staff table existed (Callon Fielding last assessed Feb 2025), so
+"here now" would put them in the booking dropdowns. Created qualifications land
+in scheme `Other` so they appear on Courses asking to be filed.
+
+The count on the button is of distinct target names, not rows: counting rows
+would promise 110 companies and make 109.
+
+### Schema drift written down
+
+`category.assessment_only` and `booking_category.assessment_only` existed in the
+live database and in **no .sql file anywhere in the project** — applied direct,
+never captured, so a rebuild from `supabase/migrations/` would have come up
+without them silently.
+`20260906120000_assessment_only_columns.sql` is the retrospective record,
+`add column if not exists`, safe against live.
+
+Kept as two booleans rather than folded into one NEW/RE/ASSESSMENT-ONLY enum:
+`is_reassessment` says which ticket it is, `assessment_only` says what was
+bought, and every combination of the two is real.
+
+### The last worklist row
+
+`ASSESMENT ONLY` (staff, 3,244 occurrences) set to `ignore`. It is a value in
+`Trainer`/`Trainer2`, not a person, and it is a dead convention: 1,390 of them
+fall in 2000–2003, eleven since 2014, and in the seven-year import scope
+`Trainer` is filled on 23 of 4,817 rows. The eight ex-assessors already set to
+ignore were checked the same way — their alarming `occurrences` are whole-file
+counts; inside the scope they total eight records, all G Nutton.
+
 ## 2026-09-02 (evening) — "Failed to send a request to the Edge Function", and the two faults behind it
 
 Pressing Connect to Sage failed with a network error. Two separate faults, and

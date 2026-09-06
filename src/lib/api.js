@@ -2151,6 +2151,19 @@ export async function acceptImportProposals(kind, adminAuth) {
   return data || 0
 }
 
+// The step that makes the decisions real. Everything before this only recorded
+// intentions: a row saying "create EDINA UK LTD" was a note to self and no
+// company existed. Safe to press twice — anything already created is linked,
+// not made again. Returns counts of what it created and what it merely found.
+export async function applyImportMappings(adminAuth) {
+  if (!LIVE) return { staff_created: 0, companies_created: 0, unresolved: 0 }
+  const { data, error } = await supabase.rpc('app_import_apply', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || {}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Account emails.
 //

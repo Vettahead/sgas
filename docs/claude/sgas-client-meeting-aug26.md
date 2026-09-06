@@ -16,7 +16,11 @@ Client catch-up with Simon (transcript, 27 Aug 2026) after a ~2-month gap. Sessi
 ## HARD DATES
 - **Teamup subscription expires OCTOBER** — the in-app calendar must be in real use before then. Simon offered to renew if needed; Chris said no.
 - **Simon has an audit at the BEGINNING OF OCTOBER** — this is what drives staff accreditations. Simon's line: even unfinished, showing the auditor "this is the system we're working under" counts, because audits ask what you're working towards.
-- **Simon in Australia from 11 September.** Jen comes in **Wednesday** for the Sage session.
+- **CHRIS is in Australia from Friday 11 September** (corrected 6 Sep 2026 — an earlier version of this
+  note wrongly said Simon). Simon stays put. So anything that needs CHRIS'S hands — a git push, a CSV
+  upload through the Supabase dashboard, a Dropbox/Sage key — must be done BEFORE Friday, and work left
+  running while he is away should be things Simon can use or answer on his own.
+- Jen came in the Wednesday after the meeting for the Sage session.
 
 ## THE NEXT BUILD — staff accreditations + expiry (fully specced now)
 Click a staff member in Admin → their accreditation list. The dropdown **reuses the SAME qualification list as Courses, grouped and ordered identically** (so re-ordering the catalogue re-orders this — Simon explicitly asked for that), PLUS extra awards not in the course catalogue (verifier / IQA — Simon to supply the list). Each accreditation tagged **Must have / Nice to have / Optional** (must-have = the base requirement to work at SGAS). Per accreditation: **date achieved, how long it lasts, expiry date, scanned certificate**. Display = a countdown exactly like the existing Delegates "Qualifications & renewals" card (Simon pointed at it: "achieved, expired, and a countdown — like that one telling you this guy's expired seven days ago"). Configurable warning lead time (he floated 12 or 8 months). Email alert once SMTP lands. **A "Staff qualifications" report button** — press it, it prints the lot for the auditor. **A staff panel on the dashboard** flagging expiring/expired.
@@ -40,5 +44,13 @@ Simon drops the **full Access file into Dropbox and sends the link** — the raw
 
 ## POSTCODE
 Currently on the FREE postcodes.io (postcode-level only — town/county, no house-number dropdown). Chris to re-set up the getAddress.io + Ideal Postcodes trials, compare cost, pick one; then it's a small swap.
+
+## SINCE THE MEETING — checked 6 Sep 2026
+- **Staff seeds resolved, and NOT by deleting.** Assessor 7 (the "Keith Rinmer" typo) is gone; **Keith Rimmer is
+  now id 2** and holds the login. S Johnston(1), A Calvert(3) and D Nuttall(4) were **kept and marked `left_on`
+  2026-08-29** — correctly, because S Johnston is the single biggest name in the Access assessment history
+  (16,223 ticks). Do not revive the "delete the seeds" instruction for these.
+- **Import mapping is 277 of 277 decided** by Simon. See [[sgas-import]] for what was settled and what is left
+  to build.
 
 See [[sgas-frontend]], [[sgas-progress-page]], [[sgas-version-changelog]], [[sgas-deploy-flow]], [[sgas-demo-backlog]].

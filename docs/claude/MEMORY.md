@@ -14,3 +14,4 @@
 - [SGAS progress page](sgas-progress-page.md) — in-app admins-only Roadmap.jsx; code-maintained; UPDATE ITEMS+UPDATED every session
 - [SGAS version + changelog](sgas-version-changelog.md) — sidebar version badge + Changelog.jsx; BUMP RELEASES in src/lib/version.js every session
 - [SGAS Help & FAQ](sgas-help-faq.md) — in-app all-roles Help.jsx (search + collapsible, 16 sections); code-maintained; built 29 Jun 2026
+- [SGAS Access import](sgas-import.md) — what is really in the .mdb, the expiry rule, the 6 Sep analysis that settled the last two mapping questions, and what is left to build

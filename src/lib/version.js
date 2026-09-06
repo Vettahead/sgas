@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.39.0', build: 185, date: '6 Sep 2026',
+    title: 'The import worklist can now be acted on',
+    notes: [
+      'Progress \u2192 Data import has a Create button. Until now, confirming a row only wrote down the answer \u2014 the 109 employers you had agreed to add existed nowhere. Pressing Create makes them real, and links anything already here under the same name instead of adding a second copy. It is safe to press again after you have decided a few more.',
+      'The last row on the worklist is answered, so all 277 are done. \u201cAssesment only\u201d has been left out of the import on purpose: it was a way of recording things between 2000 and 2003 and it stopped, with only eleven since 2014. It is being added as a proper booking option instead, so it can be recorded going forward rather than guessed at from an old file.',
+      'The assessors nobody recognised have been left out too. Their numbers on the worklist looked alarming because they counted all twenty years in the file; within the seven years being brought across they add up to eight records between them.',
+    ],
+  },
+  {
     v: '1.38.0', build: 183, date: '2 Sep 2026',
     title: 'Sage: the connection screen',
     notes: [

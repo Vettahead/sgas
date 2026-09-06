@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
 import {
-  listImportMappings, saveImportMapping, acceptImportProposals,
+  listImportMappings, saveImportMapping, acceptImportProposals, applyImportMappings,
   listCategories, listStaff, listCompanies,
 } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
@@ -66,6 +66,8 @@ export default function ImportMapping({ currentUser }) {
   const [onlyTodo, setOnlyTodo] = useState(true)
   const [draft, setDraft] = useState({})       // key -> { choice, name }
   const [busy, setBusy] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [result, setResult] = useState('')
 
   const keyOf = (r) => r.kind + '|' + r.source_value
 
@@ -148,6 +150,33 @@ export default function ImportMapping({ currentUser }) {
     } catch (e) { toast(e.message) } finally { setBusy(false) }
   }
 
+  // Confirming a row writes down an answer. This is what acts on it: the
+  // companies and the people get created, anything already here is linked by
+  // name instead of duplicated, and every row that named it is pointed at the
+  // one record. Pressing it twice is harmless, which matters because the list
+  // will be worked through in more than one sitting.
+  async function apply() {
+    setApplying(true); setResult('')
+    try {
+      const out = await applyImportMappings(auth)
+      const bits = []
+      if (out.companies_created) bits.push(`${out.companies_created} companies created`)
+      if (out.companies_linked) bits.push(`${out.companies_linked} matched a company already here`)
+      if (out.staff_created) bits.push(`${out.staff_created} added as past staff`)
+      if (out.staff_linked) bits.push(`${out.staff_linked} matched somebody already here`)
+      if (out.categories_created) bits.push(`${out.categories_created} qualifications created`)
+      if (out.categories_linked) bits.push(`${out.categories_linked} matched a qualification already here`)
+      setResult(
+        (bits.length ? bits.join(', ') + '.' : 'Nothing needed creating.')
+        + (out.unresolved
+            ? ` ${out.unresolved} still point at nothing: those are rows set to match something that is not here under that name, so the name wants checking.`
+            : '')
+      )
+      toast(bits.length ? 'Done' : 'Nothing needed creating')
+      await load(auth)
+    } catch (e) { toast(e.message) } finally { setApplying(false) }
+  }
+
   if (!LIVE) {
     return <div className="card" style={{ marginTop: 18 }}><div className="body">
       <span className="muted small">The import worklist needs the live system — there is no Access data in the demo.</span>
@@ -180,6 +209,33 @@ export default function ImportMapping({ currentUser }) {
       ? companies.map((c) => [c.name, c.name])
       : cats.map((c) => [c.code, `${c.code} — ${c.description || ''}`.trim()])
 
+  // What pressing Apply would actually do, worked out from the rows already on
+  // screen so the button can say it out loud first. Grouped by the name it will
+  // be created under, lower-cased — because two rows sharing a name are one
+  // thing, and counting the rows would promise 110 companies and make 109.
+  const pending = (() => {
+    const seen = { staff: new Set(), employer: new Set(), qualification: new Set() }
+    for (const r of rows) {
+      if (r.decision !== 'create' && r.decision !== 'map') continue
+      if (r.target_id) continue
+      const nm = String(r.target_code || '').trim()
+      if (!nm || !seen[r.kind]) continue
+      seen[r.kind].add(nm.toLowerCase())
+    }
+    const n = { staff: seen.staff.size, employer: seen.employer.size, qualification: seen.qualification.size }
+    return { ...n, total: n.staff + n.employer + n.qualification }
+  })()
+
+  const NOUN = {
+    employer: ['employer', 'employers'],
+    staff: ['assessor', 'assessors'],
+    qualification: ['qualification', 'qualifications'],
+  }
+  const pendingPhrase = ['employer', 'staff', 'qualification']
+    .filter((k) => pending[k])
+    .map((k) => `${pending[k]} ${NOUN[k][pending[k] === 1 ? 0 : 1]}`)
+    .join(', ').replace(/, ([^,]*)$/, ' and $1')
+
   // What is stored, so a row can say whether the box in front of you matches it.
   const stored = (r) => (r.decision === 'map' ? 'map:' + r.target_code : r.decision || '')
   const dirty = (r) => {
@@ -201,6 +257,32 @@ export default function ImportMapping({ currentUser }) {
             </button>
           )
         })}
+      </div>
+
+      <div className="card">
+        <h3>Make the decisions real{pending.total ? <span className="tag">{pending.total} waiting</span> : null}</h3>
+        <div className="body">
+          {pending.total === 0 ? (
+            <span className="muted small">
+              Every confirmed decision now points at a real record. Decide more rows below and this comes back.
+            </span>
+          ) : (
+            <>
+              <span className="muted small">
+                Confirming a row writes down the answer; it does not create anything. {pendingPhrase} still
+                {pending.total === 1 ? ' has' : ' have'} nowhere to point, and nothing else in the import can be
+                built until they do. This creates them, links anything already here under the same name rather than
+                making a second one, and is safe to press again after you have decided a few more.
+              </span>
+              <div className="inrow" style={{ marginTop: 10 }}>
+                <button className="btn" disabled={busy || applying} onClick={apply}>
+                  {applying ? 'Creating…' : `Create the ${pending.total} confirmed`}
+                </button>
+              </div>
+            </>
+          )}
+          {result && <div style={{ marginTop: 10 }}><span className="muted small">{result}</span></div>}
+        </div>
       </div>
 
       <div className="card">
@@ -273,9 +355,9 @@ export default function ImportMapping({ currentUser }) {
         <div className="body">
           <span className="muted small">
             Nothing is saved until you press Confirm — a box that filled itself in and saved itself would just be a
-            guess with extra steps. Creating happens when the import runs, not now, so a name typed here can still be
-            changed. Two rows created under the same name become one thing, which is how “EDINA” and “EDINA UK LTD”
-            end up as one company.
+            guess with extra steps. Nothing is created either until you press Create above, so a name typed here can
+            still be changed up to that point. Two rows created under the same name become one thing, which is how
+            “EDINA” and “EDINA UK LTD” end up as one company.
           </span>
         </div>
       </div>
