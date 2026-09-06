@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.44.0', build: 193, date: '6 Sep 2026',
+    title: 'Teamup is on the calendar',
+    notes: [
+      'Everything held from Teamup is now ON the calendar, not just kept safe beside it. 878 courses, 152 holidays and 182 other days \u2014 office days, working from home, meetings, site visits \u2014 came across, and 435 delegates landed on the exact course they sat.',
+      'The old screen asked you to sort 25 Teamup calendars by hand and say what each one was. That was the wrong question: the calendars were never split by course, and no answer to it would have been right. Every event is now read on its own \u2014 its title, the delegate list inside it, and the calendar it sits on \u2014 and it works out which course, whose day, on site or not, and trained-and-assessed or assessed only.',
+      'Two things it now gets right that it did not before. A bank holiday is not somebody\u2019s leave \u2014 the centre is shut, which is a different thing, and it appears once for the day rather than once for every calendar that mentioned it. And \u201cPhil Hols\u201d, \u201cSteve Hols\u201d and \u201cSj-HOLS\u201d now find their owner: the calendar\u2019s nicknames are written down as nicknames, so 309 more days found the person they belong to.',
+      'It could not settle 273 of the 1,235, and those are on Progress \u2192 Teamup grouped by the REASON rather than one at a time. \u201c187 events never said which course\u201d is one decision, not 187 \u2014 they are on the calendar as assessment days, and if that is right you say so once. Anything you answer there is kept even when Teamup is read again.',
+      'One correction while you are there: \u201cLCL Audit Prep\u201d was sitting under Hols. It is work, not a holiday, and it now comes across as an audit prep day.',
+    ],
+  },
+  {
     v: '1.43.0', build: 189, date: '6 Sep 2026',
     title: 'Teamup: reading it properly',
     notes: [

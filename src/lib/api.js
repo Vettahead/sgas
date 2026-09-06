@@ -2587,6 +2587,56 @@ export async function teamupPull(adminAuth) {
   return data
 }
 
+// Runs the classifier over every captured event, then puts the results on the
+// calendar. Both are safe to press again: classification skips anything a
+// person has overridden, and promotion is keyed on the Teamup event id.
+export async function teamupClassify(adminAuth) {
+  if (!LIVE) return { events: 0 }
+  const { data, error } = await supabase.rpc('app_teamup_classify', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || {}
+}
+
+export async function teamupPromote(adminAuth) {
+  if (!LIVE) return { sessions: 0 }
+  const { data, error } = await supabase.rpc('app_teamup_promote', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || {}
+}
+
+// The events the classifier would not settle, grouped by the REASON it could
+// not. The reason is the unit of work: 187 events that never said which course
+// are one decision, not 187.
+export async function teamupLook(adminAuth) {
+  if (!LIVE) return { buckets: [], events: [], courses: [], people: [] }
+  const { data, error } = await supabase.rpc('app_teamup_look', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || { buckets: [], events: [], courses: [], people: [] }
+}
+
+// action: 'keep' | 'course' | 'person' | 'kind'.  Pass `reason` instead of
+// `eventId` to keep a whole group; only 'keep' works on a group, because
+// "they are all the same course" is never true of 187 events.
+export async function teamupLookAct(
+  { action, eventId = null, reason = null, courseId = null, staffId = null, kind = null, where = null },
+  adminAuth,
+) {
+  if (!LIVE) return { changed: 0 }
+  const { data, error } = await supabase.rpc('app_teamup_look_act', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    p_action: action, p_event_id: eventId, p_reason: reason,
+    p_course_id: courseId, p_staff_id: staffId, p_kind: kind, p_where: where,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || { changed: 0 }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPORT REVIEW — the questions the matcher would not answer for itself.
 //

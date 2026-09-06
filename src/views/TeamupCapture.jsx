@@ -1,9 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LIVE } from '../lib/supabase.js'
-import {
-  teamupSubcalendars, teamupStats, teamupMapSave, teamupPull,
-  listCourses, listStaff,
-} from '../lib/api.js'
+import { teamupStats, teamupPull, teamupClassify, teamupLook, teamupLookAct } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13,7 +10,7 @@ import { toast } from '../lib/toast.js'
 // OCTOBER. Nothing had ever come out of it, so on the day it lapsed the forward
 // schedule would simply have gone.
 //
-// This screen does two separate jobs, and keeping them separate is the point:
+// Three jobs, in order, and keeping them separate is the point:
 //
 //   1. TAKE THE COPY. One button. It reads every event out of Teamup and keeps
 //      it here, word for word, including the original Teamup record. Once that
@@ -21,25 +18,63 @@ import { toast } from '../lib/toast.js'
 //      change or delete anything in Teamup — so it is safe to run today, while
 //      everyone is still working in there, and again on the day you switch.
 //
-//   2. SAY WHAT EACH STREAM IS. Teamup keeps three different kinds of thing in
-//      one list: courses, individual people's diaries, and time that is not
-//      teaching at all. This system has a different place for each. That is a
-//      judgement, not a copy, so it is asked here rather than guessed — and it
-//      can be answered at leisure, after the copy is safe.
+//   2. READ IT. Every event is classified from its own title, its Candidates
+//      list and the calendar it sits on: which course, whose day, on site or
+//      not, trained-and-assessed or assessed only. Then it goes on the
+//      calendar. Both are keyed on Teamup's own event id, so this is safe to
+//      press as often as you like.
+//
+//   3. LOOK AT WHAT IT COULD NOT SETTLE. This is the part that used to be a
+//      list of 25 calendars to hand-sort, which was the wrong unit — the
+//      calendars are not split by course and never were. It is now a list of
+//      REASONS. "187 events never said which course" is one decision, not 187.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const KIND = {
-  course:     ['Courses',   'Blocks that go on the calendar as courses.'],
-  staff:      ['A person',  "One member of staff's own diary."],
-  holiday:    ['Holidays',  'Time off — becomes a holiday record.'],
-  engagement: ['Other work','Meetings, on site, office days — becomes an engagement.'],
-  ignore:     ['Leave out', 'Nothing here needs bringing across.'],
+// The reason the classifier gave up, and what a person can do about it.
+const REASON = {
+  which_course: {
+    title: 'Nothing said which course',
+    blurb: 'Neither the title nor the Candidates list named a scheme. They are on the '
+      + 'calendar as an assessment day, which for most of them is the true answer — '
+      + 'a day where somebody assessed whoever turned up.',
+    keep: 'These are all assessment days',
+  },
+  mixed: {
+    title: 'A mix of re-sits and first-timers',
+    blurb: 'The Candidates list has both people re-sitting and people taking it for the '
+      + 'first time, so no single course fits the day. On the calendar as an assessment day.',
+    keep: 'These are all assessment days',
+  },
+  initial_or_resit: {
+    title: 'Nothing said initial or re-sit',
+    blurb: 'The scheme is clear but nothing said whether the people on it were re-sitting '
+      + 'or taking it for the first time, and that scheme has a separate course for each.',
+    keep: 'These are all assessment days',
+  },
+  whose: {
+    title: 'We cannot tell whose day this is',
+    blurb: 'A holiday, an office day or a meeting with nobody named in the title and on a '
+      + 'calendar shared by everyone. Until somebody says whose it was, it sits on the '
+      + 'calendar with no name against it.',
+    keep: 'Leave these without a name',
+  },
 }
 
-// A course stream can belong to somebody. "Keith Assessments" is the courses
-// Keith assessed — every session built from it starts with him already in the
-// assessor slot, rather than 155 blanks to fill in by hand.
-const ROLE = [['assessor', 'assessed them'], ['trainer', 'taught them'], ['verifier', 'verified them']]
+const KIND_OF_DAY = [
+  ['course', 'A course'],
+  ['holiday', 'Time off'],
+  ['whereabouts', 'Somewhere else'],
+  ['engagement', 'A meeting or a visit'],
+  ['closed', 'The centre was shut'],
+]
+const WHERE = [
+  ['office', 'In the office'],
+  ['wfh', 'Working from home'],
+  ['training', 'Training or audit prep'],
+  ['sick', 'Off sick'],
+  ['unavailable', 'Not available'],
+  ['other', 'Something else'],
+]
 
 export default function TeamupCapture({ currentUser }) {
   const [auth, setAuth] = useState(null)
@@ -47,34 +82,18 @@ export default function TeamupCapture({ currentUser }) {
   const [unlocking, setUnlocking] = useState(false)
   const [err, setErr] = useState('')
 
-  const [subs, setSubs] = useState([])
   const [stats, setStats] = useState(null)
-  const [courses, setCourses] = useState([])
-  const [staff, setStaff] = useState([])
-  const [draft, setDraft] = useState({})
+  const [look, setLook] = useState({ buckets: [], events: [], courses: [], people: [] })
+  const [open, setOpen] = useState('')
   const [busy, setBusy] = useState(false)
   const [pulling, setPulling] = useState(false)
+  const [reading, setReading] = useState(false)
   const [result, setResult] = useState('')
-
-  function seed(s) {
-    if (s.decision === 'course') {
-      return { d: 'course', course: s.target_course_id || '', staff: s.target_staff_id || '', role: s.staff_role || '' }
-    }
-    if (s.decision === 'staff') return { d: 'staff', course: '', staff: s.target_staff_id || '', role: '' }
-    if (s.decision) return { d: s.decision, course: '', staff: '', role: '' }
-    // Nobody has answered yet, so start from the suggestion — including the
-    // person and their slot where the stream's name named one.
-    return { d: s.proposed || '', course: '', staff: s.proposed_staff || '', role: s.proposed_role || '' }
-  }
+  const [read, setRead] = useState(null)
 
   async function load(a) {
-    const [sc, st, co, sf] = await Promise.all([
-      teamupSubcalendars(a), teamupStats(a), listCourses(), listStaff({ includeLeft: true }),
-    ])
-    setSubs(sc); setStats(st); setCourses(co); setStaff(sf)
-    const d = {}
-    for (const s of sc) d[s.subcalendar_id] = seed(s)
-    setDraft(d)
+    const [st, lk] = await Promise.all([teamupStats(a), teamupLook(a)])
+    setStats(st); setLook(lk)
   }
 
   async function unlock(e) {
@@ -92,8 +111,6 @@ export default function TeamupCapture({ currentUser }) {
 
   useEffect(() => { if (!LIVE) setAuth(undefined) }, [])
 
-  const setD = (k, patch) => setDraft((d) => ({ ...d, [k]: { ...d[k], ...patch } }))
-
   async function pull() {
     setPulling(true); setResult('')
     try {
@@ -108,27 +125,32 @@ export default function TeamupCapture({ currentUser }) {
     } catch (e) { toast(e.message); setResult(e.message) } finally { setPulling(false) }
   }
 
-  async function confirm(s) {
-    const d = draft[s.subcalendar_id] || {}
-    if (!d.d) { toast('Choose what it is first'); return }
-    if (d.d === 'course' && !d.course) { toast('Pick which course'); return }
-    if (d.d === 'staff' && !d.staff) { toast('Pick which person'); return }
-    if (d.d === 'course' && d.staff && !d.role) { toast('Say what that person does on these'); return }
+  async function reread() {
+    setReading(true)
+    try {
+      const out = await teamupClassify(auth)
+      setRead(out)
+      toast('Read again and put on the calendar')
+      await load(auth)
+    } catch (e) { toast(e.message) } finally { setReading(false) }
+  }
+
+  async function act(payload) {
     setBusy(true)
     try {
-      await teamupMapSave({
-        subcalendarId: s.subcalendar_id, decision: d.d,
-        courseId: d.d === 'course' ? Number(d.course) : null,
-        staffId: (d.d === 'course' || d.d === 'staff') && d.staff ? Number(d.staff) : null,
-        staffRole: d.d === 'course' && d.staff ? d.role : null,
-      }, auth)
-      setSubs((xs) => xs.map((x) => (x.subcalendar_id === s.subcalendar_id
-        ? { ...x, decision: d.d, target_course_id: d.d === 'course' ? Number(d.course) : null,
-            target_staff_id: d.staff ? Number(d.staff) : null,
-            staff_role: d.d === 'course' && d.staff ? d.role : null }
-        : x)))
+      const out = await teamupLookAct(payload, auth)
+      await load(auth)
+      toast(out.still_needing_a_look
+        ? `${out.still_needing_a_look} left to look at`
+        : 'Nothing left to look at')
     } catch (e) { toast(e.message) } finally { setBusy(false) }
   }
+
+  const byReason = useMemo(() => {
+    const m = {}
+    for (const e of look.events || []) (m[e.reason] ||= []).push(e)
+    return m
+  }, [look])
 
   if (!LIVE) {
     return <div className="card" style={{ marginTop: 18 }}><div className="body">
@@ -152,26 +174,16 @@ export default function TeamupCapture({ currentUser }) {
     )
   }
 
-  const decided = subs.filter((s) => s.decision).length
-  const dirty = (s) => {
-    const d = draft[s.subcalendar_id] || {}
-    if (!s.decision) return !!d.d
-    if (s.decision !== d.d) return true
-    if (d.d === 'course') {
-      return Number(d.course || 0) !== Number(s.target_course_id || 0)
-        || Number(d.staff || 0) !== Number(s.target_staff_id || 0)
-        || (d.role || '') !== (s.staff_role || '')
-    }
-    if (d.d === 'staff') return Number(d.staff || 0) !== Number(s.target_staff_id || 0)
-    return false
-  }
   const when = (v) => (v ? String(v).slice(0, 10).split('-').reverse().join('/') : '—')
+  const n = (v) => Number(v || 0).toLocaleString('en-GB')
+  const left = (look.buckets || []).reduce((t, b) => t + Number(b.n || 0), 0)
 
   return (
     <>
+      {/* ── 1. the copy ──────────────────────────────────────────────────── */}
       <div className="card" style={{ marginTop: 14 }}>
         <h3>Copy of the Teamup calendar
-          {stats?.events ? <span className="tag">{Number(stats.events).toLocaleString('en-GB')} events held</span> : null}
+          {stats?.events ? <span className="tag">{n(stats.events)} events held</span> : null}
         </h3>
         <div className="body">
           <span className="muted small">
@@ -192,103 +204,179 @@ export default function TeamupCapture({ currentUser }) {
         </div>
       </div>
 
+      {/* ── 2. reading it ────────────────────────────────────────────────── */}
       <div className="card">
-        <h3>What each Teamup list is <span className="tag">{decided} of {subs.length} decided</span></h3>
+        <h3>What we made of it</h3>
         <div className="body">
           <span className="muted small">
-            Teamup keeps three different kinds of thing in one list of {subs.length}: the courses themselves, individual
-            people’s diaries, and time that is not teaching at all. Each one has its own place in this system, so say which
-            is which. The copy above is already safe either way — this only decides how it appears once it comes across.
+            Every event is read from its own title, the Candidates list inside it and the calendar it sits on, then put on
+            the calendar here. Nothing you have already answered below is overwritten. Press this again after checking
+            Teamup, or at any time — it updates rather than duplicates.
           </span>
-        </div>
-
-        <table>
-          <thead>
-            <tr><th>In Teamup</th><th>Events</th><th>What it is</th><th /></tr>
-          </thead>
-          <tbody>
-            {subs.length === 0 && (
-              <tr><td colSpan={4} className="empty">Nothing here yet — copy Teamup across first.</td></tr>
-            )}
-            {subs.map((s) => {
-              const d = draft[s.subcalendar_id] || { d: '' }
-              return (
-                <tr key={s.subcalendar_id}>
-                  <td>
-                    <b>{s.name}</b>
-                    {s.sample_titles?.length ? (
-                      <div className="muted small">e.g. {s.sample_titles.slice(0, 3).join(' · ')}</div>
-                    ) : null}
-                    {s.first_event ? <div className="muted small">{when(s.first_event)} – {when(s.last_event)}</div> : null}
-                  </td>
-                  <td className="muted small nowrap">{s.events ? s.events.toLocaleString('en-GB') : '—'}</td>
-                  <td>
-                    <select value={d.d} disabled={busy} onChange={(e) => setD(s.subcalendar_id, { d: e.target.value })}>
-                      <option value="">— choose —</option>
-                      {Object.entries(KIND).map(([k, [label, hint]]) => (
-                        <option key={k} value={k}>{label} — {hint}</option>
-                      ))}
-                    </select>
-                    {d.d === 'course' && (
-                      <>
-                        <div className="field" style={{ marginTop: 6 }}>
-                          <label className="fl">Which course</label>
-                          <select value={d.course} disabled={busy} onChange={(e) => setD(s.subcalendar_id, { course: e.target.value })}>
-                            <option value="">— choose —</option>
-                            {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-                          </select>
-                        </div>
-                        {/* "Keith Assessments" is the courses Keith assessed.
-                            Naming him here puts him on all 155 of them. */}
-                        <div className="field" style={{ marginTop: 6 }}>
-                          <label className="fl">Always somebody's? (optional)</label>
-                          <select value={d.staff || ''} disabled={busy}
-                            onChange={(e) => setD(s.subcalendar_id, { staff: e.target.value })}>
-                            <option value="">— nobody in particular —</option>
-                            {staff.map((x) => <option key={x.staff_id} value={x.staff_id}>{x.name}</option>)}
-                          </select>
-                        </div>
-                        {d.staff && (
-                          <div className="field" style={{ marginTop: 6 }}>
-                            <label className="fl">and they…</label>
-                            <select value={d.role || ''} disabled={busy}
-                              onChange={(e) => setD(s.subcalendar_id, { role: e.target.value })}>
-                              <option value="">— choose —</option>
-                              {ROLE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                            </select>
-                          </div>
-                        )}
-                      </>
-                    )}
-                    {d.d === 'staff' && (
-                      <div className="field" style={{ marginTop: 6 }}>
-                        <label className="fl">Whose diary</label>
-                        <select value={d.staff} disabled={busy} onChange={(e) => setD(s.subcalendar_id, { staff: e.target.value })}>
-                          <option value="">— choose —</option>
-                          {staff.map((x) => <option key={x.staff_id} value={x.staff_id}>{x.name}{x.leftOn ? ' (past staff)' : ''}</option>)}
-                        </select>
-                      </div>
-                    )}
-                  </td>
-                  <td className="nowrap">
-                    {dirty(s)
-                      ? <button className="btn sm" disabled={busy} onClick={() => confirm(s)}>Confirm</button>
-                      : s.decision ? <span className="b pass">Saved</span> : <span className="b pend">To do</span>}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-
-        <div className="body">
-          <span className="muted small">
-            Where the name made it obvious the box is already set — press Confirm to agree. The three called “Spare”
-            deliberately arrive with nothing chosen: they are named spare but are in daily use for something else, which is
-            exactly the sort of thing worth a person’s eye rather than a computer’s guess.
-          </span>
+          {read && (
+            <div className="inrow" style={{ marginTop: 10, gap: 8, flexWrap: 'wrap' }}>
+              <span className="tag">{n(read.sessions)} courses</span>
+              <span className="tag">{n(read.holidays)} holidays</span>
+              <span className="tag">{n(read.engagements)} other days</span>
+              <span className="tag">{n(read.days_the_centre_was_shut)} days shut</span>
+              <span className="tag">{n(read.sessions_with_an_assessor)} with an assessor</span>
+              {read.withdrawn_because_reclassified
+                ? <span className="tag">{n(read.withdrawn_because_reclassified)} withdrawn</span> : null}
+            </div>
+          )}
+          <div className="inrow" style={{ marginTop: 10 }}>
+            <button className="btn" disabled={reading} onClick={reread}>
+              {reading ? 'Reading…' : 'Read it again and put it on the calendar'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* ── 3. what it could not settle ──────────────────────────────────── */}
+      <div className="card">
+        <h3>Worth a look {left ? <span className="tag">{n(left)} events</span> : <span className="b pass">All clear</span>}</h3>
+        <div className="body">
+          <span className="muted small">
+            These are grouped by the reason we could not settle them, because the reason is the decision. If a whole group
+            is right as it stands, say so once and it goes away — the events stay exactly where they are on the calendar,
+            they just stop being asked about. Anything you answer here is kept even if the calendar is read again.
+          </span>
+        </div>
+
+        {left === 0 && (
+          <div className="body"><span className="muted small">
+            Nothing outstanding. Everything captured from Teamup is on the calendar.
+          </span></div>
+        )}
+
+        {(look.buckets || []).map((b) => {
+          const meta = REASON[b.reason] || { title: b.reason, blurb: '', keep: 'These are all right' }
+          const rows = byReason[b.reason] || []
+          const isOpen = open === b.reason
+          return (
+            <div key={b.reason} className="body" style={{ borderTop: '1px solid var(--line, #e5e5e5)' }}>
+              <div className="inrow" style={{ justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <b>{meta.title}</b> <span className="tag">{n(b.n)}</span>
+                  <div className="muted small" style={{ marginTop: 4 }}>{meta.blurb}</div>
+                </div>
+                <div className="inrow nowrap" style={{ gap: 6 }}>
+                  <button className="btn sm ghost" onClick={() => setOpen(isOpen ? '' : b.reason)}>
+                    {isOpen ? 'Hide them' : 'Show them'}
+                  </button>
+                  <button className="btn sm" disabled={busy}
+                    onClick={() => act({ action: 'keep', reason: b.reason })}>
+                    {meta.keep}
+                  </button>
+                </div>
+              </div>
+
+              {isOpen && (
+                <table style={{ marginTop: 10 }}>
+                  <thead>
+                    <tr><th>What it says in Teamup</th><th>When</th><th>Filed as</th><th>Or say</th></tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((e) => (
+                      <EventRow key={e.event_id} e={e} look={look} busy={busy} act={act} when={when} />
+                    ))}
+                    {rows.length === 0 && (
+                      <tr><td colSpan={4} className="empty">Nothing left in this group.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </>
+  )
+}
+
+// One event, and the three things a person can say about it that a computer
+// could not: which course it was, whose day it was, or that it is not the kind
+// of day we took it for.
+function EventRow({ e, look, busy, act, when }) {
+  const [course, setCourse] = useState('')
+  const [person, setPerson] = useState('')
+  const [kind, setKind] = useState('')
+  const [where, setWhere] = useState('')
+
+  return (
+    <tr>
+      <td>
+        <b>{e.title}</b>
+        {e.calendars ? <div className="muted small">{e.calendars}</div> : null}
+        {e.delegates ? <div className="muted small">{e.delegates} named in Candidates</div> : null}
+        {e.notes && e.notes.trim() ? <div className="muted small">{e.notes.trim().slice(0, 140)}</div> : null}
+      </td>
+      <td className="muted small nowrap">
+        {when(e.on)}{e.until ? <> – {when(e.until)}</> : null}
+      </td>
+      <td className="muted small">
+        {e.course || (e.kind === 'holiday' ? 'Time off' : e.kind === 'closed' ? 'Centre shut' : 'Not a course')}
+        {e.person ? <div>{e.person}</div> : null}
+        {e.why ? <div style={{ marginTop: 2 }}>{e.why}</div> : null}
+      </td>
+      <td style={{ minWidth: 230 }}>
+        <div className="field">
+          <label className="fl">It was this course</label>
+          <div className="inrow" style={{ gap: 6 }}>
+            <select value={course} disabled={busy} onChange={(ev) => setCourse(ev.target.value)}>
+              <option value="">— choose —</option>
+              {(look.courses || []).map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+            </select>
+            {course && (
+              <button className="btn sm" disabled={busy}
+                onClick={() => act({ action: 'course', eventId: e.event_id, courseId: Number(course) })}>Save</button>
+            )}
+          </div>
+        </div>
+
+        <div className="field" style={{ marginTop: 6 }}>
+          <label className="fl">It was this person's day</label>
+          <div className="inrow" style={{ gap: 6 }}>
+            <select value={person} disabled={busy} onChange={(ev) => setPerson(ev.target.value)}>
+              <option value="">— choose —</option>
+              {(look.people || []).map((p) => <option key={p.staff_id} value={p.staff_id}>{p.name}</option>)}
+            </select>
+            {person && (
+              <button className="btn sm" disabled={busy}
+                onClick={() => act({ action: 'person', eventId: e.event_id, staffId: Number(person) })}>Save</button>
+            )}
+          </div>
+        </div>
+
+        <div className="field" style={{ marginTop: 6 }}>
+          <label className="fl">It is not that kind of day</label>
+          <div className="inrow" style={{ gap: 6 }}>
+            <select value={kind} disabled={busy} onChange={(ev) => { setKind(ev.target.value); setWhere('') }}>
+              <option value="">— choose —</option>
+              {KIND_OF_DAY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+            {kind === 'whereabouts' && (
+              <select value={where} disabled={busy} onChange={(ev) => setWhere(ev.target.value)}>
+                <option value="">— where —</option>
+                {WHERE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            )}
+            {kind && (kind !== 'whereabouts' || where) && (
+              <button className="btn sm" disabled={busy}
+                onClick={() => act({
+                  action: 'kind', eventId: e.event_id, kind,
+                  where: kind === 'whereabouts' ? where : null,
+                  staffId: person ? Number(person) : null,
+                })}>Save</button>
+            )}
+          </div>
+        </div>
+
+        <button className="btn sm ghost" style={{ marginTop: 8 }} disabled={busy}
+          onClick={() => act({ action: 'keep', eventId: e.event_id })}>
+          This one is right
+        </button>
+      </td>
+    </tr>
   )
 }
