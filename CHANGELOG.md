@@ -4,6 +4,78 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-06 (afternoon) — v1.40.0 Teamup capture
+
+### The problem, stated plainly
+
+`session.teamup_event_id` was null on every row. Nothing had ever been read out
+of Teamup, the real forward schedule existed only there, and the subscription
+lapses in October. That is a single point of failure with a date on it.
+
+### Capture is separated from interpretation, on purpose
+
+`teamup_event` and `teamup_subcalendar` hold Teamup verbatim — every event, the
+raw JSON kept alongside the parsed suggestions. Once a pull has run, October
+stops mattering. Turning those events into sessions, holidays and engagements
+is a later decision made against data already in hand.
+
+Two properties worth keeping:
+
+- **Nothing is ever deleted.** An event that disappears from Teamup is marked
+  `gone_from_teamup`, not removed. A month deleted by accident at their end
+  survives here — which is the whole point of taking a copy.
+- **`raw` is kept.** A parser written today against 1,235 events will be wrong
+  about some of them and the source will be gone before anyone notices. A better
+  parser can be run later without Teamup.
+
+### The edge function
+
+`supabase/functions/teamup/` — `verify_jwt=false`, same three-proof
+`requireAdmin` as `sage`. Idempotent: events are keyed on Teamup's own id, so a
+re-pull updates rather than duplicates, and it is designed to be run again on
+switchover day.
+
+**Read-only by construction.** The calendar key is a read-only sharing link
+created on the Teamup Sharing page; `teamup.ts` has no write verb in it. That is
+what makes running it safe while SGAS is still working in Teamup daily.
+
+### Keys in Vault, not env
+
+`teamup_connection` holds two `vault.secrets` ids; `app_teamup_dispatch()` is
+service-role-only and is what the function calls. Env vars would have meant a
+trip to the Supabase dashboard before anything could run, and Vault is already
+where the Sage credentials live. `TEAMUP_API_KEY` / `TEAMUP_CALENDAR_KEY` env is
+still honoured if ever set.
+
+### The title parser
+
+Titles are a private language: `EDINA Re T&A`, `Clarke Energy x 6 + 2`,
+`OFTEC T&A 4 Spaces`, `(6)DB-MLP Week 1`, `KR INEOS`, `SJ-Office AM +WFH PM`.
+`parseTitle` pulls out headcount (three spellings, and `x 6 + 2` is eight),
+kind, staff initials, course, category code and customer. Initials are derived
+from the live staff list, and a clash removes the initials from both people
+rather than guessing. Customer names are matched against `company` **and** the
+employers `import_mapping` is about to create, which is how `EDINA Re T&A` finds
+EDINA before EDINA exists. Everything is a suggestion carried on the event, never
+a silent fact — same rule as the import worklist.
+
+### What the data actually showed
+
+- **Teamup is not an archive.** 2022: 21 events, then nothing until 2024: 152,
+  2025: 675, 2026: 378, 2027: 9. 2019, 2020, 2021 and 2023 are empty. The Access
+  file remains the only history.
+- **The three "Spare" sub-calendars are not spare** — 116, 83 and 64 events
+  (Office, SJ Hols, SG Office). Anything treating them as empty drops 263
+  events. `proposeKind` deliberately returns null for them so a person decides.
+- 25 sub-calendars mixing courses, per-person diaries and non-teaching time,
+  which is why the mapping screen exists at all.
+
+### Also
+
+A raw JSON copy of everything (per year, plus the sub-calendar list) was written
+to `Sgas project/teamup_backup_2026-09-06/` — outside the repo, since it is
+client data. Belt and braces on the day the link was first obtained.
+
 ## 2026-09-06 — v1.39.0 The import worklist can be acted on
 
 ### The decisions were never real

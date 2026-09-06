@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.40.0', build: 186, date: '6 Sep 2026',
+    title: 'A copy of the Teamup calendar, kept here',
+    notes: [
+      'Progress \u2192 Teamup will now take a copy of the whole Teamup calendar and keep it in this system \u2014 every event, exactly as it stands. That matters because the Teamup subscription ends in October and nothing had ever been copied out of it, so the forward schedule only existed in one place.',
+      'It only ever READS from Teamup. It cannot change, move or delete anything at that end, so it is safe to run today while everyone is still working in there, and again on the day you switch over. Run it as often as you like: it updates what has changed rather than making second copies, and anything deleted in Teamup is marked here rather than quietly lost.',
+      'Underneath it, the same screen asks what each of the 25 Teamup lists actually is \u2014 a course, one person\u2019s diary, holidays, or other work like meetings and site visits \u2014 because this system keeps those in different places. Where the name made it obvious the answer is already filled in; the three called \u201cSpare\u201d are left blank on purpose, because they are named spare but are in daily use for something else.',
+    ],
+  },
+  {
     v: '1.39.0', build: 185, date: '6 Sep 2026',
     title: 'The import worklist can now be acted on',
     notes: [

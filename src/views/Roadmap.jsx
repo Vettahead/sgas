@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import ImportMapping from './ImportMapping.jsx'
+import TeamupCapture from './TeamupCapture.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PROGRESS / ROADMAP — single source of truth for "where we are".
@@ -87,6 +88,7 @@ const ITEMS = [
   { t: 'Delegates get emailed', s: 'review', d: 'BUILT 29 Aug 2026. Every email the system sent until now went to staff. A delegate is now told the moment they are given dates \u2014 the course, the dates, what they are taking, and to bring photographic ID \u2014 and told again if the course moves, if they are moved to another one, or if their place is released. All from bookings@. The employer is copied when that company is set to receive paperwork. A booking still sitting on the waiting list with no dates gets nothing, because \u201cwe will let you know when\u201d causes phone calls rather than preventing them. Wording editable like the rest.' },
   { t: 'Tidy-ups', s: 'build', d: 'Remove NYC from the old attendance list; confirm the double-click-to-delete guard is live on the calendar; confirm the Courses catalogue saves on change — Simon lost about 20 minutes of tidy-up edits last time and it was never established whether they saved.' },
   { t: 'Assessment only — the third booking tag', s: 'build', d: 'A booking can say NEW or RE. It cannot yet say the delegate is only here for the assessment — trained somewhere else, or time-served, and buying the assessment rather than the course days. That is a real and common case, and today it has to be explained in a note. It becomes a third tag on the booking, kept separate from NEW/RE rather than folded into it, because they answer different questions: NEW or RE is which ticket it is, assessment-only is what they bought, and a first-timer can be assessment-only just as easily as a renewal. It carries through to the price and to how many days they are down for on the calendar. The database was already prepared for it; what is missing is the choice on the Book screen and everything downstream of it.' },
+  { t: 'Teamup calendar copied across', s: 'review', d: 'BUILT 6 Sep 2026. The working schedule only ever existed in Teamup, nothing had ever been copied out of it, and that subscription ends in October \u2014 so the whole forward plan sat in one place with a date on it. There is now a Teamup tab on this page that copies the lot across and keeps it here: 1,235 events, every one word for word, including the original Teamup record so nothing is lost to a wrong reading. It only reads. It cannot change or delete anything in Teamup, which is why it is safe to run now while everyone is still using it, and again on the day you switch. Two things turned up on the way. Teamup is not an archive \u2014 it holds 2022 and then nothing until 2024, so the old Access file is still the only history there is. And the three lists called \u201cSpare\u201d are not spare: they hold 263 events between them, office days and time off. Anything that treated them as empty would have dropped every one. Still to do: turning the copied events into courses, holidays and diary entries on the calendar \u2014 which needs no hurry now the copy is safe.' },
 
   // ── Waiting on Chris ─────────────────────────────────────────────────────────
   { t: 'Customer data locked down', s: 'review', d: 'DONE 30 Aug 2026. The most important fix on the project so far, and nothing on screen looks different. The key this website uses to reach the database is published inside every page \u2014 that is normal and unavoidable \u2014 but the database had been set up to trust it completely, so anyone who knew where to look could have read every delegate\u2019s name, date of birth, National Insurance number and address, and changed them. The database now tells a signed-in member of staff apart from somebody merely holding that key, and answers only the first. Checked from both sides after the change: as the public key every table AND the reporting view refuse to answer; signed in, everything is there as normal. One thing you will notice: signing in now lasts a working day instead of forever \u2014 come back the next morning and it asks you to sign in again and says why, rather than showing empty pages.' },
@@ -201,8 +203,22 @@ export default function Roadmap({ currentUser }) {
         <div className="seg-tabs">
           <button className="btn sm ghost" onClick={() => setTab('roadmap')}>🗺 Roadmap</button>
           <button className="btn sm" onClick={() => setTab('import')}>📥 Data import</button>
+          <button className="btn sm ghost" onClick={() => setTab('teamup')}>📅 Teamup</button>
         </div>
         <ImportMapping currentUser={currentUser} />
+      </div>
+    )
+  }
+
+  if (tab === 'teamup') {
+    return (
+      <div className="rm">
+        <div className="seg-tabs">
+          <button className="btn sm ghost" onClick={() => setTab('roadmap')}>🗺 Roadmap</button>
+          <button className="btn sm ghost" onClick={() => setTab('import')}>📥 Data import</button>
+          <button className="btn sm" onClick={() => setTab('teamup')}>📅 Teamup</button>
+        </div>
+        <TeamupCapture currentUser={currentUser} />
       </div>
     )
   }
@@ -212,6 +228,7 @@ export default function Roadmap({ currentUser }) {
       <div className="seg-tabs">
         <button className="btn sm" onClick={() => setTab('roadmap')}>🗺 Roadmap</button>
         <button className="btn sm ghost" onClick={() => setTab('import')}>📥 Data import</button>
+        <button className="btn sm ghost" onClick={() => setTab('teamup')}>📅 Teamup</button>
       </div>
       <div className="rm-head card">
         <div className="rm-progress">

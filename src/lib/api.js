@@ -2511,3 +2511,57 @@ export async function syncSage({ since = null } = {}, adminAuth) {
   }
   return callSage({ action: 'sync', since }, adminAuth)
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TEAMUP — capture, and what each sub-calendar means here.
+//
+// Their real working schedule lives in Teamup and that subscription lapses in
+// October. The pull copies it into teamup_event exactly as it stands; deciding
+// what each stream becomes here is a separate, later job, done against data
+// already safely in hand. See supabase/functions/teamup/index.ts.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export async function teamupSubcalendars(adminAuth) {
+  if (!LIVE) return []
+  const { data, error } = await supabase.rpc('app_teamup_subcalendars', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || []
+}
+
+export async function teamupStats(adminAuth) {
+  if (!LIVE) return { events: 0 }
+  const { data, error } = await supabase.rpc('app_teamup_stats', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || { events: 0 }
+}
+
+export async function teamupMapSave({ subcalendarId, decision, courseId = null, staffId = null }, adminAuth) {
+  if (!LIVE) return { ok: true }
+  const { error } = await supabase.rpc('app_teamup_map_save', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    p_subcalendar_id: subcalendarId, p_decision: decision,
+    p_course_id: courseId, p_staff_id: staffId,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return { ok: true }
+}
+
+// Runs the copy. Safe to press as often as you like — events are keyed on
+// Teamup's own id, so a re-pull updates rather than duplicates, and anything
+// that has vanished at their end is marked rather than deleted.
+export async function teamupPull(adminAuth) {
+  if (!LIVE) return { events_seen: 0 }
+  const { data, error } = await supabase.functions.invoke('teamup', {
+    body: {
+      admin: adminAuth?.username ?? '', admin_pw: adminAuth?.password ?? '',
+      action: 'pull',
+    },
+  })
+  if (error) throw await functionError(error, 'Teamup did not answer')
+  if (!data || !data.ok) throw new Error((data && data.error) || 'Teamup did not answer')
+  return data
+}
