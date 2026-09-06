@@ -35,8 +35,10 @@ export const store = {
     { assessor_id: 5, name: 'D Okeke', assigned_room: 'Bay Block C', email: 'd.okeke@sgas.test', teamup_subcalendar: 'sub_dokeke', is_active: true },
   ],
   courses: [
-    { course_id: 1, name: 'Domestic Gas ACS Initial', scheme: 'ACS Domestic', price: 1450, teamup_designator: 'ACS-DOM', color: '#0a5ad6' },
-    { course_id: 2, name: 'Domestic Gas ACS Reassessment', scheme: 'ACS Domestic', price: 950, teamup_designator: 'ACS-DOM-RE', color: '#0a5ad6' },
+    // One course. Whether a delegate is sitting it for the first time or
+    // re-sitting is a fact about THEM — booking_category.is_reassessment — and
+    // a domestic day routinely holds both.
+    { course_id: 1, name: 'Domestic Gas ACS', scheme: 'ACS Domestic', price: 1450, teamup_designator: 'ACS-DOM', color: '#0a5ad6' },
     { course_id: 3, name: 'OFTEC Oil', scheme: 'OFTEC', price: 780, teamup_designator: 'OFTEC', color: '#b7791f' },
     { course_id: 4, name: 'Commercial Gas ACS', scheme: 'ACS Commercial', price: 1650, teamup_designator: 'ACS-COM', color: '#1a8a4b' },
     { course_id: 5, name: 'Air Source Heat Pump L3', scheme: 'Renewables', price: 1100, teamup_designator: 'ASHP', color: '#0a7d63' },

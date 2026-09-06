@@ -19,9 +19,10 @@
 
 export const RELEASES = [
   {
-    v: '1.47.0', build: 206, date: '6 Sep 2026',
-    title: 'Who trained and who assessed, and the past is locked',
+    v: '1.47.0', build: 207, date: '6 Sep 2026',
+    title: 'Who trained and who assessed, the past is locked, and one Domestic course',
     notes: [
+      'Domestic Gas ACS is one course again. Splitting it into Initial and Reassessment was wrong: whether somebody is sitting a qualification for the first time or re-sitting it is a fact about that person on that day, it is already recorded against them per qualification, and a domestic day routinely holds both. Making it a property of the course forced one answer onto a mixed room \u2014 and produced the daft situation of \u201ca mix of re-sits and first-timers\u201d being something you had to come and resolve. There was nothing to resolve.',
       'The two-day OFTEC course on 1 September had nine candidates listed, nobody on it, and no trainer or assessor. Two separate faults, both now fixed.',
       'Every named person was being called an assessor, so where a run had two people the second was thrown away. A day only states a role when it says so \u2014 an \u201cAssessments\u201d calendar, \u201cPhil Training\u201d, the word in the title, or T&A meaning both. Otherwise the day names somebody and says nothing about what they did, and the course settles it: where one person has a definite role and the other has none, the other takes the empty slot. So \u201cOFTEC SG\u201d then \u201cDB assist\u201d on Denis Assessments reads as Simon training and Denis assessing, which is how you read it.',
       'And the delegates were missing because the old database\u2019s last assessment is 27 August. That course ran on 1 September, so there is nothing to link to and never will be \u2014 and creating bookings for courses \u201cstill to come\u201d started from today, which left the last fortnight of August and the first week of September orphaned. After the day the old database stops, Teamup is the record, and its candidate list is what a booking gets built from.',
