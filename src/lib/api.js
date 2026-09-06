@@ -2557,12 +2557,15 @@ export async function teamupStats(adminAuth) {
   return data || { events: 0 }
 }
 
-export async function teamupMapSave({ subcalendarId, decision, courseId = null, staffId = null }, adminAuth) {
+// `staffRole` matters only on a course stream: "Keith Assessments" is the
+// courses Keith ASSESSED, not Keith's diary, so the person and the slot they
+// fill travel together.
+export async function teamupMapSave({ subcalendarId, decision, courseId = null, staffId = null, staffRole = null }, adminAuth) {
   if (!LIVE) return { ok: true }
   const { error } = await supabase.rpc('app_teamup_map_save', {
     p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
     p_subcalendar_id: subcalendarId, p_decision: decision,
-    p_course_id: courseId, p_staff_id: staffId,
+    p_course_id: courseId, p_staff_id: staffId, p_staff_role: staffRole,
   })
   if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
   return { ok: true }

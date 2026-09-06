@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.43.0', build: 189, date: '6 Sep 2026',
+    title: 'Teamup: reading it properly',
+    notes: [
+      'The first copy of Teamup read it wrong in one important way. A calendar called \u201cKeith Assessments\u201d was treated as Keith\u2019s own diary, when it is the courses Keith ASSESSED. Checked against the imported records: of the 156 dates on that calendar, 110 have an assessment naming Keith as the assessor. Same for Denis, and for Phil Training. Treating them as diaries would have thrown the assessor away on nearly three hundred days.',
+      'So a Teamup list can now say both what it is AND whose it is \u2014 \u201ccourses, and Keith assessed them\u201d \u2014 and everything brought across starts with the right person already in the right slot instead of three hundred blanks.',
+      'The bigger correction: it was only reading the event TITLES. The notes are where the real content is. 931 events carry notes, and the notes are a delegate list \u2014 names, the qualifications each person took, and an R or an I against them for reassessment or initial. That last one is the single thing the old Access database never recorded, written down against 1,031 people over two years.',
+      'Press \u201cCheck Teamup again\u201d on Progress \u2192 Teamup to re-read everything with all of that applied. It updates what is already there rather than making second copies, so it is safe to press whenever.',
+    ],
+  },
+  {
     v: '1.42.0', build: 188, date: '6 Sep 2026',
     title: 'The old database is in',
     notes: [

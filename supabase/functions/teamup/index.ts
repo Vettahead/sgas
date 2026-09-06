@@ -31,7 +31,7 @@
 // here, in code, on purpose.
 // ─────────────────────────────────────────────────────────────────────────────
 import { createClient } from 'jsr:@supabase/supabase-js@2'
-import { subcalendars, eventsForYear, parseTitle, proposeKind, type Lookups } from './teamup.ts'
+import { subcalendars, eventsForYear, parseTitle, parseNotes, proposeStream, type Lookups } from './teamup.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
@@ -116,8 +116,17 @@ async function lookups(): Promise<Lookups> {
     db.from('import_mapping').select('target_code').eq('kind', 'employer').eq('decision', 'create'),
   ])
   const staffByInitials: Record<string, number> = {}
+  const staffByName: Record<string, number> = {}
   for (const s of staff.data ?? []) {
     const parts = String(s.name || '').trim().split(/\s+/).filter(Boolean)
+    if (!parts.length) continue
+    staffByName[parts.join(' ').toLowerCase()] = s.assessor_id
+    // First name alone, because the sub-calendars say "Keith Assessments", not
+    // "Keith Rimmer Assessments". Dropped entirely on a clash — two Keiths mean
+    // the first name proves nothing.
+    const first = parts[0].toLowerCase()
+    if (first in staffByName && staffByName[first] !== s.assessor_id) delete staffByName[first]
+    else staffByName[first] = s.assessor_id
     if (parts.length < 2) continue
     const ini = (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
     // A clash means the initials prove nothing, so neither person gets them.
@@ -132,6 +141,7 @@ async function lookups(): Promise<Lookups> {
   ].filter((n) => n.length > 2)
   return {
     staffByInitials,
+    staffByName,
     courseNames: (courses.data ?? []).map((c) => String(c.name || '')).filter(Boolean),
     categoryCodes: (cats.data ?? []).map((c) => String(c.code || '')).filter(Boolean),
     employerNames: [...new Set(employerNames)],
@@ -149,10 +159,13 @@ async function pull(fromYear: number, toYear: number) {
     { onConflict: 'subcalendar_id' },
   )
   // A suggestion is only ever offered where nobody has answered yet, so this
-  // can never talk over a decision somebody already made.
+  // can never talk over a decision somebody already made. It now carries the
+  // person and the slot they fill as well as the kind, because "<name>
+  // Assessments" is a course stream with an owner, not that person's diary.
   for (const s of subs) {
+    const p = proposeStream(s.name, look.staffByName)
     await db.from('teamup_subcalendar')
-      .update({ proposed: proposeKind(s.name) })
+      .update({ proposed: p.kind ?? null, proposed_role: p.role ?? null, proposed_staff: p.staff ?? null })
       .eq('subcalendar_id', s.id).is('decision', null)
   }
 
@@ -174,7 +187,14 @@ async function pull(fromYear: number, toYear: number) {
       who: e.who ?? null,
       location: e.location ?? null,
       notes: e.notes ?? null,
-      parsed: parseTitle(e.title, look),
+      // Title AND notes. The title says what the day was; the notes say who was
+      // on it and whether each qualification was an initial or a re-sit — which
+      // the Access file never recorded at all.
+      parsed: (() => {
+        const t = parseTitle(e.title, look)
+        const delegates = parseNotes(e.notes, look.categoryCodes)
+        return delegates.length ? { ...t, delegates } : t
+      })(),
       raw: e,
       last_seen: now,
     }))

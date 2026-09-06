@@ -128,6 +128,9 @@ function longestNameIn(t: string, names: string[]): string | null {
 
 export type Lookups = {
   staffByInitials: Record<string, number>
+  // Lower-cased first names AND full names -> staff id, so "keith assessments"
+  // and "keith rimmer assessments" both find the same man.
+  staffByName: Record<string, number>
   courseNames: string[]
   categoryCodes: string[]
   employerNames: string[]
@@ -147,16 +150,122 @@ export function parseTitle(title: string | undefined, look: Lookups) {
 }
 
 // ── what a sub-calendar probably is ──────────────────────────────────────────
-// Teamup keeps three different kinds of thing in one list of 25, and the app
-// has a different table for each. This is only ever a suggestion; the Spare
-// calendars in particular deliberately get NO suggestion, because they are
-// named "spare" and are in daily use for something else entirely, which is
-// exactly the case a person should look at rather than a computer decide.
-export function proposeKind(name: string): string | null {
-  const n = name.toLowerCase()
-  if (/^spare/.test(n)) return null
-  if (/hol|not available/.test(n)) return 'holiday'
-  if (/meeting|maintenance|on ?site|consultancy/.test(n)) return 'engagement'
-  if (/assessments?$|training$|^simon|wfh|short office/.test(n)) return 'staff'
-  return 'course'
+// Teamup keeps FOUR different kinds of thing in one list of 25, not three, and
+// the fourth is the one they use most.
+//
+// "KEITH ASSESSMENTS" IS NOT KEITH'S DIARY. It is the courses Keith assessed —
+// a course stream with a person permanently in a role on it. Chris said so, and
+// the imported Access data agrees: of the 156 dates on that stream, 110 have an
+// assessment record naming K Rimmer as assessor; of the 123 with any record at
+// all, 89% are his. "Denis Assessments" (157 events) and "Phil Training" (48)
+// are the same shape. The first version of this filed all three as personal
+// diaries, which would have thrown away the assessor on 366 sessions.
+//
+// The word alone is not enough, either: "WRAS / HWSS / L8 - Full Training" ends
+// in "Training" and belongs to nobody. So a person is only attached when the
+// rest of the name actually matches a member of staff.
+// The calendar says "Phil Training"; the staff list says Philip Rossall. People
+// write the name they use, not the one on the contract, so an exact match is
+// not enough. A shortening is accepted only when it is UNAMBIGUOUS — if two
+// people could be "Chris", the abbreviation proves nothing and nobody is
+// attached. Three characters minimum, because "S" is not a name.
+function whoIs(word: string, staffByName: Record<string, number>): number | undefined {
+  if (staffByName[word]) return staffByName[word]
+  if (word.length < 3) return undefined
+  const hits = new Set<number>()
+  for (const [name, id] of Object.entries(staffByName)) {
+    const first = name.split(' ')[0]
+    if (first.startsWith(word) || word.startsWith(first)) hits.add(id)
+  }
+  return hits.size === 1 ? [...hits][0] : undefined
+}
+
+export function proposeStream(name: string, staffByName: Record<string, number>) {
+  const n = name.toLowerCase().trim()
+
+  // Named "spare" and in daily use for something else — 263 events across three
+  // of them. Exactly the case a person should look at rather than a computer
+  // decide, so it deliberately gets no suggestion at all.
+  if (/^spare/.test(n)) return {}
+
+  if (/hol|not available/.test(n)) return { kind: 'holiday' }
+  if (/meeting|maintenance|on ?site|consultancy|wfh|short office/.test(n)) return { kind: 'engagement' }
+
+  // "<person> Assessments" / "<person> Training" — a course stream with an
+  // owner. The trailing word says which slot they fill.
+  const m = n.match(/^(.+?)\s+(assessments?|training)$/)
+  if (m) {
+    const id = whoIs(m[1].trim(), staffByName)
+    if (id) return { kind: 'course', staff: id, role: m[2].startsWith('assess') ? 'assessor' : 'trainer' }
+    // No such person: it is a course stream that happens to end in that word.
+    return { kind: 'course' }
+  }
+
+  // A bare first name is a personal stream — though in practice these turn out
+  // mixed, which is why the title parser gets the final say per event.
+  const own = whoIs(n, staffByName)
+  if (own) return { kind: 'staff', staff: own }
+
+  return { kind: 'course' }
+}
+
+// ── the notes are where the real content is ─────────────────────────────────
+// THIS IS THE CORRECTION THAT MATTERED. The first parser read only titles, and
+// titles are the thin half: across 1,235 events they yielded a course on 26 and
+// an employer on 32. Meanwhile 931 events carry NOTES, and the notes are a
+// delegate list:
+//
+//   "Martin Smith COCN1,CGFE1, ICPN1 R + BMP1 I  Kieran McCormack Wk. 2 ..."
+//   "Nick Pearn - COCN1, BMP1 & CGFE1 R  Lewis Stone - COCN1, BMP1 & CGFE1 R"
+//
+// Names, the qualifications each person took, and an R or an I against them —
+// REASSESSMENT or INITIAL, per qualification, written down for two years. That
+// is the one thing the Access file never recorded, and 390 notes carry an R,
+// 347 an I. Reading titles for it found exactly one.
+//
+// Everything here is a SUGGESTION carried on the event. Notes are handwriting,
+// not a form: no delegate is created from this and no qualification awarded.
+export type NotedDelegate = { name: string; quals: string[]; kind?: 'reassessment' | 'initial' }
+
+export function parseNotes(notes: string | undefined, codes: string[]): NotedDelegate[] {
+  const text = String(notes || '')
+    .replace(/<[^>]+>/g, ' ')          // Teamup stores notes as HTML
+    .replace(/&amp;/g, '&').replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ').trim()
+  if (!text) return []
+
+  // A delegate starts at a Forename Surname pair. Anything between one name and
+  // the next belongs to that person.
+  const NAME = /\b([A-Z][a-z]+(?:'[A-Z]?[a-z]+)?)\s+([A-Z][a-z]+(?:[-'][A-Z]?[a-z]+)?)\b/g
+  const starts: { at: number; name: string }[] = []
+  for (let m = NAME.exec(text); m; m = NAME.exec(text)) {
+    starts.push({ at: m.index, name: `${m[1]} ${m[2]}` })
+  }
+  if (!starts.length) return []
+
+  const byLength = [...codes].sort((a, b) => b.length - a.length)
+  const out: NotedDelegate[] = []
+  for (let i = 0; i < starts.length; i++) {
+    const seg = text.slice(starts[i].at + starts[i].name.length,
+                           i + 1 < starts.length ? starts[i + 1].at : undefined)
+    const quals: string[] = []
+    for (const c of byLength) {
+      if (quals.some((q) => q.includes(c))) continue     // longest wins: CCLP1LAV before CCLP1
+      if (new RegExp(`(^|[^A-Za-z0-9])${c}([^A-Za-z0-9]|$)`, 'i').test(seg)) quals.push(c)
+    }
+    // A standalone R or I after the qualifications. Only counted when the
+    // segment actually names a qualification — a lone "I" in prose is a word.
+    let kind: NotedDelegate['kind'] | undefined
+    if (quals.length) {
+      if (/(^|[^A-Za-z])R([^A-Za-z]|$)/.test(seg)) kind = 'reassessment'
+      else if (/(^|[^A-Za-z])I([^A-Za-z]|$)/.test(seg)) kind = 'initial'
+    }
+    // ONLY where the note actually says what they took. Two capitalised words
+    // is a weak signal on its own — "Express Certs", "Bank Holiday" and "Certs
+    // on Server" all look like people. Requiring a qualification takes 3,988
+    // name-shaped strings down to 1,738 real ones, and the ones dropped carried
+    // nothing worth keeping anyway.
+    if (quals.length) out.push({ name: starts[i].name, quals, kind })
+  }
+  return out
 }

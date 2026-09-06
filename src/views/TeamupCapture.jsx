@@ -36,6 +36,11 @@ const KIND = {
   ignore:     ['Leave out', 'Nothing here needs bringing across.'],
 }
 
+// A course stream can belong to somebody. "Keith Assessments" is the courses
+// Keith assessed — every session built from it starts with him already in the
+// assessor slot, rather than 155 blanks to fill in by hand.
+const ROLE = [['assessor', 'assessed them'], ['trainer', 'taught them'], ['verifier', 'verified them']]
+
 export default function TeamupCapture({ currentUser }) {
   const [auth, setAuth] = useState(null)
   const [pw, setPw] = useState('')
@@ -52,10 +57,14 @@ export default function TeamupCapture({ currentUser }) {
   const [result, setResult] = useState('')
 
   function seed(s) {
-    if (s.decision === 'course') return { d: 'course', course: s.target_course_id || '', staff: '' }
-    if (s.decision === 'staff') return { d: 'staff', course: '', staff: s.target_staff_id || '' }
-    if (s.decision) return { d: s.decision, course: '', staff: '' }
-    return { d: s.proposed || '', course: '', staff: '' }
+    if (s.decision === 'course') {
+      return { d: 'course', course: s.target_course_id || '', staff: s.target_staff_id || '', role: s.staff_role || '' }
+    }
+    if (s.decision === 'staff') return { d: 'staff', course: '', staff: s.target_staff_id || '', role: '' }
+    if (s.decision) return { d: s.decision, course: '', staff: '', role: '' }
+    // Nobody has answered yet, so start from the suggestion — including the
+    // person and their slot where the stream's name named one.
+    return { d: s.proposed || '', course: '', staff: s.proposed_staff || '', role: s.proposed_role || '' }
   }
 
   async function load(a) {
@@ -104,16 +113,19 @@ export default function TeamupCapture({ currentUser }) {
     if (!d.d) { toast('Choose what it is first'); return }
     if (d.d === 'course' && !d.course) { toast('Pick which course'); return }
     if (d.d === 'staff' && !d.staff) { toast('Pick which person'); return }
+    if (d.d === 'course' && d.staff && !d.role) { toast('Say what that person does on these'); return }
     setBusy(true)
     try {
       await teamupMapSave({
         subcalendarId: s.subcalendar_id, decision: d.d,
         courseId: d.d === 'course' ? Number(d.course) : null,
-        staffId: d.d === 'staff' ? Number(d.staff) : null,
+        staffId: (d.d === 'course' || d.d === 'staff') && d.staff ? Number(d.staff) : null,
+        staffRole: d.d === 'course' && d.staff ? d.role : null,
       }, auth)
       setSubs((xs) => xs.map((x) => (x.subcalendar_id === s.subcalendar_id
         ? { ...x, decision: d.d, target_course_id: d.d === 'course' ? Number(d.course) : null,
-            target_staff_id: d.d === 'staff' ? Number(d.staff) : null }
+            target_staff_id: d.staff ? Number(d.staff) : null,
+            staff_role: d.d === 'course' && d.staff ? d.role : null }
         : x)))
     } catch (e) { toast(e.message) } finally { setBusy(false) }
   }
@@ -145,7 +157,11 @@ export default function TeamupCapture({ currentUser }) {
     const d = draft[s.subcalendar_id] || {}
     if (!s.decision) return !!d.d
     if (s.decision !== d.d) return true
-    if (d.d === 'course') return Number(d.course || 0) !== Number(s.target_course_id || 0)
+    if (d.d === 'course') {
+      return Number(d.course || 0) !== Number(s.target_course_id || 0)
+        || Number(d.staff || 0) !== Number(s.target_staff_id || 0)
+        || (d.role || '') !== (s.staff_role || '')
+    }
     if (d.d === 'staff') return Number(d.staff || 0) !== Number(s.target_staff_id || 0)
     return false
   }
@@ -214,13 +230,35 @@ export default function TeamupCapture({ currentUser }) {
                       ))}
                     </select>
                     {d.d === 'course' && (
-                      <div className="field" style={{ marginTop: 6 }}>
-                        <label className="fl">Which course</label>
-                        <select value={d.course} disabled={busy} onChange={(e) => setD(s.subcalendar_id, { course: e.target.value })}>
-                          <option value="">— choose —</option>
-                          {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-                        </select>
-                      </div>
+                      <>
+                        <div className="field" style={{ marginTop: 6 }}>
+                          <label className="fl">Which course</label>
+                          <select value={d.course} disabled={busy} onChange={(e) => setD(s.subcalendar_id, { course: e.target.value })}>
+                            <option value="">— choose —</option>
+                            {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                        {/* "Keith Assessments" is the courses Keith assessed.
+                            Naming him here puts him on all 155 of them. */}
+                        <div className="field" style={{ marginTop: 6 }}>
+                          <label className="fl">Always somebody's? (optional)</label>
+                          <select value={d.staff || ''} disabled={busy}
+                            onChange={(e) => setD(s.subcalendar_id, { staff: e.target.value })}>
+                            <option value="">— nobody in particular —</option>
+                            {staff.map((x) => <option key={x.staff_id} value={x.staff_id}>{x.name}</option>)}
+                          </select>
+                        </div>
+                        {d.staff && (
+                          <div className="field" style={{ marginTop: 6 }}>
+                            <label className="fl">and they…</label>
+                            <select value={d.role || ''} disabled={busy}
+                              onChange={(e) => setD(s.subcalendar_id, { role: e.target.value })}>
+                              <option value="">— choose —</option>
+                              {ROLE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                            </select>
+                          </div>
+                        )}
+                      </>
                     )}
                     {d.d === 'staff' && (
                       <div className="field" style={{ marginTop: 6 }}>

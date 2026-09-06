@@ -4,6 +4,70 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-06 (night) — v1.43.0 Teamup, reassessed against the real pull
+
+Chris pulled the calendar. Looking at what actually landed found two faults in
+my own model and one large miss.
+
+### "Keith Assessments" is not Keith's diary — it is a fourth shape
+
+`proposeKind` filed `/assessments?$|training$/` as `staff`, a personal diary.
+Wrong. Chris: *"where assessments is in the calendar they will be courses that
+person has assessed."*
+
+Verified against the imported Access data: of the 156 dates on that stream, 110
+carry an assessment record naming K Rimmer as assessor. Of the 123 with any
+Access record, **89% are his**. Same shape for Denis Assessments and Phil
+Training — nearly 300 sessions that would have lost their assessor.
+
+`teamup_subcalendar` gains `staff_role` (+ `proposed_role`, `proposed_staff`), so
+a stream says what it is AND who fills which slot on it. `app_teamup_map_save`
+refuses a person on a course stream without a role: a person on a course stream
+is a ROLE, on their own stream a DIARY, and those must not blur.
+
+### The second fault: the word alone is not enough
+
+"WRAS / HWSS / L8 - Full Training" also got filed as somebody's diary, because
+the rule matched a trailing "Training". A person is now attached only when the
+rest of the name resolves to real staff.
+
+And `whoIs()` handles the obvious follow-on: the calendar says "Phil Training",
+the staff list says Philip Rossall. A shortening is accepted only when
+unambiguous — if two people could be "Chris", it proves nothing and nobody is
+attached. Three characters minimum.
+
+### The miss that mattered: I was reading the wrong field
+
+The parser read only titles. Titles are the thin half — across 1,235 events they
+yielded a course on **26** and an employer on **32**.
+
+931 events carry NOTES, and the notes are a delegate list:
+
+```
+Martin Smith COCN1,CGFE1, ICPN1 R + BMP1 I  Kieran McCormack Wk. 2 ...
+Nick Pearn - COCN1, BMP1 & CGFE1 R  Lewis Stone - COCN1, BMP1 & CGFE1 R
+```
+
+Names, qualifications per person, and **R or I — reassessment or initial**. That
+is the one thing the Access file never recorded (`is_reassessment` is false on
+all 4,674 imported bookings). 390 notes carry an R, 347 an I. Reading titles for
+it found exactly one.
+
+`parseNotes()` splits on Forename-Surname boundaries and attributes the text
+between one name and the next. **Only entries that name a qualification are
+kept** — two capitalised words is weak on its own ("Express Certs", "Bank
+Holiday", "Certs on Server" all look like people). That takes 3,988 name-shaped
+strings down to 1,738 real ones, and what it drops carries nothing.
+
+Edge function redeployed (version 3). A re-pull re-parses everything, which is
+what the idempotency was for.
+
+### Still open
+
+Matching those 1,738 noted names against the 3,164 imported delegates — that is
+the join that would give `is_reassessment` per booking, and it can be done in
+SQL now both sides are in the database.
+
 ## 2026-09-06 (evening) — v1.42.0 The Access import is loaded
 
 **3,164 delegates · 4,674 bookings · 16,341 booking_categories.**
