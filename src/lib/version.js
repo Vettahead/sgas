@@ -19,6 +19,19 @@
 
 export const RELEASES = [
   {
+    v: '1.46.0', build: 204, date: '6 Sep 2026',
+    title: 'The forward diary, and courses that last more than a day',
+    notes: [
+      'The courses still to come now have people on them. There were 48 of them and not one delegate showed, and the reason was structural rather than a fault: bringing delegates across attaches an assessment that already happened, and these have not happened yet, so there was nothing in the old database to point at. They needed booking rather than linking. 122 bookings and 290 qualifications now sit on the courses between now and the end of the year.',
+      'A course that runs over several days is one course again. Teamup writes each day as its own entry with the same list of candidates pasted on it, so a five-day commercial course was appearing as five separate courses \u2014 and because a delegate holds one booking they landed on the first day and the other four looked empty. 755 days are now 497 courses.',
+      'Days join up only when they are the same course, within three days of each other AND share a delegate. That last test matters: Domestic reassessments run most days of the week with completely different people, and without it the whole year would have collapsed into one enormous course.',
+      'Teamup\u2019s own \u201cwho\u201d field is now used, and it settles arguments the title cannot. Where the title says one assessor and \u201cwho\u201d says another, \u201cwho\u201d is right \u2014 the title records who was booked and \u201cwho\u201d records who actually did it. It also carries the second person where two ran a day together.',
+      'Delegates are matched on the SGAS number written beside their name where there is one, and on name, date and qualification where there is not. 2,122 in all. Where a number and a name disagree, nothing is linked \u2014 that caught eleven cases of a note copied forward from an older event with the number never updated.',
+      '72 people on those forward courses have never been here before, so they have been created from the name in the calendar note. They are marked as needing confirming and listed on Progress \u2192 Teamup with the line they came from, what they are booked onto, and anyone already on file with a near-identical name. A provisional name must never quietly become a checked-in delegate.',
+      'What still needs your eye is down to 41, grouped by the reason rather than one at a time, and each one now shows its Candidates list and its \u201cwho\u201d field on screen so it can be answered without opening Teamup alongside.',
+    ],
+  },
+  {
     v: '1.45.0', build: 196, date: '6 Sep 2026',
     title: 'Reading Teamup properly, and a waiting list that is actually waiting',
     notes: [

@@ -2647,6 +2647,19 @@ export async function teamupLookAct(
   return data || { changed: 0 }
 }
 
+// The 72 people created from a name on a calendar note, never checked in.
+// action: 'confirm' (they really are new) | 'merge' (they are somebody we
+// already have — the bookings move across and the duplicate goes).
+export async function teamupPersonAct({ action, clientId, intoClientId = null }, adminAuth) {
+  if (!LIVE) return { still_to_confirm: 0 }
+  const { data, error } = await supabase.rpc('app_teamup_person_act', {
+    p_admin: adminAuth?.username ?? '', p_admin_pw: adminAuth?.password ?? '',
+    p_action: action, p_client_id: clientId, p_into_client_id: intoClientId,
+  })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Password incorrect' : error.message)
+  return data || {}
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // IMPORT REVIEW — the questions the matcher would not answer for itself.
 //
