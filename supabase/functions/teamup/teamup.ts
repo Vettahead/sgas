@@ -175,6 +175,13 @@ function whoIs(word: string, staffByName: Record<string, number>): number | unde
   const hits = new Set<number>()
   for (const [name, id] of Object.entries(staffByName)) {
     const first = name.split(' ')[0]
+    // BOTH sides need real length. Staff records here include "A Calvert",
+    // "D Nuttall" and "S Johnston" — a single-letter first name. Without this
+    // check, "a" prefix-matched every stream starting with the letter A and
+    // quietly proposed A Calvert as the owner of "Assessments", "ACOP 1-2-3"
+    // and "Auditing Gas Work", and "d" claimed "Domestic" for D Nuttall. It
+    // stayed invisible until the proposals were actually read on screen.
+    if (first.length < 3) continue
     if (first.startsWith(word) || word.startsWith(first)) hits.add(id)
   }
   return hits.size === 1 ? [...hits][0] : undefined
