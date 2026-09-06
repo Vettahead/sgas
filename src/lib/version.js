@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.41.0', build: 187, date: '6 Sep 2026',
+    title: 'Where everyone is',
+    notes: [
+      'The calendar can now say where somebody is on a day they are not teaching: in the office, working from home, on site at a customer, in a meeting, doing their own training or course prep, off sick, or simply not available. Pick \u201cWhere I am\u201d when adding to the calendar. It can run over several days and can be half a day \u2014 morning only or afternoon only.',
+      'This is what four of the Teamup calendars called \u201cSpare\u201d were actually being used for: 535 entries between them, mostly reading \u201cOffice\u201d, and there was nowhere else to put them. Now there is, so nothing needs a spare calendar.',
+      'It feeds straight into scheduling. When you are picking a trainer, anyone away is shown with the reason beside their name rather than just appearing available \u2014 \u201con site at a customer (INEOS)\u201d rather than nothing at all. One deliberate exception: on site at a customer still lets somebody be the assessor, because they are out doing the work. It is teaching at the centre they cannot do that day.',
+      'Time off is unchanged and still goes through Time off, so it keeps its approval. Sickness is separate from booked holiday on purpose \u2014 they are not the same record, and an auditor will not thank you for mixing them.',
+    ],
+  },
+  {
     v: '1.40.0', build: 186, date: '6 Sep 2026',
     title: 'A copy of the Teamup calendar, kept here',
     notes: [

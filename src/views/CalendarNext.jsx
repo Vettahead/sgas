@@ -1,3 +1,4 @@
+import { WHEREABOUTS, staffAway, awayReason, whereaboutsLabel } from '../lib/whereabouts.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
@@ -103,10 +104,13 @@ function barTip(b) {
   return lines.join('\n')
 }
 
-const NEW_LABEL = { course: 'New course', holiday: 'Time off', diary: 'Diary entry' }
-const NEW_CTA = { course: 'Book it', holiday: 'Add it', diary: 'Add it' }
+const NEW_LABEL = { course: 'New course', holiday: 'Time off', diary: 'Diary entry', away: 'Where I am' }
+const NEW_CTA = { course: 'Book it', holiday: 'Add it', diary: 'Add it', away: 'Add it' }
 /* Enough filled in to save. Each kind needs a different one thing. */
-const newReady = (c) => c.kind === 'holiday' ? true : c.kind === 'diary' ? !!(c.title || '').trim() : !!c.courseId
+const newReady = (c) => c.kind === 'holiday' ? true
+  : c.kind === 'diary' ? !!(c.title || '').trim()
+  : c.kind === 'away' ? !!(c.staffId && c.where)
+  : !!c.courseId
 
 const kindsOn = (delegates) => {
   const seen = new Set()
@@ -371,6 +375,9 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const [blocks, setBlocks] = useState(null)
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
+  // The raw engagement rows, kept alongside the blocks made from them: the
+  // blocks are for drawing, these are for answering "where is she on Tuesday".
+  const [engagements, setEngagements] = useState([])
   const [pool, setPool] = useState([])
   /* People owed a RE-SIT — they did not complete (NYC) or did not turn up.
      A separate list from the plain waiting pool on purpose: they are already
@@ -496,12 +503,22 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
       trainerId: null, assessorId: null, verifierId: null,
       trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
+    setEngagements(eng || [])
     const engBlocks = (eng || []).map((e) => ({
       id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true,
       title: e.title, startTime: e.startTime, endTime: e.endTime,
+      kind: e.kind || 'other', half: e.half || null,
       ownerUserId: e.ownerUserId, members: e.members || [],
-      course: e.title, scheme: 'Diary', color: '#475569',
-      start: e.date, end: e.date,
+      // A whereabouts entry says who it is about; a plain diary entry is just
+      // a note, so it keeps reading as one.
+      course: (e.kind && e.kind !== 'other')
+        ? `${(e.members || []).map((m) => m.name).join(', ') || 'Someone'} — ${whereaboutsLabel(e.kind).toLowerCase()}`
+          + (e.half === 'am' ? ' (morning)' : e.half === 'pm' ? ' (afternoon)' : '')
+        : e.title,
+      scheme: 'Diary', color: (e.kind && e.kind !== 'other') ? '#6b7f9e' : '#475569',
+      // A quarter of these run over several days, so the block has to as well
+      // or a week on site draws as one Monday and disappears.
+      start: e.date, end: e.endDate || e.date,
       trainerId: null, assessorId: null, verifierId: null,
       trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
@@ -707,6 +724,17 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     const n = thisMonth.filter((b) => String(b.trainerId) === String(id)).length
     return n ? `${n} course${n === 1 ? '' : 's'} ${view === 'Year' ? 'this year' : 'this month'}` : 'nothing booked'
   }
+
+  // Why this person cannot take this role on these dates, or ''. Holiday first
+  // because it is the older and harder rule; then where they are. Said in words
+  // rather than returned as a boolean, because "(on site at INEOS)" tells the
+  // person scheduling something useful and "(unavailable)" does not.
+  const whyNot = (staffId, from, to, role) => {
+    if (staffOnHoliday(holidays, staffId, from, to)) return 'on holiday'
+    const e = staffAway(engagements, staffId, from, to, role)
+    return e ? awayReason(e) : ''
+  }
+
   const monthLabel = view === 'Year' ? month.slice(0, 4) : MONTHS[Number(month.slice(5, 7)) - 1]
 
   // ── Dragging people and trainers onto the calendar ───────────────────────
@@ -744,8 +772,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     if (d.kind === 'staff') {
       if (over.type !== 'course') return null
       if (String(block.trainerId) === String(d.item.staff_id)) return { ok: false, why: `${d.label} already has it` }
-      const away = staffOnHoliday(holidays, d.item.staff_id, block.start, block.end)
-      return { ok: true, warn: away, why: away ? `${d.label} is on holiday then` : `${d.label} teaches ${block.course}` }
+      const why = whyNot(d.item.staff_id, block.start, block.end, 'trainer')
+      return { ok: true, warn: !!why, why: why ? `${d.label} is ${why} then` : `${d.label} teaches ${block.course}` }
     }
     if (d.kind === 'pool') {
       if (over.type === 'course') {
@@ -1394,6 +1422,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           className="cx-course-pop" dirty={!!(creating.courseId || creating.title)}>
           <header className="cx-pop-head"
             style={{ '--c': creating.kind === 'holiday' ? '#8a94a6' : creating.kind === 'diary' ? '#475569'
+              : creating.kind === 'away' ? '#6b7f9e'
               : (courses.find((c) => String(c.course_id) === String(creating.courseId))?.color || '#5b6b80') }}>
             <span className="cx-pop-dot" />
             <h3 className="cx-pop-title">
@@ -1413,6 +1442,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 onClick={() => setCreating((c) => ({ ...c, kind: 'holiday', staffId: c.staffId || user?.staffId || '' }))}>Time off</button>
               <button className={creating.kind === 'diary' ? 'on' : ''}
                 onClick={() => setCreating((c) => ({ ...c, kind: 'diary', to: c.from }))}>Diary entry</button>
+              <button className={creating.kind === 'away' ? 'on' : ''}
+                onClick={() => setCreating((c) => ({ ...c, kind: 'away', staffId: c.staffId || user?.staffId || '', where: c.where || 'office' }))}>Where I am</button>
             </div>
           )}
 
@@ -1493,6 +1524,60 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               </>
             )}
 
+            {/* WHERE I AM. This is the thing four Teamup calendars called
+                "Spare" were quietly doing: recording where somebody is on a day
+                they are not teaching. Day-level on purpose — 512 of the 535
+                real entries were whole days — with a half-day option because
+                fifteen of them said "Office AM / WFH PM" and meant it. */}
+            {creating.kind === 'away' && (
+              <>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">🧍</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Who</span>
+                    <select value={creating.staffId || ''} aria-label="Who"
+                      onChange={(e) => setCreating({ ...creating, staffId: e.target.value })}>
+                      <option value="">— choose —</option>
+                      {staff.map((x) => <option key={x.staff_id} value={x.staff_id}>{x.name}</option>)}
+                    </select>
+                  </span>
+                </div>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">📍</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Where</span>
+                    <select value={creating.where || 'office'} aria-label="Where"
+                      onChange={(e) => setCreating({ ...creating, where: e.target.value })}>
+                      {WHEREABOUTS.map((w) => <option key={w.k} value={w.k}>{w.label}</option>)}
+                    </select>
+                    <span className="muted small">
+                      {(WHEREABOUTS.find((w) => w.k === (creating.where || 'office')) || {}).hint}
+                    </span>
+                  </span>
+                </div>
+                <div className="cx-row2">
+                  <span className="cx-ricon" aria-hidden="true">🕘</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">How much of the day</span>
+                    <select value={creating.half || ''} aria-label="How much of the day"
+                      onChange={(e) => setCreating({ ...creating, half: e.target.value })}>
+                      <option value="">All day</option>
+                      <option value="am">Morning only</option>
+                      <option value="pm">Afternoon only</option>
+                    </select>
+                  </span>
+                </div>
+                <div className={'cx-row2' + (creating.title ? '' : ' empty')}>
+                  <span className="cx-ricon" aria-hidden="true">📌</span>
+                  <span className="cx-rwrap">
+                    <span className="cx-rlabel">Note (optional)</span>
+                    <input type="text" value={creating.title || ''} placeholder="INEOS"
+                      aria-label="Note" onChange={(e) => setCreating({ ...creating, title: e.target.value })} />
+                  </span>
+                </div>
+              </>
+            )}
+
             {creating.kind === 'diary' && (
               <>
                 <div className={'cx-row2' + (creating.title ? '' : ' empty')}>
@@ -1560,6 +1645,21 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                   })
                   setCreating(null); await load()
                   toast(r?.status === 'APPROVED' ? 'Time off added to the calendar' : 'Request sent for approval')
+                } else if (creating.kind === 'away') {
+                  // The person goes on as a MEMBER, not just the owner: the
+                  // owner is a login and the question being asked is about a
+                  // member of staff, and those are not the same thing — the
+                  // office manager records where Keith is far more often than
+                  // Keith does.
+                  await createEngagement({
+                    ownerUserId: user?.user_id,
+                    title: (creating.title || '').trim() || whereaboutsLabel(creating.where),
+                    date: creating.from, endDate: creating.to || creating.from,
+                    half: creating.half || null, kind: creating.where,
+                    memberStaffIds: [Number(creating.staffId)],
+                  })
+                  setCreating(null); await load()
+                  toast('Added to the calendar')
                 } else if (creating.kind === 'diary') {
                   await createEngagement({
                     ownerUserId: user?.user_id, title: creating.title, date: creating.from,
@@ -1664,7 +1764,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 }}>
                   <option value="">Add a trainer</option>
                   {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>
-                    {s.name}{staffOnHoliday(holidays, s.staff_id, open.start, open.end) ? ' (on holiday)' : ''}
+                    {s.name}{(() => { const w = whyNot(s.staff_id, open.start, open.end, 'trainer'); return w ? ` (${w})` : '' })()}
                   </option>)}
                 </select>
               ) : <span className="cx-rtext">{open.trainer || 'No trainer'}</span>}
@@ -1688,7 +1788,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                     }}>
                       <option value="">Add {label === 'Assessor' ? 'an' : 'a'} {label.toLowerCase()}</option>
                       {staff.map((s) => <option key={s.staff_id} value={s.staff_id}>
-                        {s.name}{staffOnHoliday(holidays, s.staff_id, open.start, open.end) ? ' (on holiday)' : ''}
+                        {s.name}{(() => { const w = whyNot(s.staff_id, open.start, open.end, role); return w ? ` (${w})` : '' })()}
                       </option>)}
                     </select>
                   ) : <span className="cx-rtext">{open[role] || 'No ' + label.toLowerCase()}</span>}

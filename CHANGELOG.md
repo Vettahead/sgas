@@ -4,6 +4,58 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-06 (late) — v1.41.0 Where everyone is
+
+### The Spare calendars were a symptom, not a mistake
+
+Four Teamup sub-calendars are named "Spare"; three hold 263 events between them
+(Office, SJ Hols, SG Office). With "Simon WFH or Short Office Day",
+"Meeting / Maintenance" and "On Site / Consultancy" that is **535 events**, all
+answering one question: where is this person on a day they are not teaching.
+There was no record for it, so a spare calendar became the record. Give the
+thing a home and the Spares stop being needed.
+
+### The data dictated the shape
+
+- **512 of 535 are all-day** → a day, not an appointment. `start_time`/`end_time`
+  stay optional and are not what this is about.
+- **133 run over several days** → `engagement.end_date`, which did not exist;
+  a week on site would otherwise have drawn as one Monday.
+- **Only 15 mention AM/PM** ("SJ-Office AM +WFH PM") → `half` is a plain
+  `am`/`pm`, not a time picker for a 3% case.
+- **SJ 205, SG 201, KR 214, DB 90** → per-person by nature, which is exactly why
+  four sub-calendars became personal diaries.
+
+### Schema
+
+`engagement` gains `kind`, `end_date`, `half`, with CHECK constraints and
+`end_date >= start_date`. Holidays deliberately stay in `holiday`: it already
+has the request-and-approve flow, and two ways to record time off means two
+answers to "is she in on Tuesday".
+
+### One list, one meaning
+
+`src/lib/whereabouts.js` is the single source of truth — label, hint, and
+whether the kind blocks a role. A dropdown and an availability check reading
+different definitions is how these things rot.
+
+The rule (Chris): **anything away from the centre blocks** somebody being put on
+a course; WFH counts as away. **The one exception: `on_site` still allows
+assessing.** They are out doing the work — it is teaching at the centre they
+cannot do. That is why `blocksRole(kind, role)` takes the role rather than
+returning a boolean, and why this is a table rather than a flag.
+
+### Threaded into scheduling
+
+`whyNot(staffId, from, to, role)` in CalendarNext and SetupWizard returns a
+REASON, not a boolean, so the trainer picker reads "(on site at a customer
+(INEOS))" rather than nothing. Holiday is checked first as the older, harder
+rule. `staffOnHoliday` is untouched and still the holiday half.
+
+CalendarNext now also keeps the raw `engagements` rows alongside the blocks made
+from them — the blocks are for drawing, the rows for answering questions — and
+engagement blocks span `start`→`endDate` rather than a single day.
+
 ## 2026-09-06 (afternoon) — v1.40.0 Teamup capture
 
 ### The problem, stated plainly

@@ -1,6 +1,7 @@
+import { staffAway, awayReason } from '../lib/whereabouts.js'
 import { useEffect, useMemo, useState } from 'react'
 import {
-  listCourses, listStaff, listHolidays, getPool, loadPool, listBlocks,
+  listCourses, listStaff, listHolidays, listEngagements, getPool, loadPool, listBlocks,
   createBlock, assignBlockRole, addDelegatesToBlock, staffOnHoliday, weekdayDays,
 } from '../lib/api.js'
 import { MiniMonth, MiniYear, shiftMonth, monthName } from './CalendarNext.jsx'
@@ -46,6 +47,8 @@ export default function SetupWizard({ go, onClose, onCreated }) {
   const [courses, setCourses] = useState([])
   const [staff, setStaff] = useState([])
   const [holidays, setHolidays] = useState([])
+  // Where people are, so "on site at INEOS" can be said instead of "available".
+  const [engagements, setEngagements] = useState([])
   const [pool, setPool] = useState([])
   const [existing, setExisting] = useState([])          // what is already booked, for context
   const [pickView, setPickView] = useState('Month')     // Month | Year
@@ -66,8 +69,9 @@ export default function SetupWizard({ go, onClose, onCreated }) {
   useEffect(() => {
     (async () => {
       try { await loadPool() } catch { /* pool optional */ }
-      const [c, s, h, b] = await Promise.all([listCourses(), listStaff(), listHolidays(), listBlocks()])
+      const [c, s, h, b, eng] = await Promise.all([listCourses(), listStaff(), listHolidays(), listBlocks(), listEngagements().catch(() => [])])
       setCourses(c.filter((x) => x.is_active !== false)); setStaff(s); setHolidays(h); setPool(getPool())
+      setEngagements(eng || [])
       setExisting(b)
       setLoading(false)
     })()
@@ -96,9 +100,17 @@ export default function SetupWizard({ go, onClose, onCreated }) {
     return list
   }, [pool, course, search])
 
+  // Why each person cannot teach those dates, or ''. Holiday first, then where
+  // they are — being at home or out at a customer is not being in a classroom.
+  const whyNot = (staffId) => {
+    if (!from || !to) return ''
+    if (staffOnHoliday(holidays, staffId, from, to)) return 'on holiday those dates'
+    const e = staffAway(engagements, staffId, from, to, 'trainer')
+    return e ? awayReason(e) + ' those dates' : ''
+  }
   const clashes = useMemo(
-    () => (from && to ? staff.filter((s) => staffOnHoliday(holidays, s.staff_id, from, to)) : []),
-    [staff, holidays, from, to]
+    () => (from && to ? staff.filter((s) => whyNot(s.staff_id)) : []),
+    [staff, holidays, engagements, from, to]
   )
   const trainer = staff.find((s) => String(s.staff_id) === String(trainerId))
   const days = from && to ? weekdayDays(from, to) : 0
@@ -301,13 +313,13 @@ export default function SetupWizard({ go, onClose, onCreated }) {
                   <span><b>Decide later</b><span className="muted small">the course will show as needing a trainer</span></span>
                 </button>
                 {staff.map((s) => {
-                  const off = staffOnHoliday(holidays, s.staff_id, from, to)
+                  const off = whyNot(s.staff_id)
                   return (
                     <button key={s.staff_id} disabled={off}
                       className={'wz-pick' + (String(trainerId) === String(s.staff_id) ? ' on' : '') + (off ? ' off' : '')}
                       onClick={() => setTrainerId(String(s.staff_id))}>
                       <span className="wz-swatch" style={{ background: s.color || 'var(--slate)' }} />
-                      <span><b>{s.name}</b><span className="muted small">{off ? 'on holiday those dates' : (s.room || 'available')}</span></span>
+                      <span><b>{s.name}</b><span className="muted small">{off || (s.room || 'available')}</span></span>
                     </button>
                   )
                 })}
