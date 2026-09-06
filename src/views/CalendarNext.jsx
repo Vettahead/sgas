@@ -410,6 +410,15 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const [flash, setFlash] = useState(null)
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
+  /* THE PAST IS LOCKED.
+     A day that has already happened is a record of what happened, not a plan,
+     and the calendar was letting anybody drag a delegate onto last March or
+     book a course into a week that is gone. Nothing before today can be changed
+     until somebody deliberately unlocks it, and unlocking says so on screen for
+     as long as it lasts — it is off again the moment the screen is left. */
+  const [pastOpen, setPastOpen] = useState(false)
+  const inThePast = (d) => !!d && d < todayISO()
+  const lockedDay = (d) => inThePast(d) && !pastOpen
   const [hint, setHint] = useState(null)     // the chip that rides the bar you drag
   // Selecting empty days has no bar to ride, so its chip follows the pointer.
   const [selHint, setSelHint] = useState(null)
@@ -767,7 +776,13 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     // refused to change one; this screen did not, so somebody could be dropped
     // onto a course that finished last year and the record would quietly change.
     if (block && block.end < todayISO()) {
-      return { ok: false, why: `${block.course} has already finished` }
+      return pastOpen
+        ? { ok: true, warn: true, why: `${block.course} has already finished — the past is unlocked` }
+        : { ok: false, why: `${block.course} has already finished` }
+    }
+    // Dropping onto an empty day that has already been and gone.
+    if (over.type === 'day' && lockedDay(over.d)) {
+      return { ok: false, why: 'That day has already been — unlock the past to change it' }
     }
     if (d.kind === 'staff') {
       if (over.type !== 'course') return null
@@ -969,6 +984,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   // week and day all-day band, and the year rows.
   function cellDown(d, e) {
     if (!canWrite) return
+    if (lockedDay(d)) { toast('That day has already been. Unlock the past first.'); return }
     dragSelectDays(d, e, {
       onSel: setSel,
       onHint: setSelHint,
@@ -1144,12 +1160,30 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               difference between the toolbar fitting on two rows and spilling
               onto a third. The ＋ and the tooltip carry it. */}
           {canWrite && (
+            <button className={'cx-icon' + (pastOpen ? ' on' : '')} aria-pressed={pastOpen}
+              onClick={() => setPastOpen((v) => !v)}
+              aria-label={pastOpen ? 'Lock the past again' : 'Unlock the past'}
+              data-tip={pastOpen
+                ? 'The past is unlocked — click to lock it again'
+                : 'Days that have already been are locked. Click to change one anyway.'}>
+              {pastOpen ? '🔓' : '🔒'}
+            </button>
+          )}
+          {canWrite && (
             <button className="cx-primary" onClick={() => (onSetup ? onSetup() : go?.('setup'))} data-tip="Set up a new course">
               ＋<span className="cx-lbl">New course</span>
             </button>
           )}
         </div>
       </header>
+
+      {pastOpen && (
+        <div className="cx-pastwarn" role="status">
+          <b>The past is unlocked.</b> Days before today can be changed. They are a record of
+          what happened, so put it back when you are done.
+          <button className="cx-more" onClick={() => setPastOpen(false)}>Lock it again</button>
+        </div>
+      )}
 
       {/* The key used to be two permanent rows of capitals above the calendar —
           about 90px of a laptop screen spent explaining marks that most people
@@ -1634,7 +1668,10 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 Full set-up instead
               </button>
             )}
-            <button className="cx-primary" disabled={busy || !newReady(creating)} onClick={async () => {
+            <button className="cx-primary"
+              disabled={busy || !newReady(creating) || lockedDay(creating.from)}
+              data-tip={lockedDay(creating.from) ? 'That date has already been — unlock the past first' : undefined}
+              onClick={async () => {
               setBusy(true)
               try {
                 if (creating.kind === 'holiday') {

@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.47.0', build: 206, date: '6 Sep 2026',
+    title: 'Who trained and who assessed, and the past is locked',
+    notes: [
+      'The two-day OFTEC course on 1 September had nine candidates listed, nobody on it, and no trainer or assessor. Two separate faults, both now fixed.',
+      'Every named person was being called an assessor, so where a run had two people the second was thrown away. A day only states a role when it says so \u2014 an \u201cAssessments\u201d calendar, \u201cPhil Training\u201d, the word in the title, or T&A meaning both. Otherwise the day names somebody and says nothing about what they did, and the course settles it: where one person has a definite role and the other has none, the other takes the empty slot. So \u201cOFTEC SG\u201d then \u201cDB assist\u201d on Denis Assessments reads as Simon training and Denis assessing, which is how you read it.',
+      'And the delegates were missing because the old database\u2019s last assessment is 27 August. That course ran on 1 September, so there is nothing to link to and never will be \u2014 and creating bookings for courses \u201cstill to come\u201d started from today, which left the last fortnight of August and the first week of September orphaned. After the day the old database stops, Teamup is the record, and its candidate list is what a booking gets built from.',
+      'While checking that, one wrong match turned up: \u201cJordan Newton\u201d had been booked on as \u201cJason Newton\u201d, because forenames were being matched on the first letter alone. A shared initial is now only enough when the calendar actually wrote an initial \u2014 otherwise the names must match, or one must be the front of the other, like Chris and Christopher. Fewer matches overall and a third fewer flagged as ambiguous.',
+      'Days that have already been are now locked. You cannot drop somebody onto last March, drag out a course in a week that has gone, or book into a past date. There is a padlock in the calendar toolbar that unlocks it when you genuinely need to correct something, and while it is unlocked the calendar says so across the top until you put it back.',
+    ],
+  },
+  {
     v: '1.46.0', build: 204, date: '6 Sep 2026',
     title: 'The forward diary, and courses that last more than a day',
     notes: [
