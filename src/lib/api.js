@@ -1879,19 +1879,63 @@ export async function deleteClientRecord(clientId) {
 export async function getSessionOrigin(sessionId) {
   if (!LIVE) return null
   const { data } = await supabase.from('teamup_event')
-    .select('event_id,title,start_dt,end_dt').eq('session_id', sessionId).order('start_dt')
+    .select('event_id,title,who,start_dt,end_dt,class_staff_id,staff:class_staff_id(name)')
+    .eq('session_id', sessionId).order('start_dt')
   const list = data || []
   if (list.length < 1) return null
-  // "(7)PR-Commercial T&A" / "(13)Assessments" — the number in front is the
-  // headcount whoever wrote it meant. Highest wins: the biggest single entry is
-  // the closest thing to "how many were really on this".
+
+  // The names written in each entry's own notes. This is the thing that makes
+  // the course correctable by hand: it says WHICH of the twenty-five came from
+  // WHICH entry, so "these ten are Keith's T&A" can be read off the screen
+  // instead of reconstructed from a Teamup that is about to be switched off.
+  const ids = list.map((e) => e.event_id)
+  const { data: lines } = await supabase.from('teamup_note_line')
+    .select('event_id,noted_name').in('event_id', ids).not('noted_name', 'is', null)
+  const byEvent = new Map()
+  for (const l of lines || []) {
+    const n = String(l.noted_name || '').trim()
+    if (!n) continue
+    const set = byEvent.get(l.event_id) || new Set()
+    set.add(n)
+    byEvent.set(l.event_id, set)
+  }
+
+  // "(7)PR-Commercial T&A" — the number is the headcount whoever wrote it meant,
+  // and the letters are who they meant ran it.
+  const initials = (t) => {
+    const m = String(t || '').match(/^\s*(?:\(\d{1,2}\))?\s*([A-Z]{2})\b/)
+    return m ? m[1] : null
+  }
+  const fromName = (name) => String(name || '').split(/\s+/).map((w) => w[0]).join('').toUpperCase()
+
+  const entries = list.map((e) => {
+    const ini = initials(e.title)
+    const ranBy = e.staff?.name || null
+    return {
+      id: e.event_id,
+      title: e.title || '(no title)',
+      from: (e.start_dt || '').slice(0, 10),
+      to: (e.end_dt || e.start_dt || '').slice(0, 10),
+      ranBy,
+      // ⚠ Their own calendar contradicts itself on some of these: the title says
+      // "PR-" and the Who field says "Keith". The import took the Who field and
+      // says so; this flag exists so nobody trusts the answer more than the
+      // source deserves.
+      disputed: Boolean(ini && ranBy && ini !== fromName(ranBy)),
+      titleSays: ini,
+      names: [...(byEvent.get(e.event_id) || [])].sort(),
+    }
+  })
+
   const counts = list.map((e) => {
     const m = String(e.title || '').match(/^\s*\((\d{1,2})\)/)
     return m ? Number(m[1]) : null
   }).filter((n) => n != null)
+
   return {
     events: list.length,
-    titles: list.map((e) => e.title).filter(Boolean),
+    titles: entries.map((e) => e.title),
+    entries,
     claimed: counts.length ? Math.max(...counts) : null,
   }
 }

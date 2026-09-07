@@ -1989,8 +1989,26 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                       <> The titles said <b>{origin.claimed}</b>; there {open.delegates.length === 1 ? 'is' : 'are'} <b>{open.delegates.length}</b> on it.</>
                     )}
                   </span>
+                  {/* Each entry with the people ITS OWN notes name. This is
+                      what makes the course correctable by hand: "these ten are
+                      Keith's T&A, those seven are Phil's IGAS" can be read off
+                      the screen, and it has to be readable HERE because Teamup
+                      is being switched off in October. */}
                   <ul className="cx-origin">
-                    {origin.titles.map((t, i) => <li key={i}>{t}</li>)}
+                    {origin.entries.map((e) => (
+                      <li key={e.id}>
+                        <div className="cx-origin-h">
+                          <b>{e.title}</b>
+                          <span>{e.from === e.to ? fmt(e.from) : `${fmt(e.from)} – ${fmt(e.to)}`}</span>
+                          {e.ranBy && <span>{e.ranBy}</span>}
+                          {/* Their calendar disagrees with itself on some of
+                              these — the title says one person, the Who field
+                              another. Said out loud rather than picked. */}
+                          {e.disputed && <em title={`The title says ${e.titleSays}; Teamup's own Who field says ${e.ranBy}`}>title says {e.titleSays}</em>}
+                        </div>
+                        {e.names.length > 0 && <div className="cx-origin-n">{e.names.join(' · ')}</div>}
+                      </li>
+                    ))}
                   </ul>
                 </div>
               </div>

@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.51.0', build: 209, date: '7 Sep 2026',
+    title: 'A course that was really three now shows you which people came from where',
+    notes: [
+      'The plan was to split the 138 over-full courses back apart automatically. It was tried, measured and stopped, because it would have made things worse rather than better — and the reason is worth knowing. Of the 507 people on the 51 courses that most obviously needed it, only 76 could be placed on the right one with any confidence. Most people are named in the notes of more than one entry that week, because they genuinely were — on the course on Monday and on the assessment day on Thursday. Splitting would have left three-quarters of them sitting on the original course anyway, which would look like the records had been shuffled for nothing.',
+      'The second reason is worse: the calendar disagrees with itself about who ran what. On the week of 19 January the title of one entry says "PR" while the field beside it says "Keith", and on the next entry the title says "SG" while the field says "PR". Splitting courses by who ran them, using a field that contradicts the title on the very entries in question, would have written that contradiction into the schedule permanently.',
+      'So instead of guessing, the course now SHOWS you. Open one that was built from several entries and you get each entry listed: its title, its dates, who Teamup says ran it, and the people named in its own notes. The week of 19 January reads as Keith\u2019s commercial assessment, Phil\u2019s IGAS/Commercial and Simon\u2019s TPCP day rather than one course of twenty-five, and where the title and the Who field disagree it says so rather than picking one. That is what makes it correctable by hand — and it has to be readable here, because Teamup goes off in October and takes the notes with it.',
+      'A full copy of every course, booking and calendar entry was taken before any of this and is kept in the database. It is a restore point for the hand-correcting that comes next.',
+    ],
+  },
+  {
     v: '1.50.0', build: 208, date: '7 Sep 2026',
     title: 'Why some courses have too many people on them, and the tools to fix it',
     notes: [

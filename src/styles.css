@@ -1890,5 +1890,11 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 /* The Teamup entries an imported course was built from. A plain list, quiet:
    it is evidence for a decision, not a warning to act on now. */
 .cx-origin{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
-.cx-origin li{font-size:12px;color:var(--cx-mute);padding:3px 8px;border-radius:7px;
-  background:var(--cx-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-origin li{font-size:12px;color:var(--cx-mute);padding:5px 8px;border-radius:7px;
+  background:var(--cx-soft)}
+.cx-origin-h{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px}
+.cx-origin-h b{color:var(--cx-ink);font-weight:600}
+/* Where their own calendar contradicts itself. Amber, because it is a thing to
+   know rather than a thing to fix here. */
+.cx-origin-h em{font-style:normal;color:var(--cx-warn);font-weight:600}
+.cx-origin-n{margin-top:3px;line-height:1.45;white-space:normal}
