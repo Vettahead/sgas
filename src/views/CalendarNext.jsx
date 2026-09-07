@@ -1,8 +1,9 @@
-import { WHEREABOUTS, staffAway, awayReason, whereaboutsLabel } from '../lib/whereabouts.js'
+import { WHEREABOUTS, staffAway, awayReason, whereaboutsLabel, assistClash, assistDays } from '../lib/whereabouts.js'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
+  addAssist, removeAssist,
   getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
@@ -122,6 +123,25 @@ const kindsOn = (delegates) => {
    a new booking (addDelegatesToBlock), a re-sit re-books the ORIGINAL booking's
    remaining qualifications onto the new course (rescheduleDelegate) and closes
    the old one off. Getting that wrong would charge somebody twice. */
+// The assisted days inside one drawn stretch, collapsed into runs, as offsets
+// from its first day. Returned rather than drawn per day so two consecutive
+// assisted days are ONE mark: a row of separate squares reads as two separate
+// visits, which is the opposite of what a two-day stretch means.
+function assistRuns(days, from, to) {
+  if (!days || !days.size) return []
+  const out = []
+  const n = between(from, to) + 1
+  let run = null
+  for (let i = 0; i < n; i++) {
+    if (days.has(addDays(from, i))) {
+      if (run) run.len++
+      else run = { off: i, len: 1 }
+    } else if (run) { out.push(run); run = null }
+  }
+  if (run) out.push(run)
+  return out
+}
+
 const isResit = (p) => String(p?.id || '').startsWith('rb-')
 const resitWord = (p) => (p?.kind === 'NO_SHOW' ? 'no-show' : 'NYC')
 
@@ -206,6 +226,7 @@ export function layOutMonth(list, grid, weekends = true) {
         sp = Math.min(col + span - 1, 4) - col + 1
       }
       out.push({ b, row, col: c, span: sp, key: b.id + ':' + cur, head: cur === b.start,
+        from: cur, to: addDays(cur, sp - 1),
         tail: addDays(cur, span - 1) >= fin })
       cur = nextCur
     }
@@ -696,7 +717,16 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     if (b.isHoliday || b.isEngagement) return !filt.onlyCourses
     if (filt.hideDone && b.end < todayISO()) return false
     if (filt.schemes.length && !filt.schemes.includes(b.scheme)) return false
-    if (filt.staff.length && b.trainerId && !filt.staff.includes(String(b.trainerId))) return false
+    if (filt.staff.length) {
+      /* "Show me everything Phil did" means everything -- trained, assessed,
+         verified AND assisted. Simon checks a submitted invoice with this, and
+         a filter that only knew about the trainer slot silently dropped every
+         day he came in to help, which is the half he is being paid for.
+         Unassigned courses still stay visible (see above). */
+      const mine = [b.trainerId, b.assessorId, b.verifierId, ...(b.assists || []).map((a) => a.staffId)]
+        .filter(Boolean).map(String)
+      if (mine.length && !mine.some((id) => filt.staff.includes(id))) return false
+    }
     return true
   }), [blocks, filt])
   const hiddenCount = (blocks || []).length - filtered.length
@@ -705,6 +735,16 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const shown = useMemo(() => filtered.map((b) => (
     preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
   )), [filtered, preview])
+
+  /* Which days of which course have somebody helping on them. Worked out once
+     here rather than per bar per render -- the month grid draws a bar for every
+     week row a course crosses, so this would otherwise be recomputed four times
+     for one long course. */
+  const assistOn = useMemo(() => {
+    const m = new Map()
+    for (const b of shown) if (b.assists?.length) m.set(String(b.id), assistDays(b))
+    return m
+  }, [shown])
 
   // ── The six-week grid ─────────────────────────────────────────────────────
   const grid = useMemo(() => monthGrid(month), [month])
@@ -1136,6 +1176,10 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             <i className="cx-chev" aria-hidden="true" />
             {anyFilter ? `Filtered \u00b7 ${hiddenCount} hidden` : 'Filter'}
           </button>
+          {/* Prints WHAT IS ON THE SCREEN, filters and all -- that is the whole
+              point of it. Filter to one person, print, send it to accounts. */}
+          <button type="button" className="cx-keybtn" onClick={() => window.print()}
+            data-tip="Print the courses you can currently see">🖨 Print</button>
         </div>
         <div className="cx-tools">
           <div className="cx-seg" role="group" aria-label="View">
@@ -1235,6 +1279,44 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
         </div>
       )}
 
+      {/* ── The printed sheet ──────────────────────────────────────────────
+          Hidden on screen, and the only thing visible on paper. It prints the
+          FILTERED list rather than a screenshot of the grid, because what this
+          is for is a list somebody signs off: a month of coloured bars does not
+          photocopy into anything you can check an invoice against. */}
+      <div className="cx-printout" aria-hidden="true">
+        <h1>SGAS &mdash; {view === 'Year' ? month.slice(0, 4) : title}</h1>
+        <p className="cx-print-sub">
+          {thisMonth.length} course{thisMonth.length === 1 ? '' : 's'}
+          {anyFilter ? ' \u00b7 filtered: ' : ' \u00b7 no filter'}
+          {filt.staff.length ? staff.filter((x) => filt.staff.includes(String(x.staff_id))).map((x) => x.name).join(', ') : ''}
+          {filt.staff.length && filt.schemes.length ? ' \u00b7 ' : ''}
+          {filt.schemes.join(', ')}
+          {filt.hideDone ? ' \u00b7 finished courses hidden' : ''}
+          {' \u00b7 printed '}{fmt(todayISO())}
+        </p>
+        <table>
+          <thead>
+            <tr><th>Dates</th><th>Days</th><th>Course</th><th>Trainer</th><th>Assessor</th><th>Verifier</th><th>Assisting</th><th>On it</th></tr>
+          </thead>
+          <tbody>
+            {thisMonth.map((b) => (
+              <tr key={b.id}>
+                <td>{b.start === b.end ? fmt(b.start) : `${fmt(b.start)} \u2013 ${fmt(b.end)}`}</td>
+                <td>{between(b.start, b.end) + 1}</td>
+                <td>{b.course || b.title}</td>
+                <td>{b.trainer || ''}</td>
+                <td>{b.assessor || ''}</td>
+                <td>{b.verifier || ''}</td>
+                <td>{(b.assists || []).map((a) => `${a.name} (${between(a.from, a.to) + 1}d)`).join(', ')}</td>
+                <td>{b.delegates.length}</td>
+              </tr>
+            ))}
+            {thisMonth.length === 0 && <tr><td colSpan={8}>Nothing to show for this filter.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
       {drag && (
         <>
           <div className="cx-draghost" style={{ left: drag.x, top: drag.y, '--s': drag.colour }}>
@@ -1311,8 +1393,20 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                         else if (e.target.classList.contains('cx-resize')) barDown(s.b, e, 'resize')
                       }}
                       onClick={(e) => openAt(s.b, e)}
+                      data-assist={assistOn.has(String(s.b.id)) ? '1' : undefined}
                       data-tip={barTip(s.b)}>
                       {canWrite && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" />}
+                      {/* The days somebody is in helping, marked in place on the
+                          bar rather than as a badge at the end of it -- "Phil is
+                          on this course" and "Phil is on Thursday and Friday of
+                          it" are different facts and the second is the useful
+                          one. Drawn from the segment's own dates, so a course
+                          crossing a week boundary marks the right days in both
+                          rows. Behind the text: it is a texture, not a label. */}
+                      {assistOn.has(String(s.b.id)) && assistRuns(assistOn.get(String(s.b.id)), s.from, s.to).map((r) => (
+                        <i key={r.off} className="cx-bar-assist" aria-hidden="true"
+                          style={{ left: `${(r.off / s.span) * 100}%`, width: `${(r.len / s.span) * 100}%` }} />
+                      ))}
                       {/* Two lines, not one. A course is an object with a name
                           and a second fact about it — who is teaching it and how
                           many people are on it. Encoding that in a dot and a
@@ -1833,6 +1927,28 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               </div>
             ))}
 
+            {/* ASSIST — the fourth role, and the only one that is a list.
+                Keith runs the week and Phil comes in for two days of it: one
+                select could hold neither the second person nor the two days. */}
+            <AssistRow open={open} staff={staff} blocks={blocks || []} canWrite={canWrite} busy={busy}
+              whyNot={whyNot}
+              onAdd={async (staffId, from, to) => {
+                setBusy(true)
+                try {
+                  await addAssist(open.id, staffId, from, to)
+                  const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                  toast('Added to the course')
+                } catch (err) { toast(err.message) } finally { setBusy(false) }
+              }}
+              onRemove={async (id) => {
+                setBusy(true)
+                try {
+                  await removeAssist(id)
+                  const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                  toast('Taken off')
+                } catch (err) { toast(err.message) } finally { setBusy(false) }
+              }} />
+
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">👥</span>
               <div className="cx-rfill">
@@ -2165,6 +2281,114 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
    Four of these ran off the bottom of the screen, so each one folds. The count
    stays on the header when it is folded — folding "Needs attention" away must
    never hide that there are twelve courses without a trainer. */
+// ─────────────────────────────────────────────────────────────────────────────
+// ASSIST ROW
+//
+// Everyone is offered, with the reason they cannot do it in brackets beside the
+// name — the same shape as the trainer and assessor selects, so the screen only
+// teaches one habit. Two different reasons are shown and they are NOT the same
+// thing: "on holiday" / "on site at INEOS" is where they ARE, and comes from
+// whereabouts; "training on Commercial Gas" is what they are already DOING, and
+// comes from the calendar. Both stop it, so both are said.
+//
+// Nothing here is disabled. A reason in brackets is information for the person
+// staffing the week, and Simon overrules it often enough that a greyed-out
+// option would just be a dead end. The clash is stated, then allowed.
+// ─────────────────────────────────────────────────────────────────────────────
+function AssistRow({ open, staff, blocks, canWrite, busy, whyNot, onAdd, onRemove }) {
+  const [adding, setAdding] = useState(false)
+  const [who, setWho] = useState('')
+  const [from, setFrom] = useState(open.start)
+  const [to, setTo] = useState(open.end)
+
+  // Reset the form to this course whenever a different one is opened.
+  useEffect(() => { setAdding(false); setWho(''); setFrom(open.start); setTo(open.end) }, [open.id, open.start, open.end])
+
+  const list = open.assists || []
+  const clash = who ? assistClash(blocks, who, from, to) : null
+  const away = who ? whyNot(who, from, to, 'trainer') : ''
+
+  const reasonFor = (staffId) => {
+    const w = whyNot(staffId, from, to, 'trainer')
+    if (w) return w
+    const c = assistClash(blocks, staffId, from, to)
+    return c ? `${c.role} on ${c.block.course || c.block.title || 'another course'}` : ''
+  }
+
+  return (
+    <div className={'cx-row2 top' + (list.length ? '' : ' empty')}>
+      <span className="cx-ricon" aria-hidden="true">🤝</span>
+      <div className="cx-rfill">
+        <span className="cx-rlabel">Assisting{list.length ? ` · ${list.length}` : ''}</span>
+        {list.length === 0 && !adding && <span className="cx-rtext">Nobody helping on this one</span>}
+        {list.length > 0 && (
+          <ul className="cx-delg">
+            {list.map((a) => (
+              <li key={a.id}>
+                <b>{a.name}</b>
+                <small>
+                  {a.from === a.to
+                    ? fmt(a.from)
+                    : `${fmt(a.from)} – ${fmt(a.to)}`}
+                  {' · '}{between(a.from, a.to) + 1} day{between(a.from, a.to) ? 's' : ''}
+                </small>
+                {canWrite && (
+                  <button type="button" className="cx-x" disabled={busy}
+                    aria-label={`Take ${a.name} off`} onClick={() => onRemove(a.id)}>×</button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+        {canWrite && !adding && (
+          <button type="button" className="cx-more" onClick={() => setAdding(true)}>＋ Someone to help</button>
+        )}
+        {canWrite && adding && (
+          <div className="cx-assist-form">
+            <select value={who} disabled={busy} aria-label="Who is assisting"
+              onChange={(e) => setWho(e.target.value)}>
+              <option value="">Who is helping?</option>
+              {staff.map((st) => {
+                const r = reasonFor(st.staff_id)
+                return <option key={st.staff_id} value={st.staff_id}>{st.name}{r ? ` (${r})` : ''}</option>
+              })}
+            </select>
+            <label>
+              <small>From</small>
+              {/* Bounded to the course: assisting a course on a day it does not
+                  run is not a thing, and a free date box invites exactly that. */}
+              <input type="date" value={from} min={open.start} max={open.end} disabled={busy}
+                onChange={(e) => { const v = e.target.value; setFrom(v); if (v > to) setTo(v) }} />
+            </label>
+            <label>
+              <small>To</small>
+              <input type="date" value={to} min={from} max={open.end} disabled={busy}
+                onChange={(e) => setTo(e.target.value)} />
+            </label>
+            <div className="cx-assist-act">
+              <button type="button" className="cx-primary" disabled={busy || !who}
+                onClick={() => { onAdd(Number(who), from, to); setAdding(false); setWho('') }}>
+                Add
+              </button>
+              <button type="button" className="cx-more" disabled={busy}
+                onClick={() => { setAdding(false); setWho('') }}>Cancel</button>
+            </div>
+            {(away || clash) && (
+              <p className="hint" role="status">
+                <b>Heads up:</b>{' '}
+                {away ? `they are ${away} on those days` : null}
+                {away && clash ? ' and ' : null}
+                {clash ? `they are already ${clash.role} on ${clash.block.course || clash.block.title || 'another course'} (${fmt(clash.block.start)} – ${fmt(clash.block.end)})` : null}
+                . You can still put them down — this is a warning, not a stop.
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function RailCard({ id, title, count, shut, onToggle, className = '', children }) {
   const open = !shut[id]
   return (
@@ -2526,6 +2750,17 @@ function YearGrid({ year, blocks, onOpen, canWrite, onBarDown, flash, chip, onCe
                   }}
                   onClick={(e) => onOpen(b, e)}>
                   {canWrite && !b.isHoliday && <span className="cx-grab" />}
+                  {(b.assists || []).map((a) => {
+                    // Clipped to the part of this month the bar actually draws.
+                    const aFrom = a.from < b.start ? b.start : a.from
+                    const aTo = a.to > b.end ? b.end : a.to
+                    if (aTo < aFrom) return null
+                    const off = between(b.start < first ? first : b.start, aFrom)
+                    const len = between(aFrom, aTo) + 1
+                    if (off < 0 || len <= 0 || span <= 0) return null
+                    return <i key={a.id} className="cx-bar-assist" aria-hidden="true"
+                      style={{ left: `${(off / span) * 100}%`, width: `${(len / span) * 100}%` }} />
+                  })}
                   {/* The name lives INSIDE the bar, always, clipped to it. It
                       used to spill out to the right when the bar was too narrow
                       to hold it, which on a date-scaled row reads as the course
@@ -2533,6 +2768,16 @@ function YearGrid({ year, blocks, onOpen, canWrite, onBarDown, flash, chip, onCe
                       its name shows none: the colour, the tooltip and the rail
                       carry it, and the bar's length stays honest either way. */}
                   {span >= 3 && <span className="cx-bar-t"><span className="cx-bar-n">{b.course || b.title}</span></span>}
+                  {/* A one- or two-day course is too narrow to hold its own
+                      name, and a year of unlabelled ticks is a year you have to
+                      hover over one at a time. `gap` is already worked out
+                      above -- the clear run before the next bar in this lane --
+                      so when there is room the name goes OUTSIDE the bar, to
+                      the right, in muted text. The bar itself keeps its true
+                      width, which is the thing that must not be fudged. */}
+                  {span < 3 && gap >= 3 && (
+                    <span className="cx-ybar-out" aria-hidden="true">{b.course || b.title}</span>
+                  )}
                   {canWrite && !b.isHoliday && <span className="cx-resize" />}
                 </button>
               ))}

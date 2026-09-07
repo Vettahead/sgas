@@ -187,6 +187,103 @@ export async function listDelegates() {
   })).sort((a, b) => a.surname.localeCompare(b.surname))
 }
 
+// -----------------------------------------------------------------------------
+// DELEGATE SEARCH -- server-side, because there are more than 1,000 of them.
+//
+// listDelegates() above pulls the WHOLE client table and filters in the browser.
+// PostgREST caps an unranged select at 1,000 rows, so ordered by surname that is
+// roughly A-D and every delegate past it is invisible -- which is exactly why
+// searching "McCully" found nothing while the record was there all along.
+// Search the DATABASE, page the answer, and never assume you have them all.
+// -----------------------------------------------------------------------------
+export const DELEGATE_PAGE = 200
+
+const DELEGATE_COLS =
+  'client_id,forename,surname,ni_number,date_of_birth,mobile,email,company_id,company:company_id(name)'
+
+// PostgREST parses filters out of a URL-ish grammar, so strip the characters
+// that would break the expression rather than trying to escape them.
+function likeTerm(v) {
+  return '"*' + String(v).replace(/["(),*%\\]/g, ' ').trim() + '*"'
+}
+
+const shapeDelegate = (c) => ({ ...c, company: c.company?.name || '\u2014' })
+
+// Returns { rows, total, truncated }. total is null when it cannot be stated
+// honestly (see the company merge below) -- the screen then shows a count of
+// what is on it rather than a number it cannot stand behind.
+export async function searchDelegates(query = '', { limit = DELEGATE_PAGE } = {}) {
+  const q = String(query || '').trim()
+
+  if (!LIVE) {
+    const s = q.toLowerCase()
+    const all = D.clients
+      .map((c) => ({ ...c, company: co(c.company_id)?.name || '\u2014' }))
+      .filter((c) => !s
+        || `${c.forename} ${c.surname}`.toLowerCase().includes(s)
+        || (c.ni_number || '').toLowerCase().includes(s)
+        || (c.company || '').toLowerCase().includes(s))
+      .sort((a, b) => a.surname.localeCompare(b.surname))
+    return { rows: all.slice(0, limit), total: all.length, truncated: all.length > limit }
+  }
+
+  // No term: first page by surname PLUS the true total, so the screen can say
+  // "200 of 3,164" instead of quietly implying that is everybody.
+  if (!q) {
+    const { data, count } = await supabase
+      .from('client').select(DELEGATE_COLS, { count: 'exact' })
+      .order('surname').order('forename').range(0, limit - 1)
+    return { rows: (data || []).map(shapeDelegate), total: count ?? null, truncated: (count ?? 0) > limit }
+  }
+
+  const words = q.split(/\s+/).filter(Boolean)
+  const whole = likeTerm(q)
+  let or
+  if (words.length === 1) {
+    or = `forename.ilike.${whole},surname.ilike.${whole},ni_number.ilike.${whole}`
+  } else {
+    // "andrew mccully" and "mccully andrew" are the same person.
+    const a = likeTerm(words[0])
+    const b = likeTerm(words.slice(1).join(' '))
+    or = `and(forename.ilike.${a},surname.ilike.${b}),and(forename.ilike.${b},surname.ilike.${a}),surname.ilike.${whole},ni_number.ilike.${whole}`
+  }
+
+  const { data, count } = await supabase
+    .from('client').select(DELEGATE_COLS, { count: 'exact' })
+    .or(or).order('surname').order('forename').range(0, limit - 1)
+
+  const rows = (data || []).map(shapeDelegate)
+  const seen = new Set(rows.map((r) => r.client_id))
+  let total = count ?? null
+
+  // Company name lives on another table, so it takes its own query and the two
+  // sets are merged. Deliberately NOT an inner join -- that would drop every
+  // delegate whose own name matched but whose company did not.
+  const { data: comps } = await supabase
+    .from('company').select('company_id').ilike('name', `%${q}%`).limit(50)
+  if (comps && comps.length) {
+    const { data: byCo } = await supabase
+      .from('client').select(DELEGATE_COLS)
+      .in('company_id', comps.map((c) => c.company_id))
+      .order('surname').range(0, limit - 1)
+    let addedAny = false
+    for (const c of byCo || []) {
+      if (seen.has(c.client_id)) continue
+      seen.add(c.client_id); rows.push(shapeDelegate(c)); addedAny = true
+    }
+    if (addedAny) {
+      rows.sort((a, b) => (a.surname || '').localeCompare(b.surname || ''))
+      total = null   // the two sets overlap; a total here would be a guess
+    }
+  }
+
+  return {
+    rows: rows.slice(0, limit),
+    total,
+    truncated: total != null ? total > limit : rows.length >= limit,
+  }
+}
+
 export async function getDelegateHistory(clientId) {
   if (LIVE) {
     const { data: client } = await supabase
@@ -1567,12 +1664,21 @@ const kindFromFlags = (disposition, flags, resatKind) => {
   return re === 0 ? 'NEW' : re === flags.length ? 'REASSESS' : 'MIXED'
 }
 
-// A "block" = a course session (course + dates) with its three role slots and delegates.
+// Demo-mode home for assists. LIVE reads them off session_assist.
+const assistDemo = LIVE ? [] : (D.sessionAssists = D.sessionAssists || [])
+const assistRows = (sessionId) => assistDemo
+  .filter((a) => a.session_id === sessionId)
+  .map((a) => ({ id: a.session_assist_id, staffId: a.staff_id, name: asr(a.staff_id)?.name || '—',
+                 from: a.from_date, to: a.to_date, note: a.note || null }))
+  .sort((x, z) => x.from.localeCompare(z.from))
+
+// A "block" = a course session (course + dates) with its FOUR role slots
+// (trainer, assessor, verifier, and any number of assists) and its delegates.
 export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -1580,6 +1686,10 @@ export async function listBlocks() {
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
       trainerLeftOn: s.trainer?.left_on || null,
+      assists: (s.session_assist || []).map((a) => ({
+        id: a.session_assist_id, staffId: a.staff_id, name: a.staff?.name || '—',
+        from: a.from_date, to: a.to_date, note: a.note || null,
+      })).sort((x, z) => x.from.localeCompare(z.from)),
       delegates: (s.booking || []).map((b) => ({
         bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
         kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment), b.resat_kind),
@@ -1600,6 +1710,7 @@ export async function listBlocks() {
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
       trainerLeftOn: asr(s.trainer_id)?.left_on || null,
+      assists: assistRows(s.session_id),
       delegates: bks.map((b) => ({
         bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
         kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment), b.resat_kind),
@@ -1624,6 +1735,43 @@ function block(b) {
   // delegate. Assessor + Verifier are now chosen at the assessment phase.
   const ready = Boolean(b.trainerId && !trainerGone && b.delegates.length)
   return { ...b, ready, trainerGone }
+}
+
+// ---------------------------------------------------------------------------
+// ASSIST -- somebody helping on someone else's course, for part of its run.
+// Not one of the three role columns: there can be several, and each one has its
+// own days. See the 20260907010000_session_assist migration for why.
+// ---------------------------------------------------------------------------
+export async function addAssist(blockId, staffId, from, to, note = null) {
+  if (!blockId || !staffId || !from || !to) throw new Error('Pick somebody and the days they are in')
+  if (to < from) throw new Error('The last day cannot be before the first')
+  if (LIVE) {
+    const { data, error } = await supabase.from('session_assist')
+      .insert({ session_id: blockId, staff_id: Number(staffId), from_date: from, to_date: to, note })
+      .select('session_assist_id').single()
+    if (error) {
+      // The unique index is a double-click guard, so say so in English rather
+      // than handing the user a Postgres constraint name.
+      if (String(error.message || '').includes('session_assist_once')) {
+        throw new Error('They are already down as assisting from that day')
+      }
+      throw new Error(error.message)
+    }
+    return data.session_assist_id
+  }
+  const id = (D.seq.sessionAssist = (D.seq.sessionAssist || 0) + 1)
+  assistDemo.push({ session_assist_id: id, session_id: blockId, staff_id: Number(staffId), from_date: from, to_date: to, note })
+  return id
+}
+
+export async function removeAssist(assistId) {
+  if (LIVE) {
+    const { error } = await supabase.from('session_assist').delete().eq('session_assist_id', assistId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const i = assistDemo.findIndex((a) => a.session_assist_id === assistId)
+  if (i >= 0) assistDemo.splice(i, 1)
 }
 
 export async function assignBlockRole(blockId, role, staffId) {

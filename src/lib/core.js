@@ -177,6 +177,13 @@ export const store = {
     s(5, 1, '2026-07-13', '2026-07-15', 'tu-5', null, null, null),
     s(6, 5, '2026-07-20', '2026-07-24', 'tu-6', null, null, null),
   ],
+  // Assisting: somebody helping on part of someone else's course. Seeded on the
+  // five-day week (session 4, 6-10 Jul) so demo mode and the screenshot harness
+  // both show the checkered stretch on a bar that is long enough to read.
+  sessionAssists: [
+    { session_assist_id: 1, session_id: 4, staff_id: 2, from_date: '2026-07-08', to_date: '2026-07-09', note: null },
+    { session_assist_id: 2, session_id: 2, staff_id: 1, from_date: '2026-06-25', to_date: '2026-06-26', note: null },
+  ],
   bookings: [
     bk(1, 1, 1, 1, false, false, false, null),
     { ...bk(2, 2, 1, 1, false, false, true, null), is_reassessment: true },
@@ -250,7 +257,7 @@ export const store = {
     { inquiry_id: 1, name: 'Dave Stott', email: 'dave.stott@example.com', mobile: '07700 900111', courses: 'Domestic Gas ACS, LPG', pref_date_from: '2026-07-13', pref_date_to: '2026-07-24', notes: 'Ticket runs out soon — also asked about CPA1.', status: 'open', created_at: '2026-06-24T10:12:00Z', handled_at: null },
     { inquiry_id: 2, name: 'Sue', email: '', mobile: '07700 900222', courses: 'Commercial Catering', pref_date_from: null, pref_date_to: null, notes: 'Name + number only — wants a callback with prices.', status: 'open', created_at: '2026-06-25T15:40:00Z', handled_at: null },
   ],
-  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4 },
+  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4, sessionAssist: 2 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }

@@ -19,6 +19,19 @@
 
 export const RELEASES = [
   {
+    // The build number had drifted ABOVE the real commit count again (1.48.0
+    // was labelled 211 and shipped at 206). Rederived from git, same as 29 Aug,
+    // so this one reads lower than the last. COMMIT is the field to trust.
+    v: '1.49.0', build: 207, date: '7 Sep 2026',
+    title: 'Every delegate is findable, and a course can have someone assisting',
+    notes: [
+      'Searching the delegates only ever looked at the first thousand of them. There are 3,911, sorted by surname, so the search could see roughly A to D and nothing after it — which is why looking for Andy McCulley found nobody, even though he is on the system twice. The search now runs against the whole database instead of a list held in the browser. The heading tells you how many there are and how many you are looking at, and typing two words finds a person whichever way round you type them. The same fix is on Book a Delegate, where the search box was real but was searching the same short list.',
+      'A course can now have somebody ASSISTING on it, alongside the trainer, assessor and verifier. It takes days rather than the whole course — Keith runs the week, Phil comes in for two of it — and more than one person can be down on the same course. Everybody is offered, with the reason in brackets beside anyone who cannot easily do it: where they already are (on holiday, on site at a customer) and what they are already doing (training or assessing on another course that week). It warns and then lets you do it anyway. The days somebody is helping are marked on the course itself, so you can see them without opening anything.',
+      'The staff filter now means everything that person is on — trained, assessed, verified and assisted — rather than only the courses they are down as teaching. Filter to one person and press Print, and you get a sheet of exactly what is on the screen: dates, days, course, who did what, who assisted and for how long, and how many were booked. That is the sheet to check an invoice against.',
+      'On the year view, a one- or two-day course was too narrow to hold its own name, so a year of short courses was a row of coloured ticks you had to hover over one at a time. Where there is clear space, the name is now printed beside the bar. The bar itself keeps its true width — stretching it to fit the words would have it claiming days it does not run.',
+    ],
+  },
+  {
     v: '1.48.0', build: 211, date: '6 Sep 2026',
     title: 'The dashboard numbers go somewhere, and the renewal list is readable',
     notes: [

@@ -1828,3 +1828,61 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
   transition:border-color .12s ease, transform .12s ease}
 .statbtn:hover{border-color:var(--brand);transform:translateY(-1px)}
 .statbtn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+/* ── ASSIST ─────────────────────────────────────────────────────────────────
+   The days somebody is in helping, marked ON the bar. Checkered rather than a
+   solid block or a second bar: it has to read as "this stretch of THIS course",
+   not as a course of its own. It sits behind the label (z-index below .cx-bar-t)
+   and inherits --c, so it is the course's own colour a shade stronger and never
+   fights the palette. */
+.cx-bar-assist{position:absolute;top:0;bottom:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(135deg,
+    color-mix(in srgb,var(--c) 34%,transparent) 0 4px,transparent 4px 8px);
+  border-left:1px solid color-mix(in srgb,var(--c) 45%,transparent);
+  border-right:1px solid color-mix(in srgb,var(--c) 45%,transparent)}
+.cx-bar-t{position:relative;z-index:1}
+.cx-ybar .cx-bar-assist{border-radius:3px}
+
+/* The add-someone form. Three controls on one line where there is room, and the
+   date boxes keep their own labels — an unlabelled pair of dates beside a name
+   is a puzzle. */
+.cx-assist-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:8px}
+.cx-assist-form select{min-width:190px;flex:1 1 190px}
+.cx-assist-form label{display:flex;flex-direction:column;gap:3px}
+.cx-assist-form label small{color:var(--cx-mute);font-size:11px}
+.cx-assist-form .cx-assist-act{display:flex;align-items:center;gap:6px}
+.cx-assist-form .hint{flex:1 0 100%;margin:2px 0 0}
+
+/* ── YEAR VIEW: naming a bar too narrow to hold its name ───────────────────
+   A one-day course is about 3% of a 31-day row — there is no room inside it for
+   a word. The name goes outside, to the right, only where the lane is clear for
+   three days after it. The bar itself keeps its true width: on a date-scaled
+   row a bar stretched to fit its label is a bar telling you the wrong dates. */
+.cx-ybar-out{position:absolute;left:100%;top:50%;transform:translateY(-50%);
+  margin-left:5px;white-space:nowrap;pointer-events:none;
+  font-size:10.5px;font-weight:600;letter-spacing:.1px;
+  color:color-mix(in srgb,var(--c) 62%,var(--cx-mute))}
+.cx-dark .cx-ybar-out{color:color-mix(in srgb,var(--c) 70%,var(--cx-ink))}
+.cx-ybar{overflow:visible}
+
+/* ── PRINT ─────────────────────────────────────────────────────────────────
+   What gets printed is the FILTERED LIST, not the grid. Filter to one person,
+   press Print, and the sheet that comes out is what accounts can check an
+   invoice against. `visibility` rather than `display` on purpose: display:none
+   on the app collapses the layout and Safari has been known to print a blank
+   page off the back of it. */
+.cx-printout{display:none}
+@media print{
+  body *{visibility:hidden}
+  .cx-printout,.cx-printout *{visibility:visible}
+  .cx-printout{display:block;position:absolute;left:0;top:0;width:100%;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:#000}
+  .cx-printout h1{font-size:17px;margin:0 0 3px}
+  .cx-printout .cx-print-sub{font-size:11px;color:#444;margin:0 0 12px}
+  .cx-printout table{width:100%;border-collapse:collapse;font-size:11px}
+  .cx-printout th,.cx-printout td{border:1px solid #999;padding:4px 6px;text-align:left;
+    vertical-align:top;color:#000;text-transform:none;letter-spacing:0;font-size:11px}
+  .cx-printout th{background:#eee;font-weight:700}
+  .cx-printout tr{break-inside:avoid}
+  @page{margin:14mm}
+}

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { listDelegates, getDelegateHistory } from '../lib/api.js'
+import { useEffect, useState } from 'react'
+import { searchDelegates, getDelegateHistory } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials, resultClass, daysUntil } from '../lib/util.js'
 
@@ -44,34 +44,43 @@ export default function Delegates({ openDelegate }) {
 }
 
 function DelegateList({ onOpen }) {
-  const { data, loading } = useData(listDelegates)
   const [q, setQ] = useState('')
-  const rows = useMemo(() => {
-    if (!data) return []
-    const s = q.trim().toLowerCase()
-    if (!s) return data
-    return data.filter((c) =>
-      `${c.forename} ${c.surname}`.toLowerCase().includes(s) ||
-      (c.ni_number || '').toLowerCase().includes(s) ||
-      (c.company || '').toLowerCase().includes(s)
-    )
-  }, [data, q])
+  const [term, setTerm] = useState('')
 
-  if (loading) return <div className="loading">Loading delegates…</div>
+  // Debounced -- otherwise every keystroke is its own database round trip.
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(q), 250)
+    return () => clearTimeout(t)
+  }, [q])
+
+  // The search runs in the DATABASE. It used to pull the whole table and filter
+  // here, which PostgREST truncated at 1,000 rows -- so anyone past about "D"
+  // could not be found at all. Never go back to filtering a full list client-side.
+  const { data, loading } = useData(() => searchDelegates(term), [term])
+  const rows = data?.rows || []
+  const total = data?.total
+  const truncated = data?.truncated
 
   return (
     <div className="card">
-      <h3>👤 Delegates <span className="tag">{rows.length} shown</span></h3>
+      <h3>👤 Delegates <span className="tag">{total != null ? `${rows.length} of ${total}` : `${rows.length} shown`}</span></h3>
       <div style={{ padding: '14px 18px 0' }}>
         <div className="searchbar">
+          {/* Stays mounted while loading, so typing never loses focus. */}
           <input type="search" placeholder="Search by name, NI number, or company…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
         </div>
+        {truncated && (
+          <div className="muted small" style={{ marginTop: 8 }}>
+            Showing the first {rows.length}. Start typing to search {total != null ? `all ${total}` : 'every'} delegates — not just the ones listed here.
+          </div>
+        )}
       </div>
       <table>
         <thead><tr><th>Name</th><th>Associated company</th><th>NI number</th><th>Date of birth</th><th>Mobile</th><th>Email</th></tr></thead>
         <tbody>
-          {rows.length === 0 && <tr><td colSpan={6} className="empty">No matching delegates</td></tr>}
-          {rows.map((c) => (
+          {loading && <tr><td colSpan={6} className="empty">Searching…</td></tr>}
+          {!loading && rows.length === 0 && <tr><td colSpan={6} className="empty">No matching delegates</td></tr>}
+          {!loading && rows.map((c) => (
             <tr key={c.client_id} className="clickrow" onClick={() => onOpen(c.client_id)}>
               <td><b>{c.forename} {c.surname}</b></td>
               <td>{c.company}</td>

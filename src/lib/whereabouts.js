@@ -83,3 +83,55 @@ export function awayReason(entry) {
   const what = (entry.title || '').trim()
   return what && what.toLowerCase() !== label ? `${label} (${what})${half}` : `${label}${half}`
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ASSISTING
+//
+// Helping to deliver somebody else's course, in the room, for part of its run.
+// For availability it is TEACHING: you have to be at the centre to do it, so it
+// asks the same question the trainer slot asks. On site at a customer still
+// blocks it, even though on site leaves assessing open — you cannot help run a
+// classroom from a plant in Grangemouth.
+export function blocksAssist(kind) {
+  return blocksRole(kind, 'trainer')
+}
+
+// Simon's rule, in code: EVERYBODY is on the assist list, except anyone already
+// committed on those days — including on the very course being assisted, where
+// the trainer and the assessor are already doing a job and cannot also be the
+// help. Returns the first clash as { block, role } so the screen can say which
+// course and in what capacity, or null.
+//
+// The current course is deliberately NOT skipped: that is the half of the rule
+// that stops the trainer being added as their own assistant. An existing assist
+// stretch on the same course is only a clash if the DAYS overlap — in on Monday
+// and again on Thursday is a real thing people do.
+export function assistClash(blocks, staffId, from, to) {
+  if (!staffId || !from || !to) return null
+  const id = String(staffId)
+  for (const b of blocks || []) {
+    if (b.isHoliday || b.isEngagement) continue
+    if (!b.start || !b.end) continue
+    if (!(b.start <= to && b.end >= from)) continue
+    if (String(b.trainerId ?? '') === id) return { block: b, role: 'training' }
+    if (String(b.assessorId ?? '') === id) return { block: b, role: 'assessing' }
+    if (String(b.verifierId ?? '') === id) return { block: b, role: 'verifying' }
+    for (const a of b.assists || []) {
+      if (String(a.staffId) !== id) continue
+      if (a.from <= to && a.to >= from) return { block: b, role: 'assisting' }
+    }
+  }
+  return null
+}
+
+// Which days of a course have somebody assisting — for drawing the checkered
+// stretch on the bar. A Set of ISO dates, so the grid can ask day by day.
+export function assistDays(block) {
+  const out = new Set()
+  for (const a of block?.assists || []) {
+    for (let d = a.from; d <= a.to; d = new Date(Date.parse(d + 'T00:00:00Z') + 86400000).toISOString().slice(0, 10)) {
+      out.add(d)
+    }
+  }
+  return out
+}

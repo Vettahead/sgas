@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { listDelegates, listCompanies, listBookableCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
+import { searchDelegates, listCompanies, listBookableCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
 import { lookupPostcode } from '../lib/postcode.js'
 import { useData } from '../lib/hooks.js'
 import { toast } from '../lib/toast.js'
@@ -12,13 +12,29 @@ const GAS_SCHEMES = new Set(['ACS Domestic', 'ACS Commercial', 'LPG', 'Catering'
 const EMPTY_OPTS = { mlp: false, igas: false, prefFrom: '', prefTo: '' }
 
 export default function Book({ prefill = null }) {
-  const { data: delegates, loading: l1, reload: reloadDelegates } = useData(listDelegates)
+  const [query, setQuery] = useState('')
+  const [term, setTerm] = useState('')
+  // Debounced -- otherwise every keystroke is its own database round trip.
+  useEffect(() => {
+    const t = setTimeout(() => setTerm(query), 250)
+    return () => clearTimeout(t)
+  }, [query])
+
+  // Searches the DATABASE, not a list held in the browser. The old version
+  // filtered whatever listDelegates() had returned, and PostgREST truncates an
+  // unranged select at 1,000 rows -- so the search box was real but could only
+  // ever see roughly surnames A-D. Do not go back to filtering a full list here.
+  const { data: dres, loading: l1, reload: reloadDelegates } = useData(() => searchDelegates(term), [term])
+  const delegates = dres?.rows || []
+  const delegatesTotal = dres?.total
   const { data: companies, loading: l2, reload: reloadCompanies } = useData(listCompanies)
   const { data: categories, loading: l3 } = useData(listBookableCategories)
   const { data: courses, loading: l4 } = useData(listCourses)
 
   const [clientId, setClientId] = useState('')
-  const [query, setQuery] = useState('')
+  // The chosen delegate is HELD, not looked up: with a paged search the row can
+  // easily not be in the page on screen when the booking is submitted.
+  const [picked, setPicked] = useState(null)
   const [catKind, setCatKind] = useState(() => new Map()) // category_id -> 'REASSESS' | 'NEW'
   const [collapsed, setCollapsed] = useState({})
   const [opts, setOpts] = useState(EMPTY_OPTS)
@@ -52,18 +68,13 @@ export default function Book({ prefill = null }) {
 
   const catById = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.category_id, c)); return m }, [categories])
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return delegates || []
-    return (delegates || []).filter((d) =>
-      `${d.forename} ${d.surname}`.toLowerCase().includes(q) ||
-      (d.company || '').toLowerCase().includes(q) ||
-      (d.ni_number || '').toLowerCase().includes(q))
-  }, [delegates, query])
+  // Only the FIRST delegate load blocks the screen. Blocking on l1 afterwards
+  // would tear the form down on every keystroke and throw away the focus.
+  if (!dres || l2 || l3 || l4) return <div className="loading">Loading…</div>
 
-  if (l1 || l2 || l3 || l4) return <div className="loading">Loading…</div>
-
-  const selectedClient = delegates.find((d) => String(d.client_id) === String(clientId))
+  const selectedClient = (picked && String(picked.client_id) === String(clientId))
+    ? picked
+    : delegates.find((d) => String(d.client_id) === String(clientId))
   const hasGasQual = categories.some((c) => catKind.has(c.category_id) && GAS_SCHEMES.has(c.scheme))
   // IGAS only applies to gas certs; auto-off when no gas qualification is ticked.
   const igasEffective = opts.igas && hasGasQual
@@ -102,6 +113,7 @@ export default function Book({ prefill = null }) {
     const row = await createClient({ ...nc, company_id: Number(nc.company_id) })
     reloadDelegates()
     setClientId(String(row.client_id))
+    setPicked(row)
     setNc({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
     setShowNewClient(false)
     toast(`Delegate added: ${row.forename} ${row.surname}`)
@@ -136,7 +148,7 @@ export default function Book({ prefill = null }) {
     const typeLabel = kinds.size > 1 ? 'Mixed (new + reassessment)' : (kinds.has('REASSESS') ? 'Reassessment' : 'New')
     const tags = [typeLabel, opts.mlp && `MLP (${mlpCourses.size} courses)`, igasEffective && 'IGAS'].filter(Boolean).join(', ')
     toast(`${selectedClient.forename} ${selectedClient.surname} → ${schemes.join(' + ')} pool · ${tags} · ${catKind.size} qualifications`)
-    setClientId(''); setCatKind(new Map()); setOpts(EMPTY_OPTS); setMlpCourses(new Set()); setQuery('')
+    setClientId(''); setPicked(null); setCatKind(new Map()); setOpts(EMPTY_OPTS); setMlpCourses(new Set()); setQuery('')
   }
 
   return (
@@ -149,9 +161,16 @@ export default function Book({ prefill = null }) {
               <label className="fl">Delegate</label>
               <input className="search" placeholder="Search name, company or NI…" value={query} onChange={(e) => setQuery(e.target.value)} />
               <div className="inrow" style={{ marginTop: 8 }}>
-                <select value={clientId} onChange={(e) => setClientId(e.target.value)}>
-                  <option value="">— choose delegate{query ? ` (${filtered.length} match${filtered.length === 1 ? '' : 'es'})` : ''} —</option>
-                  {filtered.map((d) => <option key={d.client_id} value={d.client_id}>{d.forename} {d.surname} · {d.company}</option>)}
+                <select value={clientId} onChange={(e) => {
+                  const id = e.target.value
+                  setClientId(id)
+                  setPicked(delegates.find((d) => String(d.client_id) === id) || null)
+                }}>
+                  <option value="">— choose delegate{query ? ` (${delegates.length}${delegatesTotal != null && delegatesTotal > delegates.length ? ` of ${delegatesTotal}` : ''} match${delegates.length === 1 ? '' : 'es'})` : ''} —</option>
+                  {selectedClient && !delegates.some((d) => String(d.client_id) === String(clientId)) && (
+                    <option value={clientId}>{selectedClient.forename} {selectedClient.surname} · {selectedClient.company}</option>
+                  )}
+                  {delegates.map((d) => <option key={d.client_id} value={d.client_id}>{d.forename} {d.surname} · {d.company}</option>)}
                 </select>
                 <button className="btn ghost sm" onClick={() => { setShowNewClient(!showNewClient); setShowNewCompany(false) }}>＋ New</button>
               </div>
