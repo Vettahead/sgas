@@ -142,6 +142,19 @@ function assistRuns(days, from, to) {
   return out
 }
 
+/* Matching a name written in a Teamup note against a delegate on the course.
+   First forename word + surname, letters only — the notes say "Lee Jones" and
+   the record says "LEE ALAN JONES", and a middle name is not a different person.
+   Deliberately narrow: it is used to MARK names for a human to look at, never to
+   move a booking, so a near miss costs a second glance and nothing else. */
+function nameKey(v) {
+  const w = String(v || '').trim().split(/\s+/).filter(Boolean)
+  if (w.length < 2) return null
+  const only = (x) => x.toLowerCase().replace(/[^a-z]/g, '')
+  const a = only(w[0]), b = only(w[w.length - 1])
+  return a && b ? a + '|' + b : null
+}
+
 const isResit = (p) => String(p?.id || '').startsWith('rb-')
 const resitWord = (p) => (p?.kind === 'NO_SHOW' ? 'no-show' : 'NYC')
 
@@ -1144,6 +1157,13 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     window.addEventListener('pointercancel', cancel)
   }
 
+  // Who is actually on the open course, as name keys, for marking the notes.
+  const onCourseKeys = useMemo(() => {
+    const set = new Set()
+    for (const d of open?.delegates || []) { const k = nameKey(d.name); if (k) set.add(k) }
+    return set
+  }, [open])
+
   const inSel = (d) => sel && d >= sel.from && d <= sel.to
   const title = view === 'Day'
     ? new Date(anchor + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -1977,6 +1997,37 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 entries, so a "(7)" can be carrying twenty-five names. Said out
                 loud rather than quietly corrected: which of those twenty-five
                 belong is Simon's answer, not one to guess. */}
+            {/* ⚠ THE OTHER HALF. Too many people on a course is only one of the
+                two faults: 285 people are named in a course's OWN notes and were
+                never booked on it, across 178 courses. So the entry list marks
+                both — a name that is on the course, and a name that is not. */}
+            {origin && origin.entries?.length > 0 && (() => {
+              const missing = origin.entries.reduce((n, e) =>
+                n + e.names.filter((x) => !onCourseKeys.has(nameKey(x))).length, 0)
+              return missing > 0 && origin.events === 1 ? (
+                <div className="cx-row2 top">
+                  <span className="cx-ricon" aria-hidden="true">⚠</span>
+                  <div className="cx-rfill">
+                    <span className="cx-rlabel">Named but not booked on</span>
+                    <span className="cx-rtext">
+                      <b>{missing}</b> {missing === 1 ? 'person is' : 'people are'} written in this course's own notes
+                      but {missing === 1 ? 'is' : 'are'} not on it.
+                    </span>
+                    <ul className="cx-origin">
+                      {origin.entries.map((e) => (
+                        <li key={e.id}>
+                          <div className="cx-origin-n">
+                            {e.names.filter((x) => !onCourseKeys.has(nameKey(x)))
+                              .map((n, i) => <span key={i} className="cx-nm off">{n}</span>)}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ) : null
+            })()}
+
             {origin && origin.events > 1 && (
               <div className="cx-row2 top">
                 <span className="cx-ricon" aria-hidden="true">⚠</span>
@@ -2006,7 +2057,19 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                               another. Said out loud rather than picked. */}
                           {e.disputed && <em title={`The title says ${e.titleSays}; Teamup's own Who field says ${e.ranBy}`}>title says {e.titleSays}</em>}
                         </div>
-                        {e.names.length > 0 && <div className="cx-origin-n">{e.names.join(' · ')}</div>}
+                        {e.names.length > 0 && (
+                          <div className="cx-origin-n">
+                            {e.names.map((n, i) => {
+                              const on = onCourseKeys.has(nameKey(n))
+                              return (
+                                <span key={i} className={on ? 'cx-nm on' : 'cx-nm off'}
+                                  title={on ? 'On this course' : 'Written in this entry, but not booked on the course'}>
+                                  {n}
+                                </span>
+                              )
+                            })}
+                          </div>
+                        )}
                       </li>
                     ))}
                   </ul>

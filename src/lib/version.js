@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.52.0', build: 210, date: '7 Sep 2026',
+    title: 'The other half — people missing off courses they should be on',
+    notes: [
+      'Too many people on a course was only one of the two faults. The other is people MISSING. There are 285 people written into a course\u2019s own notes who were never booked onto it, across 178 courses. 95 of them already exist as delegates on the system \u2014 the record is there, it simply never got put on the course \u2014 and the rest were never created at all.',
+      'Opening a course now marks every name written in its notes: the ones on the course in grey, and the ones written down but not booked on in amber. So the same panel answers both questions at once \u2014 who is on it that should not be, and who is missing that should be. On a course built from several entries the names sit under the entry they were written on, so it also tells you which of them belongs to which day.',
+      'The matching is first name plus surname, so \u201cLee Jones\u201d finds \u201cLee Alan Jones\u201d \u2014 a middle name is not a different person. It is deliberately careful and only ever marks a name for someone to look at; nothing is moved or booked automatically on the strength of it.',
+    ],
+  },
+  {
     v: '1.51.0', build: 209, date: '7 Sep 2026',
     title: 'A course that was really three now shows you which people came from where',
     notes: [

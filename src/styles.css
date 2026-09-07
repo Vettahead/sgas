@@ -1898,3 +1898,11 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
    know rather than a thing to fix here. */
 .cx-origin-h em{font-style:normal;color:var(--cx-warn);font-weight:600}
 .cx-origin-n{margin-top:3px;line-height:1.45;white-space:normal}
+
+/* A name written in a course's notes: on the course, or named and missing.
+   Two states, one row — the point is the comparison, so they sit together
+   rather than in separate lists. */
+.cx-origin-n .cx-nm{display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;border-radius:5px}
+.cx-origin-n .cx-nm.on{color:var(--cx-mute)}
+.cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
+  background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
