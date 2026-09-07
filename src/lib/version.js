@@ -19,6 +19,14 @@
 
 export const RELEASES = [
   {
+    v: '1.48.0', build: 211, date: '6 Sep 2026',
+    title: 'The dashboard numbers go somewhere, and the renewal list is readable',
+    notes: [
+      'The numbers across the top of the dashboard are now buttons. Every one of them is the top of a list, and until now it was a figure you could read but not reach \u2014 \u201cPayments outstanding 14\u201d with the payments screen three clicks away. Click one and it takes you to what it is counting: to the screen where one exists, or, where the list is already further down the dashboard, it opens that card and scrolls to it. If a card is not on your dashboard \u2014 either your role does not get it or you have taken it off your own layout \u2014 it sends you to the full screen instead of doing nothing.',
+      'The renewal engine no longer runs off the bottom of the page. On a six-month window it is 251 rows, which was a screenful of dashboard and then twenty screenfuls of table. It now shows the twelve most urgent with \u201cShow the other 239 due later\u201d underneath. The count in the heading still tells the truth about the whole list, so the number and the rows never disagree. Same on the cold list.',
+    ],
+  },
+  {
     v: '1.47.0', build: 207, date: '6 Sep 2026',
     title: 'Who trained and who assessed, the past is locked, and one Domestic course',
     notes: [

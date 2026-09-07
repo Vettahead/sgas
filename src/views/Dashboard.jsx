@@ -48,6 +48,11 @@ export default function Dashboard({ go, user }) {
   const [widths, setWidths] = useState(() => loadWidths(role))
   const modsRef = useRef(null)
   const [customise, setCustomise] = useState(false)
+  /* The renewal list is the whole point of the engine and it is also 251 rows
+     long on a six-month window, which is a screenful of dashboard and then
+     twenty of table. It shows the most urgent handful and says how many more
+     there are, the same way the calendar's side panel does. */
+  const [showAll, setShowAll] = useState({})
   if (loading || !data) return <div className="loading">Loading dashboard…</div>
 
   const { renewals, coldList, chase, counts, mlps, awaitingBlocks, assessBlocks } = data
@@ -60,13 +65,32 @@ export default function Dashboard({ go, user }) {
     return s
   })
 
+  /* Every number is the top of something. It used to be a figure you could
+     read and not reach — a count of payments outstanding with the payments
+     screen three clicks away. Each tile now takes you to the thing it counts:
+     to another screen where one exists, or, where the list is already on this
+     page, it opens that card and scrolls to it. */
   const STAT = {
-    renew: [counts.renew, `Expiring within ${windowLabel}`, 'amber'],
-    sessions: [counts.sessions, 'Scheduled sessions', 'brand'],
-    outstanding: [counts.outstanding, 'Payments outstanding', 'green'],
-    unassigned: [counts.unassigned, 'Blocks awaiting assignment', 'amber'],
-    toAssess: [counts.toAssess, 'Delegates to assess', 'brand'],
-    cold: [counts.cold, 'On the cold list (phone)', 'green'],
+    renew:       [counts.renew,       `Expiring within ${windowLabel}`, 'amber', { card: 'renewals',    or: 'delegates' }],
+    sessions:    [counts.sessions,    'Scheduled sessions',             'brand', { go: 'calendar' }],
+    outstanding: [counts.outstanding, 'Payments outstanding',           'green', { card: 'outstanding', or: 'payments' }],
+    unassigned:  [counts.unassigned,  'Blocks awaiting assignment',     'amber', { card: 'scheduling',  or: 'calendar' }],
+    toAssess:    [counts.toAssess,    'Delegates to assess',            'brand', { card: 'assessment',  or: 'assess' }],
+    cold:        [counts.cold,        'On the cold list (phone)',       'green', { card: 'cold',        or: 'delegates' }],
+  }
+  // Open the card the number belongs to and put it under the eye. Opening it
+  // and leaving the page where it was is the same as doing nothing.
+  function openStat(to) {
+    if (to?.go) { go(to.go); return }
+    if (!to?.card) return
+    // The card may not be on this dashboard at all — a Scheduler sees the
+    // renewals NUMBER but not the renewals list, and anyone can take a module
+    // off their own layout. Send them to the screen instead of doing nothing.
+    if (!visible.includes(to.card)) { if (to.or) go(to.or); return }
+    if (!openCards.has(to.card)) toggleCard(to.card)
+    setTimeout(() => {
+      document.getElementById('dash-' + to.card)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
   }
   const STAT_KEYS = {
     ADMIN: ['renew', 'sessions', 'unassigned', 'toAssess', 'outstanding'],
@@ -149,7 +173,8 @@ export default function Dashboard({ go, user }) {
   const resetLayout = () => { persist(defaultLayout(role)); setWidths({}); saveWidths(role, {}) }
 
   const ctx = {
-    go, user, isOpen, toggleCard, renewals, coldList, chase, mlps, counts, STAT, statKeys,
+    go, user, isOpen, toggleCard, openStat, showAll, setShowAll,
+    renewals, coldList, chase, mlps, counts, STAT, statKeys,
     windowDays, setWindowDays, windowLabel, logKey, openLog, Actions, ContactBadge,
     blockMonth, setBlockMonth, blockMonths, monthName, shownAwaiting, awaitingBlocks, assessBlocks,
   }
@@ -203,8 +228,13 @@ function renderModule(id, c) {
     return (
       <div className="stat-row">
         {c.statKeys.map((k) => {
-          const [n, l, cls] = c.STAT[k]
-          return <div className="card" key={k}><div className={'body stat ' + cls}><div className="n">{n}</div><div className="l">{l}</div></div></div>
+          const [n, l, cls, to] = c.STAT[k]
+          return (
+            <button type="button" className="card statbtn" key={k} onClick={() => c.openStat(to)}
+              title={to?.go ? `Open ${to.go}` : 'Show the list'}>
+              <div className={'body stat ' + cls}><div className="n">{n}</div><div className="l">{l}</div></div>
+            </button>
+          )
         })}
       </div>
     )
@@ -220,7 +250,8 @@ function renderModule(id, c) {
     return <HolidayRequests user={c.user} isOpen={c.isOpen} toggleCard={c.toggleCard} />
   }
   if (id === 'renewals') {
-    const { renewals, isOpen, toggleCard, windowDays, setWindowDays, logKey, openLog, Actions, ContactBadge, go } = c
+    const { renewals, isOpen, toggleCard, windowDays, setWindowDays, logKey, openLog, Actions, ContactBadge, go, showAll, setShowAll } = c
+    const shown = firstOf('renewals', renewals, showAll)
     return (
       <DashCard id="renewals" title="🔔 Renewal engine — expiring soon" badge="nightly scan" count={renewals.length} open={isOpen('renewals')} onToggle={toggleCard}>
         <div className="body" style={{ paddingBottom: 0 }}>
@@ -235,7 +266,7 @@ function renderModule(id, c) {
           <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th>In</th><th style={{ textAlign: 'center' }}>Contacts</th><th>Actions</th></tr></thead>
           <tbody>
             {renewals.length === 0 && <tr><td colSpan={6} className="empty">Nothing expiring in the window</td></tr>}
-            {renewals.map((r) => (
+            {shown.map((r) => (
               <RenewalRows key={logKey(r)} r={r} cols={6} open={openLog === logKey(r)} Actions={Actions} ContactBadge={ContactBadge}
                 lead={<>
                   <td className="nowrap">{fmt(r.expiry)}</td>
@@ -244,25 +275,28 @@ function renderModule(id, c) {
             ))}
           </tbody>
         </table>
+        <ShowRest id="renewals" list={renewals} showAll={showAll} setShowAll={setShowAll} what="due later" />
         <div className="banner">Cross-references qualification expiry against the look-ahead window. A delegate already booked for their renewal drops off the list; if they don't attend, they reappear. Every email and call is individualised and logged (GDPR — no bulk sends).</div>
       </DashCard>
     )
   }
   if (id === 'cold') {
-    const { coldList, isOpen, toggleCard, logKey, openLog, Actions, ContactBadge, go } = c
+    const { coldList, isOpen, toggleCard, logKey, openLog, Actions, ContactBadge, go, showAll, setShowAll } = c
+    const shownCold = firstOf('cold', coldList, showAll)
     return (
       <DashCard id="cold" title="📞 Cold list — phone follow-up" badge={`${coldList.length} after ${RENEWAL_COLD_THRESHOLD}+ emails`} count={coldList.length} open={isOpen('cold')} onToggle={toggleCard}>
         <table>
           <thead><tr><th>Delegate</th><th>Qualification</th><th>Expires</th><th style={{ textAlign: 'center' }}>Contacts</th><th>Mobile</th><th>Actions</th></tr></thead>
           <tbody>
             {coldList.length === 0 && <tr><td colSpan={6} className="empty">No one on the cold list</td></tr>}
-            {coldList.map((r) => (
+            {shownCold.map((r) => (
               <RenewalRows key={logKey(r)} r={r} cols={6} open={openLog === logKey(r)} Actions={Actions} ContactBadge={ContactBadge}
                 lead={<td className="nowrap">{fmt(r.expiry)}</td>}
                 tail={<td className="nowrap">{r.mobile || '—'}</td>} go={go} />
             ))}
           </tbody>
         </table>
+        <ShowRest id="cold" list={coldList} showAll={showAll} setShowAll={setShowAll} what="to ring" />
         <div className="banner">These delegates haven't answered {RENEWAL_COLD_THRESHOLD} or more renewal emails — work them by phone. Use <b>Log call</b> to record what was said.</div>
       </DashCard>
     )
@@ -455,9 +489,27 @@ function HolidayRequests({ user, isOpen, toggleCard }) {
   )
 }
 
+// A long list shows its most urgent handful and says how many more there are.
+// The count in the heading always tells the truth about the whole list, so the
+// number and the rows never disagree — a heading saying 251 above 12 rows with
+// no way to reach the rest is worse than either.
+const FIRST = 12
+function ShowRest({ id, list, showAll, setShowAll, what }) {
+  if (list.length <= FIRST) return null
+  const on = !!showAll[id]
+  return (
+    <div className="body" style={{ paddingTop: 0 }}>
+      <button className="btn ghost sm" onClick={() => setShowAll((v) => ({ ...v, [id]: !on }))}>
+        {on ? `Show just the ${FIRST} most urgent` : `Show the other ${list.length - FIRST} ${what}`}
+      </button>
+    </div>
+  )
+}
+const firstOf = (id, list, showAll) => (showAll[id] ? list : list.slice(0, FIRST))
+
 function DashCard({ id, title, badge, count, open, onToggle, children }) {
   return (
-    <div className={'card collapsible' + (open ? ' open' : '')}>
+    <div className={'card collapsible' + (open ? ' open' : '')} id={'dash-' + id}>
       <h3 className="card-toggle" onClick={() => onToggle(id)} title={open ? 'Collapse' : 'Expand'}>
         <span className="chev">{open ? '▾' : '▸'}</span>
         {title}

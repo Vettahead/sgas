@@ -1820,3 +1820,11 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-pastwarn .cx-more { margin-left: auto; }
 [data-theme="dark"] .cx-pastwarn,
 .cx-dark .cx-pastwarn { background: #3a2a10; border-color: #7a5a24; color: #f2d9ae; }
+
+/* A stat tile is a button now — every number is the top of something, so it
+   takes you there. It must still look like the card it was. */
+.statbtn{display:block;width:100%;text-align:left;border:1px solid var(--line);
+  background:var(--card);padding:0;cursor:pointer;font:inherit;color:inherit;
+  transition:border-color .12s ease, transform .12s ease}
+.statbtn:hover{border-color:var(--brand);transform:translateY(-1px)}
+.statbtn:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
