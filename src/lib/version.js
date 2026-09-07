@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.50.0', build: 208, date: '7 Sep 2026',
+    title: 'Why some courses have too many people on them, and the tools to fix it',
+    notes: [
+      'Found it. When the old calendar was brought across, a week of activity at one centre was read as one course — so nine separate Teamup entries for the week of 19 January (a commercial assessment, an IGAS/Commercial, a TPCP day and four separate lots of assessments, run by different people) became a single course, and everybody named on any of them was put on it. That is why a course whose own title says "(7)" is carrying twenty-five names. It affects 138 of the 495 courses that came across; the other 357 came from one entry each and are fine.',
+      'Nothing has been changed automatically, because which of those twenty-five belong on the course is your answer and not something worth guessing at. Instead, opening a course now tells you when it was built from more than one entry, lists the entries it came from, and says what their titles claimed the headcount was against how many are actually on it. That is enough to see at a glance which courses need looking at and which do not.',
+      'The course a block is set to can now be changed from the panel. Some of the Teamup titles were read wrongly — GL8 came through as a gas mixture, one entry that was really an incident investigation came through as a gas meeting — and those want correcting rather than re-importing.',
+      'A delegate record can now be edited, and deleted. The import also made people out of note text: "Plus IGAS", "Monday Training", "Send Certs", "The Document" — about two dozen of them, from lines in the Teamup notes that read like a name. Delete refuses on anybody carrying a booking from the old Access database, because that is their history; everything the notes invented has no Access booking at all, so the junk can go and nothing real can be lost by accident. It tells you exactly what would be removed before you press it.',
+    ],
+  },
+  {
     // The build number had drifted ABOVE the real commit count again (1.48.0
     // was labelled 211 and shipped at 206). Rederived from git, same as 29 Aug,
     // so this one reads lower than the last. COMMIT is the field to trust.

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
-  addAssist, removeAssist,
+  addAssist, removeAssist, getSessionOrigin,
   getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
@@ -475,6 +475,14 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   // was cut to a handful with no way to reach the rest — so "Waiting to be
   // placed 8" listed six people and the other two were simply gone.
   const [showAll, setShowAll] = useState({})
+  /* Where an imported course came from. Loaded when the panel opens rather than
+     with every block: it is one extra query for the one course being looked at,
+     and listBlocks already carries enough. */
+  const [origin, setOrigin] = useState(null)
+  // Which course the in-flight origin lookup is for. A ref, not state: reading
+  // it inside a state updater would be a side effect in a function React is
+  // allowed to call twice.
+  const originFor = useRef(null)
   const cap = (id, list, n) => (showAll[id] ? list : list.slice(0, n))
   const More = ({ id, list, n }) => (list.length > n && !showAll[id] ? (
     <button type="button" className="cx-more" onClick={() => setShowAll((s) => ({ ...s, [id]: true }))}>
@@ -602,6 +610,16 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
         : null
     setAt(sel ? { sel, fx } : null)
     setOpen(b)
+    // Cleared first, so a slow answer for the new course cannot arrive under the
+    // banner from the last one and label the wrong course as a merge.
+    setOrigin(null)
+    originFor.current = b && !b.isHoliday && !b.isEngagement ? b.id : null
+    if (originFor.current != null) {
+      const forId = b.id
+      getSessionOrigin(forId)
+        .then((o) => { if (originFor.current === forId) setOrigin(o) })
+        .catch(() => {})
+    }
   }
   // Dragging the dates from inside the popover, the same commit path the
   // drag-on-the-grid uses.
@@ -1926,6 +1944,57 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 </span>
               </div>
             ))}
+
+            {/* THE COURSE ITSELF. The Teamup titles were a private shorthand
+                and the parser read some of them wrong — GL8 came through as
+                "gas mixture", a "gas meeting" was really incident
+                investigation. Simon is correcting these by hand rather than
+                re-importing, so the course has to be changeable here. */}
+            <div className="cx-row2">
+              <span className="cx-ricon" aria-hidden="true">📕</span>
+              <span className="cx-rwrap">
+                <span className="cx-rlabel">Course</span>
+                {canWrite ? (
+                  <select value={open.courseId || ''} disabled={busy} aria-label="Course" onChange={async (e) => {
+                    const id = Number(e.target.value)
+                    if (!id || id === open.courseId) return
+                    setBusy(true)
+                    try {
+                      await updateBlock(open.id, { courseId: id })
+                      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                      toast('Course changed')
+                    } catch (err) { toast(err.message) } finally { setBusy(false) }
+                  }}>
+                    {!open.courseId && <option value="">Pick the course</option>}
+                    {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+                  </select>
+                ) : <span className="cx-rtext">{open.course || 'No course'}</span>}
+              </span>
+            </div>
+
+            {/* ⚠ WHERE THIS COURSE CAME FROM — see getSessionOrigin(). 138 of
+                the 495 imported courses were built by merging several Teamup
+                entries, so a "(7)" can be carrying twenty-five names. Said out
+                loud rather than quietly corrected: which of those twenty-five
+                belong is Simon's answer, not one to guess. */}
+            {origin && origin.events > 1 && (
+              <div className="cx-row2 top">
+                <span className="cx-ricon" aria-hidden="true">⚠</span>
+                <div className="cx-rfill">
+                  <span className="cx-rlabel">Check who is on this one</span>
+                  <span className="cx-rtext">
+                    Built from <b>{origin.events} separate Teamup entries</b> that week, and everybody named on any of
+                    them was put on this course.
+                    {origin.claimed != null && (
+                      <> The titles said <b>{origin.claimed}</b>; there {open.delegates.length === 1 ? 'is' : 'are'} <b>{open.delegates.length}</b> on it.</>
+                    )}
+                  </span>
+                  <ul className="cx-origin">
+                    {origin.titles.map((t, i) => <li key={i}>{t}</li>)}
+                  </ul>
+                </div>
+              </div>
+            )}
 
             {/* ASSIST — the fourth role, and the only one that is a list.
                 Keith runs the week and Phil comes in for two days of it: one

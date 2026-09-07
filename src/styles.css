@@ -1886,3 +1886,9 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
   .cx-printout tr{break-inside:avoid}
   @page{margin:14mm}
 }
+
+/* The Teamup entries an imported course was built from. A plain list, quiet:
+   it is evidence for a decision, not a warning to act on now. */
+.cx-origin{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:2px}
+.cx-origin li{font-size:12px;color:var(--cx-mute);padding:3px 8px;border-radius:7px;
+  background:var(--cx-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}

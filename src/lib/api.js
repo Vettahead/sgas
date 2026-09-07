@@ -1774,6 +1774,128 @@ export async function removeAssist(assistId) {
   if (i >= 0) assistDemo.splice(i, 1)
 }
 
+// ---------------------------------------------------------------------------
+// EDITING A DELEGATE RECORD
+//
+// The import created people out of note text. "Plus IGAS", "Monday Training",
+// "Send Certs", "The Document" -- 24 of them and counting -- came from lines in
+// the Teamup notes that read like a name to a parser and like a scribble to a
+// human. Simon has to be able to correct a name and delete a non-person, and
+// until now the only way in was SQL.
+// ---------------------------------------------------------------------------
+const CLIENT_FIELDS = ['forename', 'surname', 'ni_number', 'date_of_birth', 'mobile', 'email',
+  'premise', 'street', 'town', 'county', 'postcode', 'company_id']
+
+export async function updateClient(clientId, patch) {
+  const clean = {}
+  for (const k of CLIENT_FIELDS) {
+    if (!(k in patch)) continue
+    // '' is how an empty form field arrives, and it is not the same as a value.
+    // Writing it would turn "no date of birth recorded" into an invalid date.
+    clean[k] = patch[k] === '' ? null : patch[k]
+  }
+  if (!Object.keys(clean).length) return
+  if (!String(clean.forename ?? 'x').trim() || !String(clean.surname ?? 'x').trim()) {
+    throw new Error('A delegate needs a forename and a surname')
+  }
+  if (LIVE) {
+    const { error } = await supabase.from('client').update(clean).eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const c = D.clients.find((x) => x.client_id === clientId)
+  if (c) Object.assign(c, clean)
+}
+
+// What deleting this person would actually destroy. Shown BEFORE the button is
+// pressed, because "delete" on a record with seven years of assessments behind
+// it is not the same act as "delete" on a line of note text.
+export async function clientDeleteCheck(clientId) {
+  if (LIVE) {
+    const { data: bks } = await supabase.from('booking')
+      .select('booking_id,legacy_access_id,session_id').eq('client_id', clientId)
+    const list = bks || []
+    return {
+      bookings: list.length,
+      fromAccess: list.filter((b) => b.legacy_access_id != null).length,
+      seated: list.filter((b) => b.session_id != null).length,
+    }
+  }
+  const list = D.bookings.filter((b) => b.client_id === clientId)
+  return { bookings: list.length, fromAccess: 0, seated: list.filter((b) => b.session_id).length }
+}
+
+// ⛔ THE GUARD, and it is the whole safety of this feature: a delegate carrying
+// ANY booking that came out of the Access file is history and cannot be deleted
+// here. Those records are the seven years nobody can get back. Everything the
+// note parser invented has no Access booking at all, so the junk goes and the
+// history stays, without anybody having to judge it case by case.
+export async function deleteClientRecord(clientId) {
+  const check = await clientDeleteCheck(clientId)
+  if (check.fromAccess > 0) {
+    throw new Error(`This delegate has ${check.fromAccess} booking${check.fromAccess === 1 ? '' : 's'} from the old Access database. That is their history \u2014 take them off the courses instead of deleting them.`)
+  }
+  if (LIVE) {
+    const { data: bks } = await supabase.from('booking').select('booking_id').eq('client_id', clientId)
+    const ids = (bks || []).map((b) => b.booking_id)
+    if (ids.length) {
+      /* Everything else that points at a booking or a client already cascades or
+         sets null (booking_category, chase_log, mlp, renewal_contact and
+         teamup_event_delegate cascade; sage_invoice, stg_access_record and
+         teamup_attachment set null). The ONE exception is booking.resat_from,
+         which references booking with no ON DELETE rule at all — a re-sit whose
+         original is being deleted would block the whole thing. Cut that link
+         first, exactly as the 6 Sep clear-out had to. */
+      const { error: e0 } = await supabase.from('booking').update({ resat_from: null }).in('resat_from', ids)
+      if (e0) throw new Error(e0.message)
+      const { error: e1 } = await supabase.from('booking').delete().in('booking_id', ids)
+      if (e1) throw new Error(e1.message)
+    }
+    const { error } = await supabase.from('client').delete().eq('client_id', clientId)
+    if (error) throw new Error(error.message)
+    return check
+  }
+  const bIds = D.bookings.filter((b) => b.client_id === clientId).map((b) => b.booking_id)
+  D.booking_categories = D.booking_categories.filter((x) => !bIds.includes(x.booking_id))
+  D.bookings = D.bookings.filter((b) => b.client_id !== clientId)
+  D.clients = D.clients.filter((c) => c.client_id !== clientId)
+  return check
+}
+
+// ---------------------------------------------------------------------------
+// WHERE A COURSE CAME FROM
+//
+// 138 of the 495 imported sessions were built by merging SEVERAL Teamup entries
+// into one — up to nine — because a week of activity at one centre looked like
+// one run. Session 887 is nine entries: a commercial T&A, an IGAS/Commercial, a
+// TPCP day and four separate "Assessments", run by different people. Everybody
+// named on any of them was seated on the one course, which is why a "(7)" shows
+// twenty-five names.
+//
+// Not fixed silently. The panel SAYS what a course was built from and what the
+// Teamup titles claimed the headcount was, and Simon decides. Guessing which of
+// twenty-five belong would be inventing the answer.
+// ---------------------------------------------------------------------------
+export async function getSessionOrigin(sessionId) {
+  if (!LIVE) return null
+  const { data } = await supabase.from('teamup_event')
+    .select('event_id,title,start_dt,end_dt').eq('session_id', sessionId).order('start_dt')
+  const list = data || []
+  if (list.length < 1) return null
+  // "(7)PR-Commercial T&A" / "(13)Assessments" — the number in front is the
+  // headcount whoever wrote it meant. Highest wins: the biggest single entry is
+  // the closest thing to "how many were really on this".
+  const counts = list.map((e) => {
+    const m = String(e.title || '').match(/^\s*\((\d{1,2})\)/)
+    return m ? Number(m[1]) : null
+  }).filter((n) => n != null)
+  return {
+    events: list.length,
+    titles: list.map((e) => e.title).filter(Boolean),
+    claimed: counts.length ? Math.max(...counts) : null,
+  }
+}
+
 export async function assignBlockRole(blockId, role, staffId) {
   const col = ROLE_COL[role]
   if (!col) throw new Error('Unknown role')

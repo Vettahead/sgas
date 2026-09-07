@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { searchDelegates, getDelegateHistory } from '../lib/api.js'
+import { searchDelegates, getDelegateHistory, updateClient, clientDeleteCheck, deleteClientRecord } from '../lib/api.js'
+import { toast } from '../lib/toast.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials, resultClass, daysUntil } from '../lib/util.js'
 
@@ -41,6 +42,102 @@ export default function Delegates({ openDelegate }) {
   const [selected, setSelected] = useState(openDelegate || null)
   if (selected) return <DelegateDetail clientId={selected} back={() => setSelected(null)} />
   return <DelegateList onOpen={setSelected} />
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EDIT AND DELETE
+//
+// The import made people out of note text — "Plus IGAS", "Monday Training",
+// "Send Certs" — because a line in a Teamup note can read like a name. Simon
+// needs to be able to fix a spelling and remove a non-person, and neither was
+// possible from the screen.
+//
+// Delete is guarded by where the bookings CAME FROM, not by how many there are:
+// anybody carrying a booking out of the Access file is seven years of history
+// and cannot be deleted here, and everything the parser invented has no Access
+// booking at all. That line does the sorting so nobody has to judge it record
+// by record. What will be destroyed is counted and shown BEFORE the button.
+// ─────────────────────────────────────────────────────────────────────────────
+function EditDelegate({ client, onSaved, onCancel }) {
+  const [f, setF] = useState({
+    forename: client.forename || '', surname: client.surname || '',
+    ni_number: client.ni_number || '', date_of_birth: client.date_of_birth || '',
+    mobile: client.mobile || '', email: client.email || '',
+  })
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  return (
+    <div className="subform">
+      <div className="sfh">Edit delegate</div>
+      <div className="twocol">
+        <Inp label="Forename" v={f.forename} on={set('forename')} />
+        <Inp label="Surname" v={f.surname} on={set('surname')} />
+      </div>
+      <div className="twocol">
+        <Inp label="NI number" v={f.ni_number} on={set('ni_number')} />
+        <Inp label="Date of birth" type="date" v={f.date_of_birth} on={set('date_of_birth')} />
+      </div>
+      <div className="twocol">
+        <Inp label="Mobile" v={f.mobile} on={set('mobile')} />
+        <Inp label="Email" v={f.email} on={set('email')} />
+      </div>
+      <div className="inrow">
+        <button className="btn sm" disabled={busy} onClick={async () => {
+          setBusy(true)
+          try { await updateClient(client.client_id, f); toast('Saved'); onSaved() }
+          catch (e) { toast(e.message) } finally { setBusy(false) }
+        }}>Save changes</button>
+        <button className="btn ghost sm" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
+function DeleteDelegate({ client, onDone, onCancel }) {
+  const [check, setCheck] = useState(null)
+  const [busy, setBusy] = useState(false)
+  useEffect(() => { clientDeleteCheck(client.client_id).then(setCheck).catch(() => setCheck(null)) }, [client.client_id])
+  if (!check) return <div className="subform"><div className="sfh">Delete this record</div><p className="muted small">Checking what is on it…</p></div>
+  const blocked = check.fromAccess > 0
+  return (
+    <div className="subform">
+      <div className="sfh">Delete this record</div>
+      <div className="hint">
+        {blocked ? (
+          <>
+            <b>This one cannot be deleted.</b> {client.forename} {client.surname} has {check.fromAccess} booking
+            {check.fromAccess === 1 ? '' : 's'} that came out of the old Access database — that is their history, and
+            deleting it here would lose it for good. If they should not be on a course, take them off that course instead.
+          </>
+        ) : (
+          <>
+            <b>This cannot be undone.</b> Deleting {client.forename} {client.surname} also removes {check.bookings} booking
+            {check.bookings === 1 ? '' : 's'}{check.seated > 0 ? `, ${check.seated} of them on a course` : ''}, and the
+            qualifications recorded against them. Nothing here came from the Access database, so no history is lost.
+          </>
+        )}
+      </div>
+      <div className="inrow">
+        {!blocked && (
+          <button className="btn sm" disabled={busy} onClick={async () => {
+            setBusy(true)
+            try { await deleteClientRecord(client.client_id); toast('Record deleted'); onDone() }
+            catch (e) { toast(e.message); setBusy(false) }
+          }}>Yes, delete {client.forename} {client.surname}</button>
+        )}
+        <button className="btn ghost sm" disabled={busy} onClick={onCancel}>{blocked ? 'Close' : 'Keep it'}</button>
+      </div>
+    </div>
+  )
+}
+
+function Inp({ label, v, on, type = 'text' }) {
+  return (
+    <div className="field">
+      <label className="fl">{label}</label>
+      <input type={type} value={v} onChange={on} />
+    </div>
+  )
 }
 
 function DelegateList({ onOpen }) {
@@ -97,7 +194,8 @@ function DelegateList({ onOpen }) {
 }
 
 function DelegateDetail({ clientId, back }) {
-  const { data, loading } = useData(() => getDelegateHistory(clientId), [clientId])
+  const { data, loading, reload } = useData(() => getDelegateHistory(clientId), [clientId])
+  const [mode, setMode] = useState(null)   // 'edit' | 'delete' | null
   if (loading || !data) return <div className="loading">Loading history…</div>
   const { client, bookings } = data
   const renewals = renewalSummary(bookings)
@@ -106,8 +204,11 @@ function DelegateDetail({ clientId, back }) {
 
   return (
     <>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
         <button className="btn ghost sm" onClick={back}>← All delegates</button>
+        <span style={{ marginLeft: 'auto' }} />
+        <button className="btn ghost sm" onClick={() => setMode(mode === 'edit' ? null : 'edit')}>✎ Edit details</button>
+        <button className="btn ghost sm" onClick={() => setMode(mode === 'delete' ? null : 'delete')}>Delete record</button>
       </div>
       <div className="card" style={{ marginBottom: 18 }}>
         <h3>
@@ -115,6 +216,14 @@ function DelegateDetail({ clientId, back }) {
           {client.forename} {client.surname}
         </h3>
         <div className="body">
+          {mode === 'edit' && (
+            <EditDelegate client={{ ...client, client_id: clientId }}
+              onSaved={() => { setMode(null); reload() }} onCancel={() => setMode(null)} />
+          )}
+          {mode === 'delete' && (
+            <DeleteDelegate client={{ ...client, client_id: clientId }}
+              onDone={() => { setMode(null); back() }} onCancel={() => setMode(null)} />
+          )}
           <div className="twocol">
             <Field label="Associated company" value={client.company} />
             <Field label="NI number" value={client.ni_number} />
