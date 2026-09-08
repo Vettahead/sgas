@@ -368,7 +368,7 @@ export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMon
                   style={{
                     left: `calc(${(s.col / cols) * 100}% + 4px)`,
                     width: `calc(${(s.span / cols) * 100}% - 8px)`,
-                    top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
+                    top: `calc(var(--numh) + ${s.lane} * (var(--barh) + var(--lanegap, 3px)))`,
                     '--c': s.b.color || '#5b6b80',
                   }}
                   onClick={onOpen ? () => onOpen(s.b) : undefined}
@@ -1553,7 +1553,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                       style={{
                         left: `calc(${(s.col / cols) * 100}% + 4px)`,
                         width: `calc(${(s.span / cols) * 100}% - 8px)`,
-                        top: `calc(var(--numh) + ${s.lane} * var(--barh) + ${s.lane} * 3px)`,
+                        top: `calc(var(--numh) + ${s.lane} * (var(--barh) + var(--lanegap, 3px)))`,
                         '--c': s.b.color || '#5b6b80',
                       }}
                       onPointerDown={(e) => {

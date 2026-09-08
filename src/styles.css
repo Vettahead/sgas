@@ -840,11 +840,27 @@ select,select option{color:#1d2733;background:#fff}
   --cx-bg:#f6f8fb; --cx-panel:#fff; --cx-ink:#0f1729; --cx-mute:#66748c;
   --cx-line:#e4e9f0; --cx-soft:#f1f4f9; --cx-brand:#2563eb; --cx-brand-soft:#e8efff;
   --cx-warn:#b45309; --cx-warn-soft:#fef3e2; --cx-shadow:0 1px 2px rgba(15,23,41,.05),0 8px 24px -8px rgba(15,23,41,.12);
-  --numh:26px; --barh:38px; --rowmin:84px;
+  /* TWO DENSITIES, BOTH TIGHTER THAN THEY WERE.
+     Chris, 8 Sep, having seen the Teamup archive next to this: "can we have
+     the roomier rows as the compact one we have, and the fit-more-courses one
+     look like the Teamup one you've done?"
+     So ROOMY is now what Compact used to be — one line, half the height — and
+     Compact is the Teamup pill: 19px, small radius, tight gap. A 38px bar
+     carrying two lines meant three courses filled a week row; the same week
+     now takes six without scrolling. */
+  --numh:22px; --barh:25px; --rowmin:66px; --lanegap:3px;
   color:var(--cx-ink);
 }
-.cx.cx-dense{--numh:20px; --barh:21px; --rowmin:60px}
+/* Compact = the Teamup pill, to the pixel: 19px tall, 5px radius, 11px text,
+   2px between lanes. Same shape as .cx-tu-pill so the two screens read as one
+   calendar rather than two products. */
+.cx.cx-dense{--numh:18px; --barh:19px; --rowmin:48px; --lanegap:2px}
+.cx.cx-dense .cx-bar{border-radius:5px}
+.cx.cx-dense .cx-bar-t{font-size:11px;padding:0 7px 0 9px;gap:6px}
 .cx.cx-dense .cx-bar-sub{display:none}
+.cx.cx-dense .cx-num{font-size:11px}
+.cx.cx-dense .cx-cell{padding:3px 6px}
+.cx.cx-dense .cx-cell.today .cx-num b{min-width:18px;height:18px;padding:0 5px}
 .cx.cx-dark{
   --cx-bg:#0e1117; --cx-panel:#161b24; --cx-ink:#e8ecf3; --cx-mute:#93a0b5;
   --cx-line:#242c39; --cx-soft:#1b2029; --cx-brand:#5b8cff; --cx-brand-soft:#1b2740;
@@ -896,7 +912,7 @@ select,select option{color:#1d2733;background:#fff}
 @keyframes cxright{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:none}}
 @keyframes cxleft{from{opacity:0;transform:translateX(-16px)}to{opacity:1;transform:none}}
 .cx-week{position:relative;display:grid;grid-template-columns:repeat(var(--cols,7),1fr);border-top:1px solid var(--cx-line-faint);
-  min-height:max(var(--rowmin), calc(var(--numh) + (var(--lanes) * (var(--barh) + 3px)) + 12px))}
+  min-height:max(var(--rowmin), calc(var(--numh) + (var(--lanes) * (var(--barh) + var(--lanegap, 3px))) + 10px))}
 .cx-cell{border-right:1px solid var(--cx-line-faint);padding:6px 8px;touch-action:pan-y;transition:background .12s}
 .cx-cell:last-child{border-right:none}
 /* A weekend is not a disabled day. Filling it flat grey said "you cannot use
@@ -910,7 +926,7 @@ select,select option{color:#1d2733;background:#fff}
   padding:0 6px;border-radius:99px;background:var(--cx-brand);color:#fff;font-weight:700}
 
 /* bars */
-.cx-bar{position:absolute;height:var(--barh);border:none;border-radius:10px;cursor:pointer;overflow:hidden;
+.cx-bar{position:absolute;height:var(--barh);border:none;border-radius:7px;cursor:pointer;overflow:hidden;
   display:flex;align-items:center;padding:0;text-align:left;font:inherit;touch-action:none;
   background:color-mix(in srgb,var(--c) 34%,var(--cx-panel));
   box-shadow:none;color:color-mix(in srgb,var(--c) 52%,var(--cx-ink));
@@ -923,12 +939,19 @@ select,select option{color:#1d2733;background:#fff}
 .cx-bar.flash{animation:cxflash .8s ease-out}
 @keyframes cxflash{0%{box-shadow:0 0 0 0 rgba(37,99,235,.5)}
                   100%{box-shadow:0 0 0 14px rgba(37,99,235,0)}}
-.cx-bar-t{display:flex;flex-direction:column;justify-content:center;gap:2px;padding:0 11px 0 13px;
-  font-weight:500;font-size:13px;line-height:1.15;
+/* The trainer and the count used to sit on a SECOND line, which is what made
+   every bar 38px tall. They now run on after the title on the same line, so
+   nothing is lost and the bar is a third of the height. The title keeps the
+   space; the trailing detail is what gets cut when the bar is short. */
+.cx-bar-t{display:flex;align-items:center;gap:7px;padding:0 9px 0 11px;
+  font-weight:500;font-size:12.5px;line-height:1;
   white-space:nowrap;overflow:hidden;pointer-events:none;width:100%}
-.cx-bar-r1{display:flex;align-items:center;gap:7px;min-width:0;width:100%}
-.cx-bar-sub{font-size:11px;line-height:1.1;opacity:.62;font-weight:400;
+.cx-bar-r1{display:flex;align-items:center;gap:7px;min-width:0;flex:0 1 auto}
+.cx-bar-sub{font-size:11px;line-height:1;opacity:.58;font-weight:400;flex:0 1 auto;min-width:0;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* A dot before it, so "Domestic Gas ACS M Patel" cannot be misread as one
+   phrase now that they share a line. */
+.cx-bar-sub::before{content:'\00B7';margin-right:7px;opacity:.55}
 .cx-bar-t em{font-style:normal;font-size:11px;font-weight:600;background:none;color:inherit;opacity:.7;
   border-radius:0;padding:0;flex:none;font-variant-numeric:tabular-nums}
 
@@ -1058,7 +1081,7 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
   .cx-title{font-size:17px}
   .cx-dow div{padding:7px 4px;font-size:9.5px}
   .cx-cell{padding:4px 5px}
-  .cx{--rowmin:66px;--numh:20px;--barh:22px}
+  .cx{--rowmin:56px;--numh:19px;--barh:21px;--lanegap:2px}
   .cx-bar-t{font-size:10.5px;padding:0 6px 0 8px}
 
   /* ── the toolbar, on a phone ──────────────────────────────────────────
@@ -1084,7 +1107,9 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
      of the bar and over the day numbers above it. Tap the course for the
      detail; the bar just has to say which course it is. */
   .cx-bar-sub{display:none}
-  .cx-bar-t{justify-content:center}
+  /* .cx-bar-t is a row now, so centring would centre the TITLE across the bar
+     rather than sitting it in the middle of two stacked lines. */
+  .cx-bar-t{justify-content:flex-start}
   /* Back to a column — and .cx-card's flex:1 1 260px must be undone, because
      in a column that 260px is a HEIGHT: every card, folded or not, was 260px
      tall and shrunk to its own text width. */
@@ -1784,7 +1809,7 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 
   /* Rows down to what a single course actually needs: the date, the bar, and a
      little air. A second lane still grows the row — it just starts smaller. */
-  .cx{--rowmin:46px;--numh:18px;--barh:22px}
+  .cx{--rowmin:44px;--numh:17px;--barh:19px;--lanegap:2px}
   .cx-cell{padding:3px 6px}
   /* One line per course: 22px of bar cannot carry two, and at 123px wide the
      name is finally readable, which is the whole reason for turning the phone. */

@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.59.0', build: 220, date: '8 Sep 2026',
+    title: 'Both calendar densities are tighter, and Compact is the Teamup one',
+    notes: [
+      'Putting their calendar next to ours made the point: ours was spending a great deal of height on very little. Every course bar was two lines tall \u2014 the course on one, the trainer and the count on the next \u2014 which meant three courses filled a week and a busy week ran off the bottom.',
+      'Those two lines are now one. Nothing is lost: it still says the trainer and how many are booked, it just runs on after the course name instead of underneath it. A bar is a third of the height it was, and a week that held three courses holds six. The whole of June now fits on screen without scrolling.',
+      'Roomier rows is now roughly what Compact used to be. Compact is now the Teamup pill exactly \u2014 same height, same corner, same spacing \u2014 so flipping between the two screens no longer feels like changing product.',
+      'Both are still on the same button in the toolbar and it still remembers which you chose. On a phone the second line was already being hidden, so nothing changes there except a little more room.',
+    ],
+  },
+  {
     v: '1.58.1', build: 219, date: '8 Sep 2026',
     title: 'The Aggreko week is training, not a course',
     notes: [
