@@ -595,7 +595,11 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
       // A whereabouts entry says who it is about; a plain diary entry is just
       // a note, so it keeps reading as one.
       course: (e.kind && e.kind !== 'other')
-        ? `${(e.members || []).map((m) => m.name).join(', ') || 'Someone'} — ${whereaboutsLabel(e.kind).toLowerCase()}`
+        ? ((e.members || []).length
+            ? `${e.members.map((m) => m.name).join(', ')} — ${whereaboutsLabel(e.kind).toLowerCase()}`
+            // Nobody on it yet — a training week put in the diary before anyone
+            // is named. Its own title says far more than "Someone" does.
+            : (e.title || whereaboutsLabel(e.kind)))
           // Training put on by an outside outfit: whose it is matters more than
           // the word "training", so it goes in the bar.
           + (e.kind === 'training' && e.provider ? ` with ${e.provider}` : '')

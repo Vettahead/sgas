@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.58.1', build: 219, date: '8 Sep 2026',
+    title: 'The Aggreko week is training, not a course',
+    notes: [
+      'The week of 14 September that was showing as a Commercial Gas ACS with nobody on it has been moved across. It came from a Teamup entry called "Aggreko Train the trainer" and was never a course \u2014 it is office staff being trained. It is now a training week with no one on it, and the Teamup entry it came from points at that instead. The empty course is gone, so there is one Commercial Gas week that day rather than two. The old record is kept, so this can be put back if it turns out to be wrong.',
+      'Aggreko is not in Companies, so it is not named as the provider yet \u2014 the title still says it. Add them and it can be picked properly.',
+      'A fault this turned up, worth saying because it would have caught anything similar: an entry that belongs to nobody was showing on nobody\u2019s calendar. Diary entries are shown to whoever owns them or is named on them, which is right for a personal note and wrong for anything about the centre \u2014 a training week nobody is on yet, a closure, a supplier coming in. An entry with no owner and nobody on it now shows to everyone, which is what it always should have done, and it reads by its own title rather than as "Someone".',
+    ],
+  },
+  {
     v: '1.58.0', build: 218, date: '8 Sep 2026',
     title: 'How many fit, counted day by day',
     notes: [

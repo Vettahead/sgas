@@ -1562,6 +1562,23 @@ export async function listEngagements(ownerUserId, ownerStaffId) {
         const ids = [...new Set((mrows || []).map((r) => r.engagement_id))].filter((id) => !rows.some((o) => o.engagement_id === id))
         if (ids.length) rows = rows.concat((await supabase.from('engagement').select(ENG_COLS).in('engagement_id', ids)).data || [])
       }
+      /* AN ENTRY THAT BELONGS TO NOBODY BELONGS TO EVERYBODY.
+         Owner-or-member is right for a personal diary entry and wrong for
+         anything about the centre: a training week with nobody on it yet, a
+         closure, a supplier in. Those have no owner and no members and would
+         otherwise be invisible on every single calendar — which is exactly
+         what happened the moment "Aggreko Train the trainer" stopped being a
+         course. Same shape as the archive: an empty screen and a hidden one
+         look identical, so do not let one become the other. */
+      const { data: shared } = await supabase.from('engagement').select(ENG_COLS).is('owner_user_id', null)
+      const sharedIds = (shared || []).map((o) => o.engagement_id)
+      if (sharedIds.length) {
+        const { data: claimedRows } = await supabase.from('engagement_member').select('engagement_id').in('engagement_id', sharedIds)
+        const claimed = new Set((claimedRows || []).map((r) => r.engagement_id))
+        for (const o of shared) {
+          if (!claimed.has(o.engagement_id) && !rows.some((r) => r.engagement_id === o.engagement_id)) rows.push(o)
+        }
+      }
     }
     const ids = rows.map((r) => r.engagement_id)
     const memMap = {}
@@ -1580,7 +1597,11 @@ export async function listEngagements(ownerUserId, ownerStaffId) {
   D.engagements = D.engagements || []; D.engagementMembers = D.engagementMembers || []
   const owned = D.engagements.filter((e) => (ownerUserId == null && ownerStaffId == null) || e.owner_user_id === ownerUserId)
   const memIds = D.engagementMembers.filter((m) => ownerStaffId != null && m.staff_id === Number(ownerStaffId)).map((m) => m.engagement_id)
-  const extra = D.engagements.filter((e) => memIds.includes(e.engagement_id) && !owned.includes(e))
+  // Belongs to nobody, so it belongs to everybody — see the live path above.
+  const sharedIds = D.engagements
+    .filter((e) => e.owner_user_id == null && !D.engagementMembers.some((m) => m.engagement_id === e.engagement_id))
+    .map((e) => e.engagement_id)
+  const extra = D.engagements.filter((e) => (memIds.includes(e.engagement_id) || sharedIds.includes(e.engagement_id)) && !owned.includes(e))
   return [...owned, ...extra].map((e) => ({
     engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title,
     date: e.start_date, endDate: e.end_date || e.start_date, half: e.half || null, kind: e.kind || 'other',

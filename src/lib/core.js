@@ -306,7 +306,18 @@ export const store = {
     { inquiry_id: 1, name: 'Dave Stott', email: 'dave.stott@example.com', mobile: '07700 900111', courses: 'Domestic Gas ACS, LPG', pref_date_from: '2026-07-13', pref_date_to: '2026-07-24', notes: 'Ticket runs out soon — also asked about CPA1.', status: 'open', created_at: '2026-06-24T10:12:00Z', handled_at: null },
     { inquiry_id: 2, name: 'Sue', email: '', mobile: '07700 900222', courses: 'Commercial Catering', pref_date_from: null, pref_date_to: null, notes: 'Name + number only — wants a callback with prices.', status: 'open', created_at: '2026-06-25T15:40:00Z', handled_at: null },
   ],
-  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4, sessionAssist: 2 },
+  /* Two diary entries, and the second is the one worth having: office staff
+     being trained by an outside company, with NOBODY on it yet. It belongs to
+     no login and has no members, which is precisely the entry that used to be
+     invisible on every calendar. */
+  engagements: [
+    { engagement_id: 1, owner_user_id: 1, title: 'LCL centre visit', start_date: '2026-06-18', end_date: '2026-06-18', half: null, kind: 'meeting', start_time: '10:00', end_time: '12:00', company_id: null },
+    { engagement_id: 2, owner_user_id: null, title: 'Train the trainer', start_date: '2026-06-29', end_date: '2026-07-01', half: null, kind: 'training', start_time: null, end_time: null, company_id: 1 },
+  ],
+  engagementMembers: [
+    { engagement_id: 1, staff_id: 1 },
+  ],
+  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4, sessionAssist: 2, engagement: 2 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }
