@@ -1916,6 +1916,110 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
   background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
 
+/* ── THE TEAMUP ARCHIVE ────────────────────────────────────────────────────
+   Their calendar, drawn the way theirs is drawn: an ordinary month grid,
+   Monday to Sunday, entries as coloured pills on the days they run. The first
+   attempt was a Gantt of sub-calendar rows, which is a chart of their data
+   rather than their calendar, and it looked it.
+   EVERY entry is a positioned bar inside its week row, single-day ones
+   included — that is the only way a three-day entry sits across three columns
+   without being drawn three times. */
+.cx-tu{--numh:20px}
+.cx-tu-bar{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin:0 2px 10px}
+.cx-tu-bar b{font-size:14px;color:var(--cx-ink)}
+.cx-tu-bar span{font-size:12px;color:var(--cx-mute)}
+.cx-tu-ro{margin-left:auto;padding:2px 8px;border-radius:999px;
+  background:var(--cx-soft);color:var(--cx-mute);font-size:11px}
+
+.cx-tu-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:0;margin-bottom:2px}
+.cx-tu-dow div{padding:0 0 6px 6px;font-size:11px;font-weight:600;
+  letter-spacing:.3px;color:var(--cx-mute)}
+
+.cx-tu-month{border:1px solid var(--cx-line);border-radius:12px;overflow:hidden;background:var(--cx-panel)}
+.cx-tu-week{position:relative;display:grid;grid-template-columns:repeat(7,1fr);
+  min-height:calc(var(--numh) + var(--lanes) * 21px + 10px)}
+.cx-tu-week + .cx-tu-week{border-top:1px solid var(--cx-line)}
+.cx-tu-day{border-left:1px solid var(--cx-line);min-height:100%}
+.cx-tu-day:first-child{border-left:0}
+/* Days either side of the month are dimmed, not hidden — their week runs on. */
+.cx-tu-day.out{background:color-mix(in srgb,var(--cx-mute) 5%,transparent)}
+.cx-tu-day.out .cx-tu-num{opacity:.45}
+.cx-tu-num{display:block;padding:4px 7px 0;font-size:11.5px;color:var(--cx-mute);text-align:right}
+
+/* One pill per entry, coloured by which of their calendars it is on. */
+.cx-tu-pill{position:absolute;height:19px;display:flex;align-items:center;gap:5px;
+  padding:0 7px;border:0;border-radius:5px;cursor:pointer;text-align:left;
+  font:inherit;font-size:11px;line-height:19px;
+  background:hsl(var(--h) 72% 94%);color:hsl(var(--h) 55% 26%);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cx-dark .cx-tu-pill{background:hsl(var(--h) 40% 22%);color:hsl(var(--h) 60% 84%)}
+.cx-tu-pill i{flex:none;width:4px;height:11px;border-radius:2px;background:hsl(var(--h) 62% 48%)}
+.cx-tu-pill em{flex:none;font-style:normal;opacity:.7;font-variant-numeric:tabular-nums}
+.cx-tu-pill:hover{background:hsl(var(--h) 72% 89%)}
+.cx-dark .cx-tu-pill:hover{background:hsl(var(--h) 40% 28%)}
+.cx-tu-pill.on{outline:2px solid hsl(var(--h) 62% 48%);outline-offset:-1px}
+/* Runs on from last week / into next — squared off on that side, the way every
+   month view says "this carries on". */
+.cx-tu-pill.cont-l{border-top-left-radius:0;border-bottom-left-radius:0}
+.cx-tu-pill.cont-r{border-top-right-radius:0;border-bottom-right-radius:0}
+.cx-tu-pill.gone{text-decoration:line-through;opacity:.55}
+
+.cx-tu-key{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:10px 2px 0}
+.cx-tu-key b{font-size:11px;color:var(--cx-mute);font-weight:600}
+.cx-tu-key span{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--cx-mute)}
+.cx-tu-key span i{width:9px;height:9px;border-radius:3px;background:hsl(var(--h) 62% 48%)}
+.cx-tu-key em{flex-basis:100%;font-style:normal;font-size:11px;color:var(--cx-mute);opacity:.8}
+
+/* ── One entry, opened. A proper card: the facts as a short list, then their
+      note in the formatting it was typed in. The old version dumped it under
+      the grid with no rhythm to it. ─────────────────────────────────────── */
+.cx-tu-modal{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:color-mix(in srgb,#0b1220 45%,transparent);backdrop-filter:blur(2px)}
+.cx-tu-card{width:min(560px,100%);max-height:86vh;overflow:auto;background:var(--cx-panel);
+  border-radius:14px;box-shadow:0 24px 60px -18px rgba(10,20,40,.5);padding:0 0 18px}
+.cx-tu-card header{position:sticky;top:0;background:var(--cx-panel);padding:16px 18px 12px;
+  border-bottom:1px solid var(--cx-line);border-radius:14px 14px 0 0;
+  display:grid;grid-template-columns:1fr auto;gap:2px 10px}
+.cx-tu-card header h3{grid-column:1;margin:0;font-size:17px;line-height:1.3;color:var(--cx-ink);font-weight:700}
+.cx-tu-card header .cx-icon{grid-column:2;grid-row:1 / span 2;align-self:start}
+.cx-tu-cal{grid-column:1;display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:600;letter-spacing:.2px;color:hsl(var(--h) 55% 38%)}
+.cx-tu-cal::before{content:'';width:8px;height:8px;border-radius:3px;background:hsl(var(--h) 62% 48%)}
+.cx-dark .cx-tu-cal{color:hsl(var(--h) 60% 74%)}
+
+.cx-tu-when{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:14px 18px 0}
+.cx-tu-when b{font-size:14px;color:var(--cx-ink)}
+.cx-tu-when span{font-size:12.5px;color:var(--cx-mute)}
+
+.cx-tu-meta{padding:10px 18px 0}
+.cx-tu-meta p{display:grid;grid-template-columns:74px 1fr;gap:10px;margin:0 0 5px;
+  font-size:12.5px;line-height:1.5;color:var(--cx-ink)}
+.cx-tu-meta p span{color:var(--cx-mute)}
+
+/* Their note. Typeset properly: it is usually a numbered list of candidates
+   with qualifications after each name, and it has to be readable as that. */
+.cx-tu-note{margin:14px 18px 0;padding:12px 14px;background:var(--cx-soft);
+  border-radius:10px;font-size:12.5px;line-height:1.65;color:var(--cx-ink);
+  overflow-wrap:anywhere}
+.cx-tu-note > div > *:first-child{margin-top:0}
+.cx-tu-note > div > *:last-child{margin-bottom:0}
+.cx-tu-note p{margin:0 0 8px}
+.cx-tu-note ol,.cx-tu-note ul{margin:0 0 8px;padding-left:22px}
+.cx-tu-note li{margin:0 0 5px;padding-left:2px}
+.cx-tu-note li::marker{color:var(--cx-mute);font-size:11px}
+.cx-tu-note strong,.cx-tu-note b{font-weight:600}
+/* A crossing-out is a cancellation. Dimmed but legible — it is evidence. */
+.cx-tu-note del,.cx-tu-note s,.cx-tu-note strike{opacity:.55}
+.cx-tu-nonote{margin:14px 18px 0;font-size:12.5px;color:var(--cx-mute)}
+
+/* A name written in a course's notes: on the course, or named and missing.
+   Two states, one row — the point is the comparison, so they sit together
+   rather than in separate lists. */
+.cx-origin-n .cx-nm{display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;border-radius:5px}
+.cx-origin-n .cx-nm.on{color:var(--cx-mute)}
+.cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
+  background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
+
 /* ── THE TEAMUP ARCHIVE — their calendar, not ours with their data in it ────
    Laid out the way their Teamup is: one row per sub-calendar, days across.
    Deliberately plainer than the SGAS calendar — it is a record being read, not

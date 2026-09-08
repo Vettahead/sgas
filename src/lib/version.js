@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.57.0', build: 217, date: '8 Sep 2026',
+    title: 'The Teamup flip is laid out like Teamup',
+    notes: [
+      'The first go at showing their calendar was a chart of their data rather than their calendar \u2014 one long row per calendar with bars running across it. It is now an ordinary month, Monday to Sunday, with each entry sitting on the days it ran, coloured by which of their calendars it belongs to, which is how Teamup itself draws it.',
+      'A word on the colours, because they are the one thing on that screen that is not theirs: only the names of their calendars were copied across when the archive was taken, never the colours they had chosen. So a colour is picked here and kept the same for that calendar every time, and the key under the month says so plainly rather than letting anyone assume the shades match what they see in Teamup.',
+      'Clicking an entry now reads properly. The dates and how many days it ran, the times, who it said, which calendar it was on, and what became of it here \u2014 then the note underneath in the formatting it was typed in. Numbered candidate lists stay numbered and crossings-out stay crossed out, because a struck-through name is how a cancellation was written down and losing that would lose the meaning.',
+      'An entry that runs Monday to Friday is drawn as one bar across those five days, not as five separate entries. That is deliberate: in Teamup it IS one entry with a start and an end, and drawing it once a day would make one booking look like five.',
+    ],
+  },
+  {
     v: '1.56.1', build: 216, date: '8 Sep 2026',
     title: 'The course print button actually prints',
     notes: [

@@ -177,6 +177,55 @@ export const store = {
     s(5, 1, '2026-07-13', '2026-07-15', 'tu-5', null, null, null),
     s(6, 5, '2026-07-20', '2026-07-24', 'tu-6', null, null, null),
   ],
+  /* A slice of the Teamup copy, so the archive screen has something to draw in
+     demo mode and can be checked without the live database. The shapes are
+     taken from real captured entries — the "(7)" headcount in the title, the
+     initials, the numbered candidate list, the struck-through line that means
+     somebody moved to another week. Do not tidy those: they are what the screen
+     has to cope with. */
+  teamupSubcalendars: [
+    { subcalendar_id: 13698421, name: 'Commercial COM x', events: 115 },
+    { subcalendar_id: 13698414, name: 'Keith Assessments', events: 144 },
+    { subcalendar_id: 10462750, name: 'Hols / Not Available', events: 133 },
+    { subcalendar_id: 10462724, name: 'Domestic', events: 84 },
+    { subcalendar_id: 13776889, name: 'Phil Training', events: 32 },
+    { subcalendar_id: 13878932, name: 'Meeting / Maintenance', events: 33 },
+  ],
+  teamupEvents: [
+    { event_id: 'd1', title: '(7)PR-Commercial T&A', who: 'Keith', location: '',
+      start_dt: '2026-06-15T00:00:00Z', end_dt: '2026-06-19T23:59:00Z', all_day: true,
+      subcalendar_ids: [13698421], session_id: 1, holiday_id: null, engagement_id: null, gone_from_teamup: false,
+      notes: '<ul><li><del>Graham Hughes - SGAS 20308 - Rolls Royce - week 2 of 2 - OOS COCN1 and CGFE1</del></li></ul><ol><li><p>Stephen Foster | BOSCH - COCN1/ICPN1/CGFE (R) - 20329</p></li><li>Dale Wilkinson SGAS no 20342 COCN1, ICPN1, CGFE1, <strong>BMP1</strong></li><li>Mick Dooley - SGAS no. 20418 CODNCO1, CIGA1, CORT1, CDGA1, ICPN1, TPCP1 (I)</li></ol>' },
+    { event_id: 'd2', title: '(3)KR-Assessments', who: 'KR', location: 'Bay 2',
+      start_dt: '2026-06-17T09:00:00Z', end_dt: '2026-06-17T16:30:00Z', all_day: false,
+      subcalendar_ids: [13698414], session_id: null, holiday_id: null, engagement_id: null, gone_from_teamup: false,
+      notes: '<ol><li>Alan Kyffin SGAS no 20631 CCN1, CENWAT, CPA1 (Re-assessments) <strong>Com In WIP</strong></li><li>Jack Kilkenny SGAS no 20676 CCN1/CENWAT (R) <strong>Bosch send cert to work</strong></li></ol>' },
+    { event_id: 'd3', title: 'SJ Hols', who: 'SJ', location: '',
+      start_dt: '2026-06-22T00:00:00Z', end_dt: '2026-06-26T23:59:00Z', all_day: true,
+      subcalendar_ids: [10462750], session_id: null, holiday_id: 1, engagement_id: null, gone_from_teamup: false,
+      notes: '' },
+    { event_id: 'd4', title: '(5) Domestic Gas ACS', who: 'M Patel', location: '',
+      start_dt: '2026-06-22T00:00:00Z', end_dt: '2026-06-26T23:59:00Z', all_day: true,
+      subcalendar_ids: [10462724], session_id: 2, holiday_id: null, engagement_id: null, gone_from_teamup: false,
+      notes: '<p>Bradley Gore SGAS no 19555 CONGLP1 \u2013 PD, LAV, RPH, CKR1, HTR1 plus METLP1. Starts 23rd. Dom apps CBT and initial assessment.</p>' },
+    { event_id: 'd5', title: 'SG-Office / Bosch meeting', who: 'SG', location: 'Office',
+      start_dt: '2026-06-24T10:00:00Z', end_dt: '2026-06-24T12:00:00Z', all_day: false,
+      subcalendar_ids: [13878932], session_id: null, holiday_id: null, engagement_id: 1, gone_from_teamup: false,
+      notes: '' },
+    { event_id: 'd6', title: '(1)DB Assist', who: 'DB', location: '',
+      start_dt: '2026-06-25T00:00:00Z', end_dt: '2026-06-26T23:59:00Z', all_day: true,
+      subcalendar_ids: [13776889], session_id: null, holiday_id: null, engagement_id: null, gone_from_teamup: true,
+      notes: '<p>Moved \u2014 see following week.</p>' },
+    { event_id: 'd7', title: '(2)PR-IGAS / COMMERCIAL', who: 'PR', location: '',
+      start_dt: '2026-06-29T00:00:00Z', end_dt: '2026-07-01T23:59:00Z', all_day: true,
+      subcalendar_ids: [13698421], session_id: null, holiday_id: null, engagement_id: null, gone_from_teamup: false,
+      notes: '<ol><li>Barry Green SGAS no 20626 CODNCO1, CIGA1, CORT1, ICPN1, <strong>TPCP1a</strong>, CODC1 (R) <strong>Domestic in WIP</strong></li><li>Andy Brench SGAS no 20714 COCN1, CGFE, BMP1, ICPN1 (R) <strong>Centrica send certs to work</strong></li></ol>' },
+    { event_id: 'd8', title: 'BANK HOLIDAY', who: '', location: '',
+      start_dt: '2026-06-01T00:00:00Z', end_dt: '2026-06-01T23:59:00Z', all_day: true,
+      subcalendar_ids: [10462750], session_id: null, holiday_id: null, engagement_id: null, gone_from_teamup: false,
+      notes: '' },
+  ],
+
   // Assisting: somebody helping on part of someone else's course. Seeded on the
   // five-day week (session 4, 6-10 Jul) so demo mode and the screenshot harness
   // both show the checkered stretch on a bar that is long enough to read.

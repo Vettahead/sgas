@@ -1898,7 +1898,9 @@ export async function deleteClientRecord(clientId) {
 // The errors are NOT swallowed here any more: that is what hid it.
 // ---------------------------------------------------------------------------
 export async function listTeamupSubcalendars() {
-  if (!LIVE) return []
+  if (!LIVE) {
+    return (D.teamupSubcalendars || []).map((c) => ({ id: String(c.subcalendar_id), name: c.name, events: c.events || 0 }))
+  }
   const { data, error } = await supabase.from('teamup_subcalendar')
     .select('subcalendar_id,name,events').order('name')
   if (error) throw new Error(`Could not read the Teamup calendars: ${error.message}`)
@@ -1910,33 +1912,39 @@ export async function listTeamupSubcalendars() {
 // MUST survive: struck through is how a cancellation was recorded, and
 // flattening it to text is how three people who had moved to another week ended
 // up seated on a course. See [[sgas-phantom-delegates]].
+const teamupRow = (e) => ({
+  id: e.event_id,
+  title: e.title || '(no title)',
+  who: e.who || '',
+  location: e.location || '',
+  start: String(e.start_dt || '').slice(0, 10),
+  end: String(e.end_dt || e.start_dt || '').slice(0, 10),
+  startTime: e.all_day ? null : String(e.start_dt || '').slice(11, 16),
+  endTime: e.all_day ? null : String(e.end_dt || '').slice(11, 16),
+  allDay: !!e.all_day,
+  notesHtml: e.notes || '',
+  calendars: (e.subcalendar_ids || []).map(String),
+  became: e.session_id != null ? 'course'
+    : e.holiday_id != null ? 'time off'
+      : e.engagement_id != null ? 'diary entry' : null,
+  gone: !!e.gone_from_teamup,
+})
+
 export async function listTeamupMonth(month) {
-  if (!LIVE) return []
   const from = `${month}-01`
   const [y, m] = month.split('-').map(Number)
   const to = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+  if (!LIVE) {
+    return (D.teamupEvents || [])
+      .filter((e) => String(e.start_dt).slice(0, 10) <= to && String(e.end_dt || e.start_dt).slice(0, 10) >= from)
+      .map(teamupRow)
+  }
   const { data, error } = await supabase.from('teamup_event')
     .select('event_id,title,who,location,start_dt,end_dt,all_day,notes,subcalendar_ids,session_id,holiday_id,engagement_id,gone_from_teamup')
     .lte('start_dt', `${to}T23:59:59Z`).gte('end_dt', `${from}T00:00:00Z`)
     .order('start_dt')
   if (error) throw new Error(`Could not read the Teamup entries: ${error.message}`)
-  return (data || []).map((e) => ({
-    id: e.event_id,
-    title: e.title || '(no title)',
-    who: e.who || '',
-    location: e.location || '',
-    start: String(e.start_dt || '').slice(0, 10),
-    end: String(e.end_dt || e.start_dt || '').slice(0, 10),
-    startTime: e.all_day ? null : String(e.start_dt || '').slice(11, 16),
-    endTime: e.all_day ? null : String(e.end_dt || '').slice(11, 16),
-    allDay: !!e.all_day,
-    notesHtml: e.notes || '',
-    calendars: (e.subcalendar_ids || []).map(String),
-    became: e.session_id != null ? 'course'
-      : e.holiday_id != null ? 'time off'
-        : e.engagement_id != null ? 'diary entry' : null,
-    gone: !!e.gone_from_teamup,
-  }))
+  return (data || []).map(teamupRow)
 }
 
 export async function getSessionOrigin(sessionId) {
