@@ -560,7 +560,10 @@ export function getPool() {
     const forename = p.forename ?? c?.forename ?? '?'
     const surname = p.surname ?? c?.surname ?? '?'
     return { id: p.id, clientId: p.client_id, name: `${forename} ${surname}`, forename, surname, scheme: p.scheme, categoryIds: p.category_ids, count: p.category_ids.length,
-      kind: p.kind || 'NEW', catKinds: p.cat_kinds || null, mlp: !!p.mlp, igas: !!p.igas, prefFrom: p.prefFrom || null, prefTo: p.prefTo || null }
+      kind: p.kind || 'NEW', catKinds: p.cat_kinds || null, mlp: !!p.mlp, igas: !!p.igas, prefFrom: p.prefFrom || null, prefTo: p.prefTo || null,
+      // On the card, not one click away. Ringing somebody off the waiting list
+      // is the whole reason the list is looked at.
+      mobile: p.mobile ?? c?.mobile ?? null, email: p.email ?? c?.email ?? null }
   })
 }
 
@@ -572,12 +575,13 @@ export function getPool() {
 export async function getReschedulePool() {
   if (LIVE) {
     const { data } = await supabase.from('booking')
-      .select('booking_id,client_id,company_id,disposition,client:client_id(forename,surname),booking_category(category_id,result,category:category_id(scheme))')
+      .select('booking_id,client_id,company_id,disposition,client:client_id(forename,surname,mobile,email),booking_category(category_id,result,category:category_id(scheme))')
       .in('disposition', ['NYC', 'NO_SHOW']).eq('rescheduled', false)
     return (data || []).map((b) => {
       const remaining = (b.booking_category || []).filter((x) => x.result !== 'PASS')
       const scheme = remaining[0]?.category?.scheme || null
-      return reschedEntry(b.booking_id, b.client_id, b.company_id, b.client.forename, b.client.surname, scheme, remaining.map((x) => x.category_id), b.disposition)
+      const e = reschedEntry(b.booking_id, b.client_id, b.company_id, b.client.forename, b.client.surname, scheme, remaining.map((x) => x.category_id), b.disposition)
+      return { ...e, mobile: b.client.mobile || null, email: b.client.email || null }
     })
   }
   return D.bookings
@@ -834,7 +838,7 @@ export async function loadPool() {
   if (LIVE) {
     const { data } = await supabase
       .from('booking')
-      .select('booking_id,client_id,company_id,is_reassessment,flag_mlp,flag_igas,pref_date_from,pref_date_to,client:client_id(forename,surname),booking_category(category_id,is_reassessment,category:category_id(scheme))')
+      .select('booking_id,client_id,company_id,is_reassessment,flag_mlp,flag_igas,pref_date_from,pref_date_to,client:client_id(forename,surname,mobile,email),booking_category(category_id,is_reassessment,category:category_id(scheme))')
       .is('session_id', null)
       .eq('overall_result', 'PENDING')
     poolList.length = 0
@@ -848,6 +852,7 @@ export async function loadPool() {
       poolList.push({
         id: b.booking_id, client_id: b.client_id,
         forename: b.client?.forename, surname: b.client?.surname, company_id: b.company_id,
+        mobile: b.client?.mobile || null, email: b.client?.email || null,
         scheme, category_ids: bcs.map((x) => x.category_id), cat_kinds: catKinds,
         kind: kinds.size > 1 ? 'MIXED' : (kinds.has('REASSESS') ? 'REASSESS' : 'NEW'),
         mlp: !!b.flag_mlp, igas: !!b.flag_igas, prefFrom: b.pref_date_from || null, prefTo: b.pref_date_to || null,

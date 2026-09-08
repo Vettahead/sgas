@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.54.0', build: 212, date: '8 Sep 2026',
+    title: 'The filter now narrows the waiting list too, and the numbers are on it',
+    notes: [
+      'The course filter was only doing half its job. Picking a scheme narrowed the calendar but left the waiting list showing everybody, so you still had to pick the domestic gas people out of a list covering eight schemes before you could drag one onto a course. It now narrows both at once, which is what was actually asked for: show me the domestic gas courses, show me the people who want a domestic gas course, drag them on. It says how many it is hiding, and “Waiting to re-sit” narrows with it.',
+      'Every person on the waiting list now carries their mobile number and their email address, and both can be clicked — on a phone the number dials. The list is looked at in order to ring somebody, and having to go somewhere else for the number, as Simon put it, defeats the object.',
+      'And a course can be printed as a paper list for the desk: who is on it, their employer, their qualifications, whether they are there for the whole thing, and a blank column to write in. Separate from the Print on the calendar, which prints the month you are looking at for accounts.',
+    ],
+  },
+  {
     v: '1.53.0', build: 211, date: '7 Sep 2026',
     title: 'The Teamup flip, and the emails send again',
     notes: [

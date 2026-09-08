@@ -779,6 +779,25 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const hiddenCount = (blocks || []).length - filtered.length
   const anyFilter = filt.schemes.length > 0 || filt.staff.length > 0 || filt.hideDone || filt.onlyCourses
 
+  /* THE HALF OF THE FILTER THAT WAS MISSING.
+     Simon described this twice and it is one action, not two: "show me all
+     domestic gas courses, show me all the people who want a domestic gas
+     course, then you just have a list of people you drag on." Filtering the
+     courses and leaving the waiting list showing everybody is half a tool —
+     you still have to pick the domestic gas people out of eight schemes before
+     you can drag one.
+     Only the RAIL is narrowed. The underlying pool is untouched, so a drop is
+     still a drop and the course panel's own "add someone" list, which narrows
+     by that course's scheme, keeps working. */
+  const railWaiting = useMemo(() => (filt.schemes.length
+    ? waiting.filter((x) => filt.schemes.includes(x.scheme))
+    : waiting), [waiting, filt.schemes])
+  const railResits = useMemo(() => (filt.schemes.length
+    ? resits.filter((r) => filt.schemes.includes(r.scheme))
+    : resits), [resits, filt.schemes])
+  const poolHidden = waiting.length - railWaiting.length
+  const resitHidden = resits.length - railResits.length
+
   const shown = useMemo(() => {
     const live = filtered.map((b) => (
       preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
@@ -1548,11 +1567,14 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               wherever the alphabet puts them and drop below the fold, which is
               exactly how somebody owed a re-sit gets forgotten. A separate card
               also keeps its count visible when the rail is folded up. */}
-          {resits.length > 0 && (
-            <RailCard id="resits" title="Waiting to re-sit" count={resits.length}
+          {railResits.length > 0 && (
+            <RailCard id="resits" title="Waiting to re-sit" count={railResits.length}
               shut={shut} onToggle={toggleCard}>
               {canWrite && <p className="cx-hintline">They go back on for what they did not pass. Drag or tap, then drop on a course.</p>}
-              {cap('resits', resits, 6).map((r) => (
+              {resitHidden > 0 && (
+                <p className="cx-hintline">Narrowed to {filt.schemes.join(', ')} — {resitHidden} hidden.</p>
+              )}
+              {cap('resits', railResits, 6).map((r) => (
                 <div key={r.id} className={'cx-row cx-resit' + (canWrite ? ' grabby' : ' static')}
                   style={{ '--c': schemeColour(r.scheme), '--k': kindOf(r.kind).c }}
                   data-tip={`${r.name}\n${kindOf(r.kind).label} \u2014 owed a re-sit\n${r.scheme || 'No scheme'} \u00b7 ${r.count} to re-sit${canWrite ? '\nDrag or tap to put them back on a course' : ''}`}
@@ -1563,20 +1585,28 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                         with an ellipsis, so a long name would eat it. */}
                     <b>{r.name}</b>
                     <small><em className="cx-resit-tag">{resitWord(r)}</em>{r.scheme || '\u2014'}{' \u00b7 '}{r.count} to re-sit</small>
+                    <Reach p={r} />
                   </span>
                 </div>
               ))}
-              <More id="resits" list={resits} n={6} />
+              <More id="resits" list={railResits} n={6} />
             </RailCard>
           )}
 
-          <RailCard id="pool" title="Waiting to be placed" count={waiting.length}
+          <RailCard id="pool" title="Waiting to be placed" count={railWaiting.length}
             shut={shut} onToggle={toggleCard}
             className={'cx-droppool' + (drag?.kind === 'delegate' || placing?.kind === 'delegate' ? ' armed' : '')
               + (drag?.over?.type === 'pool' ? ' on' : '')}>
             {canWrite && <p className="cx-hintline">Drag or tap, then drop on a course.</p>}
-            {waiting.length === 0 && <p className="cx-empty">Nobody waiting.</p>}
-            {cap('pool', waiting, 6).map((p) => (
+            {poolHidden > 0 && (
+              <p className="cx-hintline">
+                Narrowed to {filt.schemes.join(', ')} — {poolHidden} other{poolHidden === 1 ? '' : 's'} hidden.
+              </p>
+            )}
+            {railWaiting.length === 0 && (
+              <p className="cx-empty">{poolHidden > 0 ? 'Nobody waiting for that.' : 'Nobody waiting.'}</p>
+            )}
+            {cap('pool', railWaiting, 6).map((p) => (
               <div key={p.id} className={'cx-row' + (canWrite ? ' grabby' : ' static')}
                 style={{ '--c': schemeColour(p.scheme) }}
                 data-tip={`${p.name}\n${p.scheme || 'No scheme'} \u00b7 ${p.count} qualification${p.count === 1 ? '' : 's'} waiting`
@@ -1586,10 +1616,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 <i />
                 <span><b>{p.name}</b><small>{p.scheme || '—'} · {p.count} qual{p.count === 1 ? '' : 's'}
                   {alsoResit.has(String(p.clientId)) && <em className="cx-alsoresit"> · also owed a re-sit</em>}
-                </small></span>
+                </small>
+                  <Reach p={p} />
+                </span>
               </div>
             ))}
-            <More id="pool" list={waiting} n={6} />
+            <More id="pool" list={railWaiting} n={6} />
             {(drag?.kind === 'delegate' || placing?.kind === 'delegate') &&
               <p className="cx-dropnote">{drag ? 'Drop here' : 'Tap here'} to take them off the course</p>}
           </RailCard>
@@ -2189,7 +2221,14 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">👥</span>
               <div className="cx-rfill">
-                <span className="cx-rlabel">On this course{open.delegates.length ? ` · ${open.delegates.length}` : ''}</span>
+                <span className="cx-rlabel">
+                  On this course{open.delegates.length ? ` · ${open.delegates.length}` : ''}
+                  {open.delegates.length > 0 && (
+                    <button type="button" className="cx-more" style={{ marginLeft: 8, display: 'inline' }}
+                      onClick={() => printTheList(open)}
+                      data-tip="A paper list of who is on this course">🖨 Print the list</button>
+                  )}
+                </span>
                 {open.delegates.length === 0
                   ? <span className="cx-rtext">Nobody booked on yet</span>
                   : <ul className="cx-delg">{open.delegates.map((d) => (
@@ -2623,6 +2662,35 @@ function AssistRow({ open, staff, blocks, canWrite, busy, whyNot, onAdd, onRemov
         )}
       </div>
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A NUMBER YOU CAN RING, ON THE CARD.
+//
+// Simon, on the waiting list: "if you don't give me the number there, I'm not
+// gonna ring them up, because I'm gonna have to go out to another calendar...
+// I have to go back, get a list, print it out and then have a look. It defeats
+// the object." The whole point of the list is that somebody rings the people on
+// it, so the number lives on it.
+//
+// tel: and mailto: so a tap on a phone dials. stopPropagation because the row is
+// a drag handle — pressing the number must not start dragging the person.
+// ─────────────────────────────────────────────────────────────────────────────
+function Reach({ p }) {
+  if (!p.mobile && !p.email) return null
+  const stop = (e) => e.stopPropagation()
+  return (
+    <small className="cx-reach">
+      {p.mobile && (
+        <a href={`tel:${String(p.mobile).replace(/\s+/g, '')}`} onPointerDown={stop} onClick={stop}
+          title={`Ring ${p.name}`}>{p.mobile}</a>
+      )}
+      {p.email && (
+        <a href={`mailto:${p.email}`} onPointerDown={stop} onClick={stop}
+          title={`Email ${p.name}`}>{p.email}</a>
+      )}
+    </small>
   )
 }
 
