@@ -19,6 +19,14 @@
 
 export const RELEASES = [
   {
+    v: '1.56.1', build: 216, date: '8 Sep 2026',
+    title: 'The course print button actually prints',
+    notes: [
+      'Printing a course did nothing at all: the button was there, and the thing behind it was not. A patch that added the button and the printing had failed halfway through, so only the button was saved, and I checked that the button existed instead of checking that it printed. It works now \u2014 and it was tested by pressing it and reading what came out, not by looking for the button.',
+      'One real fault fixed along the way. The sheet was being handed to the printer in the same breath as being told what to put on it, which is a moment too early: the printer could get the month sheet instead of the course. It now waits until the sheet on the page IS the course, prints that, and puts the calendar sheet back afterwards so the next Ctrl+P is the month again.',
+    ],
+  },
+  {
     v: '1.56.0', build: 215, date: '8 Sep 2026',
     title: 'The Teamup flip now shows Teamup, and it works',
     notes: [

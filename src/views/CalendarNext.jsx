@@ -512,6 +512,10 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
      their events as SGAS bars on the SGAS calendar was the interpretation. This
      switches the calendar out for theirs — their sub-calendars, their titles,
      their notes in their own formatting — in TeamupArchive.jsx. */
+  /* Which course's delegate list to print, if any. ONE printed sheet in the
+     DOM, told what to put on it: the filtered month for accounts, or one
+     course's delegates for the desk. */
+  const [printSession, setPrintSession] = useState(null)
   const [teamupOn, setTeamupOn] = useState(false)
   // Which course the in-flight origin lookup is for. A ref, not state: reading
   // it inside a state updater would be a side effect in a function React is
@@ -1204,6 +1208,25 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     return set
   }, [open])
 
+  /* ⛔ PRINTING HAPPENS IN AN EFFECT, NOT IN THE CLICK.
+     The first attempt did setPrintSession(block) and then window.print() inside
+     a requestAnimationFrame, which is not a promise that React has re-rendered:
+     the sheet in the DOM was still the month one when the dialog opened. An
+     effect runs AFTER the commit, so by the time this fires the right sheet is
+     on the page. Cleared on afterprint so the next Ctrl+P is the calendar
+     again, with a timer behind it for browsers that do not fire the event. */
+  const printTheList = (block) => setPrintSession(block)
+
+  useEffect(() => {
+    if (!printSession) return
+    let cleared = false
+    const done = () => { if (!cleared) { cleared = true; setPrintSession(null) } }
+    window.addEventListener('afterprint', done)
+    const t = setTimeout(done, 2000)
+    window.print()
+    return () => { window.removeEventListener('afterprint', done); clearTimeout(t) }
+  }, [printSession])
+
   const inSel = (d) => sel && d >= sel.from && d <= sel.to
   const title = view === 'Day'
     ? new Date(anchor + 'T00:00:00Z').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
@@ -1375,6 +1398,40 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           is for is a list somebody signs off: a month of coloured bars does not
           photocopy into anything you can check an invoice against. */}
       <div className="cx-printout" aria-hidden="true">
+        {printSession ? (
+          <>
+            <h1>{printSession.course || printSession.title}</h1>
+            <p className="cx-print-sub">
+              {printSession.start === printSession.end
+                ? fmt(printSession.start)
+                : `${fmt(printSession.start)} \u2013 ${fmt(printSession.end)}`}
+              {' \u00b7 '}{between(printSession.start, printSession.end) + 1} day{between(printSession.start, printSession.end) ? 's' : ''}
+              {printSession.trainer ? ` \u00b7 ${printSession.trainer}` : ''}
+              {printSession.assessor ? ` \u00b7 assessed by ${printSession.assessor}` : ''}
+              {' \u00b7 printed '}{fmt(todayISO())}
+            </p>
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Employer</th><th>Qualifications</th><th>Days</th><th>Signed in</th></tr>
+              </thead>
+              <tbody>
+                {printSession.delegates.map((d) => (
+                  <tr key={d.bookingId}>
+                    <td>{d.name}</td>
+                    <td>{d.employer || ''}</td>
+                    <td>{(d.codes || []).join(', ')}</td>
+                    <td>{isPart(d) ? `${fmt(d.attendFrom || printSession.start)} \u2013 ${fmt(d.attendTo || printSession.end)}` : 'all'}</td>
+                    {/* Blank on purpose. It is a sheet that goes on a desk and
+                        gets written on. */}
+                    <td style={{ minWidth: 120 }}> </td>
+                  </tr>
+                ))}
+                {printSession.delegates.length === 0 && <tr><td colSpan={5}>Nobody booked on yet.</td></tr>}
+              </tbody>
+            </table>
+          </>
+        ) : (
+        <>
         <h1>SGAS &mdash; {view === 'Year' ? month.slice(0, 4) : title}</h1>
         <p className="cx-print-sub">
           {thisMonth.length} course{thisMonth.length === 1 ? '' : 's'}
@@ -1405,6 +1462,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             {thisMonth.length === 0 && <tr><td colSpan={8}>Nothing to show for this filter.</td></tr>}
           </tbody>
         </table>
+        </>
+        )}
       </div>
 
       {drag && (
