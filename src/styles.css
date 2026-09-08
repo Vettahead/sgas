@@ -1853,17 +1853,17 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-assist-form .cx-assist-act{display:flex;align-items:center;gap:6px}
 .cx-assist-form .hint{flex:1 0 100%;margin:2px 0 0}
 
-/* ── YEAR VIEW: naming a bar too narrow to hold its name ───────────────────
-   A one-day course is about 3% of a 31-day row — there is no room inside it for
-   a word. The name goes outside, to the right, only where the lane is clear for
-   three days after it. The bar itself keeps its true width: on a date-scaled
-   row a bar stretched to fit its label is a bar telling you the wrong dates. */
-.cx-ybar-out{position:absolute;left:100%;top:50%;transform:translateY(-50%);
-  margin-left:5px;white-space:nowrap;pointer-events:none;
-  font-size:10.5px;font-weight:600;letter-spacing:.1px;
-  color:color-mix(in srgb,var(--c) 62%,var(--cx-mute))}
-.cx-dark .cx-ybar-out{color:color-mix(in srgb,var(--c) 70%,var(--cx-ink))}
-.cx-ybar{overflow:visible}
+/* ── YEAR VIEW: a bar too narrow to hold its name ──────────────────────────
+   ⛔ NOTHING OUTSIDE THE BAR. A label floating off the end of a date-scaled bar
+   reads as the course running on days it does not, and it looks like a mistake.
+   A one- or two-day course gets its short code INSIDE instead, clipped to the
+   bar — what does not fit is carried by the colour, the tooltip and the rail. */
+.cx-ybar-code{position:absolute;inset:0;display:flex;align-items:center;
+  justify-content:center;pointer-events:none;overflow:hidden;
+  font-size:9px;font-weight:700;letter-spacing:-.2px;line-height:1;
+  color:color-mix(in srgb,var(--c) 70%,var(--cx-ink))}
+.cx-dark .cx-ybar-code{color:color-mix(in srgb,var(--c) 30%,var(--cx-ink))}
+.cx-ybar{overflow:hidden}
 
 /* ── PRINT ─────────────────────────────────────────────────────────────────
    What gets printed is the FILTERED LIST, not the grid. Filter to one person,
@@ -1924,3 +1924,8 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-reach a{color:var(--cx-brand);text-decoration:none;font-size:11.5px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .cx-reach a:hover{text-decoration:underline}
+
+
+/* The Teamup flip lives in the toolbar, not under Filter — it shows a different
+   calendar rather than narrowing this one. Lit when it is on. */
+.cx-keybtn.on{color:var(--cx-brand);font-weight:600}

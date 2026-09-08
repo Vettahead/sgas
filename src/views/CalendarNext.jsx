@@ -155,6 +155,20 @@ function nameKey(v) {
   return a && b ? a + '|' + b : null
 }
 
+/* The shortest honest label for a bar too narrow to hold a name. The course's
+   own Teamup designator if it has one — that is the shorthand they already use
+   — otherwise the initials of its words. Three characters maximum: at 1/31 of a
+   row there is room for about that and no more. */
+function shortCode(b) {
+  const d = String(b.designator || '').trim()
+  if (d && d.length <= 4) return d.toUpperCase()
+  const name = String(b.course || b.title || '').trim()
+  if (!name) return ''
+  const words = name.split(/\s+/).filter((w) => /[a-z]/i.test(w))
+  if (!words.length) return ''
+  return words.map((w) => w[0]).join('').slice(0, 3).toUpperCase()
+}
+
 const isResit = (p) => String(p?.id || '').startsWith('rb-')
 const resitWord = (p) => (p?.kind === 'NO_SHOW' ? 'no-show' : 'NYC')
 
@@ -1260,6 +1274,15 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               point of it. Filter to one person, print, send it to accounts. */}
           <button type="button" className="cx-keybtn" onClick={() => window.print()}
             data-tip="Print the courses you can currently see">🖨 Print</button>
+          {/* Not a filter. A filter narrows what you are looking at; this shows
+              you a DIFFERENT CALENDAR — the old Teamup one, over the top. It
+              belongs beside the other things that change the view. */}
+          <button type="button" className={'cx-keybtn' + (teamupOn ? ' on' : '')}
+            aria-pressed={teamupOn}
+            data-tip="The old Teamup calendar, kept here and laid over the top. Read-only."
+            onClick={() => setTeamupOn((v) => !v)}>
+            🗄 Teamup{teamupOn && teamupRows ? ` \u00b7 ${teamupRows.length}` : ''}
+          </button>
         </div>
         <div className="cx-tools">
           <div className="cx-seg" role="group" aria-label="View">
@@ -1341,13 +1364,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           <button type="button" className={'cx-chip' + (filt.onlyCourses ? ' on' : '')}
             aria-pressed={filt.onlyCourses}
             onClick={() => setFilt((f) => ({ ...f, onlyCourses: !f.onlyCourses }))}>Courses only</button>
-          <span className="cx-l-sep" />
-          <button type="button" className={'cx-chip' + (teamupOn ? ' on' : '')}
-            aria-pressed={teamupOn}
-            data-tip="The old Teamup calendar, kept here and shown over the top. Read-only."
-            onClick={() => setTeamupOn((v) => !v)}>
-            Teamup entries{teamupOn && teamupRows ? ` \u00b7 ${teamupRows.length}` : ''}
-          </button>
+
           {anyFilter && (
             <button type="button" className="cx-x"
               onClick={() => setFilt({ schemes: [], staff: [], hideDone: false, onlyCourses: false })}>Clear</button>
@@ -2221,14 +2238,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">👥</span>
               <div className="cx-rfill">
-                <span className="cx-rlabel">
-                  On this course{open.delegates.length ? ` · ${open.delegates.length}` : ''}
-                  {open.delegates.length > 0 && (
-                    <button type="button" className="cx-more" style={{ marginLeft: 8, display: 'inline' }}
-                      onClick={() => printTheList(open)}
-                      data-tip="A paper list of who is on this course">🖨 Print the list</button>
-                  )}
-                </span>
+                <span className="cx-rlabel">On this course{open.delegates.length ? ` · ${open.delegates.length}` : ''}</span>
                 {open.delegates.length === 0
                   ? <span className="cx-rtext">Nobody booked on yet</span>
                   : <ul className="cx-delg">{open.delegates.map((d) => (
@@ -2319,6 +2329,27 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             {/* ACS application forms — see printForms() above for why this
                 checks before it prints. Deliberately NOT behind canWrite: it
                 reads, it changes nothing, and reception need it. */}
+            {/* Printing this course. It goes with the other things this course
+                puts on paper, not inside the heading of the delegate list. */}
+            <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
+              <span className="cx-ricon" aria-hidden="true">🖨</span>
+              <div className="cx-rfill">
+                <span className="cx-rlabel">Print this course</span>
+                {open.delegates.length === 0 ? (
+                  <span className="cx-rtext">Nothing to print until somebody is booked on</span>
+                ) : (
+                  /* Same shape as the ACS forms row directly below it — both are
+                     this course going on paper, so they line up. */
+                  <span className="cx-formrow">
+                    <button className="cx-x" onClick={() => printTheList(open)}
+                      data-tip="Who is on it, their qualifications, and a column to write in">
+                      The list for the desk
+                    </button>
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">📄</span>
               <div className="cx-rfill">
@@ -3073,15 +3104,15 @@ function YearGrid({ year, blocks, onOpen, canWrite, onBarDown, flash, chip, onCe
                       its name shows none: the colour, the tooltip and the rail
                       carry it, and the bar's length stays honest either way. */}
                   {span >= 3 && <span className="cx-bar-t"><span className="cx-bar-n">{b.course || b.title}</span></span>}
-                  {/* A one- or two-day course is too narrow to hold its own
-                      name, and a year of unlabelled ticks is a year you have to
-                      hover over one at a time. `gap` is already worked out
-                      above -- the clear run before the next bar in this lane --
-                      so when there is room the name goes OUTSIDE the bar, to
-                      the right, in muted text. The bar itself keeps its true
-                      width, which is the thing that must not be fudged. */}
-                  {span < 3 && gap >= 3 && (
-                    <span className="cx-ybar-out" aria-hidden="true">{b.course || b.title}</span>
+                  {/* ⛔ NOTHING GOES OUTSIDE A BAR. Chris, 8 Sep: "we need to
+                      stop putting text outside the blocks, looks crap" — and he
+                      is right, a label floating off the end of a date-scaled bar
+                      reads as the course running on days it does not.
+                      A one- or two-day course still gets something to read: its
+                      short code, INSIDE, clipped to the bar. Anything that does
+                      not fit is carried by the colour, the tooltip and the rail. */}
+                  {span < 3 && shortCode(b) && (
+                    <span className="cx-ybar-code">{shortCode(b)}</span>
                   )}
                   {canWrite && !b.isHoliday && <span className="cx-resize" />}
                 </button>

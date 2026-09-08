@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.55.0', build: 213, date: '8 Sep 2026',
+    title: 'Three things put right',
+    notes: [
+      'No more writing outside the blocks. On the year view a short course was having its name printed off the end of its bar, which looked wrong and, worse, read as if the course ran on days it does not. Nothing is drawn outside a bar now. A one- or two-day course carries a short code INSIDE it instead, and the colour, the hover and the list down the side carry the rest.',
+      'The Teamup switch is at the top, next to Print, where you would look for it. It was buried under Filter, which was the wrong place for it \u2014 a filter narrows what you are looking at, and this shows you a different calendar altogether.',
+      'Printing a course has moved to where the rest of the course\u2019s paperwork lives, directly above the ACS forms, instead of being tucked into the heading of the delegate list. Same sheet: who is on it, their employer, their qualifications, whether they are there for the whole thing, and a blank column to write in.',
+    ],
+  },
+  {
     v: '1.54.0', build: 212, date: '8 Sep 2026',
     title: 'The filter now narrows the waiting list too, and the numbers are on it',
     notes: [
