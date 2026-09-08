@@ -38,6 +38,15 @@ import { toHtml } from './layout.ts'
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+// Needed to ask the database a question AS THE SIGNED-IN USER rather than as the
+// service role. app_is_admin('','') on the SERVICE-ROLE client always answers no
+// — there is no user on that connection. See the session-header proof below.
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+// How this app says who is asking. PostgREST exposes request headers to SQL and
+// app_session_user_id() looks this one up in app_session. It MUST be in the CORS
+// list below or the browser will not send it. See src/lib/supabase.js.
+const SESSION_HEADER = 'x-sgas-session'
 // Set this to let trusted server-side jobs (pg_cron) send without a password.
 const INTERNAL_SECRET = Deno.env.get('SGAS_INTERNAL_SECRET') ?? ''
 
@@ -59,7 +68,7 @@ const json = (body: unknown, status = 200) =>
     headers: {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-sgas-session',
     },
   })
 
@@ -90,9 +99,9 @@ async function deliver(db: ReturnType<typeof createClient>, d: Deliver) {
     if (cfgErr) return { ok: false, error: `Could not read the mail settings: ${cfgErr.message}`, status: 500 }
     if (!cfg) return { ok: false, error: 'Could not read the mail settings', status: 500 }
     if (cfg.error === 'unknown_mailbox') return { ok: false, error: `Unknown mailbox "${d.mailbox}"`, status: 400 }
-    if (cfg.error === 'no_server') return { ok: false, error: 'No mail server is set up yet — Admin → Email', status: 400 }
+    if (cfg.error === 'no_server') return { ok: false, error: 'No mail server is set up yet - Admin > Email', status: 400 }
     if (cfg.error === 'no_password') {
-      return { ok: false, error: `No password stored for ${cfg.address || d.mailbox} — add it in Admin → Email`, status: 400 }
+      return { ok: false, error: `No password stored for ${cfg.address || d.mailbox} — add it in Admin > Email`, status: 400 }
     }
     password = String(cfg.password || '')
     if (!password) return { ok: false, error: 'The stored password could not be read back', status: 500 }
@@ -237,20 +246,34 @@ Deno.serve(async (req: Request) => {
     // anything that talks about somebody's account.
     const trusted = INTERNAL_SECRET && internal === INTERNAL_SECRET
     if (!trusted && (!isNotify || wantsPreview || accountKind)) {
-      // TWO WAYS TO PROVE IT, in this order.
+      // THREE WAYS TO PROVE IT, in this order — the same three `sage` and
+      // `teamup` use. Keep them in step: this function had only the last two and
+      // that is exactly why the test send stopped working.
       //
-      // The signed-in browser's own token, which supabase-js puts in the
-      // Authorization header. This is the normal path since the Admin screen
-      // stopped asking for a second password — there is nothing to type any
-      // more, so there is nothing to send. The token is verified in the
-      // database (signature, expiry, then the user looked up for real), never
-      // here: this function must not hold the signing secret.
-      //
-      // Username and password still work, because pg_cron and anything else
-      // running server-side has no token of its own.
+      // ⛔ WHY IT BROKE. Sign-in moved to session tokens, and src/lib/supabase.js
+      // sends those in `x-sgas-session`; Authorization now carries the legacy
+      // JWT or, when there is no legacy token, the anon key. The anon key
+      // verifies but carries no app_user_id, so app_token_is_admin says no. And
+      // the Admin screen stopped asking for a second password, so `admin` /
+      // `admin_pw` arrive empty (Admin.jsx: `const adminAuth = null`). Both
+      // remaining proofs therefore failed and every admin send answered
+      // "Not authorized". The session header is the proof that actually exists
+      // in the browser now, so it is asked for FIRST.
       let allowed = false
 
-      const bearer = (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
+      const session = req.headers.get(SESSION_HEADER)
+      if (session && ANON_KEY) {
+        // As the USER, not as the service role: app_session_user_id() reads the
+        // header off the request, which only happens on a connection that
+        // carries it.
+        const asUser = createClient(SUPABASE_URL, ANON_KEY, {
+          global: { headers: { [SESSION_HEADER]: session } },
+        })
+        const { data } = await asUser.rpc('app_is_admin', { p_user: '', p_pw: '' })
+        allowed = data === true
+      }
+
+      const bearer = allowed ? '' : (req.headers.get('Authorization') || '').replace(/^Bearer\s+/i, '').trim()
       if (bearer) {
         // The anon key is itself a JWT and arrives here when nobody is signed
         // in. It verifies, but it carries no app_user_id, so it fails on the

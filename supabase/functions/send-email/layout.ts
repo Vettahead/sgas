@@ -88,7 +88,11 @@ export function parseBlocks(text: string): Block[] {
     else out.push({ t: 'rows', rows })
     rows = []
   }
-  const flushShout = () => { if (shout.length) { out.push({ t: 'callout', lines: shout }); shout = [] } }
+  // `shout` is a const and was being REASSIGNED here. Deno strips types without
+  // type-checking, so it deploys and would throw "Assignment to constant
+  // variable" at runtime — except nothing ever pushes to `shout`, so the branch
+  // is dead and it has never fired. Emptied in place rather than reassigned.
+  const flushShout = () => { if (shout.length) { out.push({ t: 'callout', lines: shout }); shout.length = 0 } }
   const flushAll = () => { flushPara(); flushRows(); flushShout() }
 
   for (const raw of lines) {

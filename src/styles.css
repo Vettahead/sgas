@@ -1906,3 +1906,14 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-origin-n .cx-nm.on{color:var(--cx-mute)}
 .cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
   background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
+
+/* THE TEAMUP FLIP — the old calendar shown over the new one. Deliberately looks
+   like a record rather than a plan: no fill of its own, a dashed edge, muted
+   text. It must never be mistaken for something you can move. */
+.cx-bar.tu{background:transparent;border:1px dashed color-mix(in srgb,var(--cx-mute) 55%,transparent);
+  color:var(--cx-mute);box-shadow:none;cursor:pointer}
+.cx-bar.tu:hover{transform:none;background:color-mix(in srgb,var(--cx-mute) 8%,transparent);box-shadow:none}
+.cx-bar.tu .cx-bar-sub{display:none}
+.cx-tu-note{margin:4px 0 0;padding:8px 10px;background:var(--cx-soft);border-radius:8px;
+  font-family:inherit;font-size:12.5px;line-height:1.5;color:var(--cx-ink);
+  white-space:pre-wrap;max-height:260px;overflow:auto}

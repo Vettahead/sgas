@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.53.0', build: 211, date: '7 Sep 2026',
+    title: 'The Teamup flip, and the emails send again',
+    notes: [
+      'THE TEAMUP FLIP. There is now a switch on the calendar, under Filter, called “Teamup entries”. Turn it on and the old Teamup calendar is laid over the top of this one \u2014 every entry, on the days it was on, with its title, who it said, and the note that was written inside it. Click one and it tells you what became of it over here: a course, time off, a diary entry, or nothing at all. It is READ-ONLY and always will be: the moment it can be edited it stops being a record of what your calendar said. When the subscription lapses in October nothing is lost and there is nothing to keep paying for.',
+      'THE EMAILS SEND AGAIN, and here is what had happened. Sign-in was moved to a more secure kind of token a while back. The part of the system that sends email was still checking the OLD kind, and the Admin screen had stopped asking for a password on top \u2014 so the two things it knew how to check were both gone, and every send from the Admin screen was being refused. Notifications going out on their own were never affected. It now checks the token the system actually uses, the same way the Sage and Teamup connections already did. Tested four ways on the live system: no sign-in is refused, a real sign-in is accepted, a forged one is refused.',
+      'And the box Simon asked for: put your address at the top of the Wording tab and every email has a “Send it to me” button under it. It goes out through the real thing, laid out the way it will land in an inbox \u2014 which is the half a preview on screen cannot show you. Where there is a real course or holiday to build it from it uses that; where there is not, it sends the wording with the placeholders still in and says so rather than pretending.',
+    ],
+  },
+  {
     v: '1.52.0', build: 210, date: '7 Sep 2026',
     title: 'The other half — people missing off courses they should be on',
     notes: [

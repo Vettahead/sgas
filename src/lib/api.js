@@ -1876,6 +1876,60 @@ export async function deleteClientRecord(clientId) {
 // Teamup titles claimed the headcount was, and Simon decides. Guessing which of
 // twenty-five belong would be inventing the answer.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// THE TEAMUP FLIP
+//
+// Simon's words: "I'll create a Teamup flip so you can see all the historical
+// ones. So that's when Teamup locks you out, you've got a record of it all.
+// You've not lost anything, so you don't have to pay the recurring fee."
+//
+// The pull already copies Teamup verbatim into teamup_event and keeps the raw
+// JSON. What was missing was a way to LOOK at it. This is that: the old
+// calendar, on the new calendar, read-only, behind a switch.
+//
+// Read-only is the whole point. These rows are a record of what their calendar
+// said, and the moment anything here can be edited it stops being one. Nothing
+// in this file writes to teamup_event and nothing on the screen offers to.
+// ---------------------------------------------------------------------------
+const stripHtml = (v) => String(v || '')
+  .replace(/<li[^>]*>/gi, '\n\u2022 ')
+  .replace(/<\/(p|div|li|ol|ul|tr)>/gi, '\n')
+  .replace(/<br\s*\/?>/gi, '\n')
+  .replace(/<[^>]+>/g, '')
+  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+  .replace(/\n{3,}/g, '\n\n').trim()
+
+export async function listTeamupEntries() {
+  if (!LIVE) return []
+  const { data } = await supabase.from('teamup_event')
+    .select('event_id,title,who,start_dt,end_dt,notes,session_id,holiday_id,engagement_id,gone_from_teamup')
+    .order('start_dt')
+  return (data || []).map((e) => {
+    const start = String(e.start_dt || '').slice(0, 10)
+    const end = String(e.end_dt || e.start_dt || '').slice(0, 10)
+    return {
+      // Prefixed so it can never collide with a session id anywhere that keys
+      // or looks a block up by id.
+      id: 'tu-' + e.event_id,
+      eventId: e.event_id,
+      isTeamup: true,
+      title: e.title || '(no title)',
+      course: e.title || '(no title)',
+      who: e.who || null,
+      start, end: end < start ? start : end,
+      note: stripHtml(e.notes),
+      // What it turned into over here, if anything. "Nothing" is a fact worth
+      // showing: it is the part of their calendar that never became a record.
+      becameSession: e.session_id != null,
+      becameHoliday: e.holiday_id != null,
+      becameEngagement: e.engagement_id != null,
+      goneFromTeamup: !!e.gone_from_teamup,
+      // Block-shaped so the grid can draw it without knowing what it is.
+      delegates: [], color: '#8a93a3', ready: true,
+    }
+  }).filter((e) => e.start)
+}
+
 export async function getSessionOrigin(sessionId) {
   if (!LIVE) return null
   const { data } = await supabase.from('teamup_event')
@@ -2586,6 +2640,28 @@ export async function sendTestEmail({ mailbox, to }, adminAuth) {
   if (!store.emailLog) store.emailLog = []
   store.emailLog.unshift({ sent_at: new Date().toISOString(), mailbox, to_address: to, subject: 'SGAS test email', kind: 'test', ok: true, error: null })
   return { ok: true, from: row.address, demo: true }
+}
+
+// Send one of the automatic emails to yourself, so it can be looked at in an
+// inbox rather than in a preview box — Simon asked for exactly this: "you can
+// send any of these, course date, or they're not approved or whatever, so you
+// can have a look at it."
+//
+// It posts the ALREADY-RENDERED subject and text, which is what the preview
+// showed, so what lands in the inbox is what the system would send. The HTML
+// layout is applied at the far end by the same code every other email goes
+// through — that is the half a preview box cannot show you.
+export async function sendTemplateToMe({ mailbox, to, subject, text }, adminAuth) {
+  if (!to) throw new Error('Enter the address to send it to')
+  if (LIVE) {
+    return sendMail({ mailbox: mailbox || 'crm', to, subject, text, kind: 'template_sample' }, adminAuth)
+  }
+  if (!store.emailLog) store.emailLog = []
+  store.emailLog.unshift({
+    sent_at: new Date().toISOString(), mailbox: mailbox || 'crm', to_address: to,
+    subject, kind: 'template_sample', ok: true, error: null,
+  })
+  return { ok: true, from: 'demo@example.com', demo: true }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

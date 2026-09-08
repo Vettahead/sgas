@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  getSmtpSettings, saveSmtpSettings, sendTestEmail, listEmailLog,
+  getSmtpSettings, saveSmtpSettings, sendTestEmail, listEmailLog, sendTemplateToMe,
   listEmailTemplates, saveEmailTemplate, previewEmailTemplate,
 } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
@@ -288,6 +288,10 @@ function Wording({ adminAuth, mailboxes }) {
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState(null)
   const [err, setErr] = useState('')
+  // Where "send it to me" sends. Typed once and kept for the whole visit, so
+  // going through six templates is six clicks rather than six addresses.
+  const [mineTo, setMineTo] = useState('')
+  const [sending, setSending] = useState(null)
 
   useEffect(() => {
     (async () => {
@@ -330,6 +334,33 @@ function Wording({ adminAuth, mailboxes }) {
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
+  /* Render it, then send that. Preview first for the same reason the preview
+     exists — it builds against a real course with the code that does the
+     sending, so the copy that lands in the inbox is the real thing rather than
+     an approximation. If there is nothing to render against (no holiday booked
+     yet, say) it falls back to the stored wording with the {{placeholders}}
+     still in it: the layout and the words are still worth seeing, and it says
+     so rather than pretending. */
+  async function sendToMe(t) {
+    if (!mineTo) { setErr('Put the address to send it to in the box at the top'); return }
+    setSending(t.key); setErr('')
+    try {
+      let subject = t.subject
+      let text = t.body
+      let real = false
+      try {
+        const r = await previewEmailTemplate(t.key, adminAuth)
+        if (r && r.subject && !r.skipped && !r.none && !r.demo) {
+          subject = r.subject; text = r.text; real = true
+        }
+      } catch { /* fall back to the stored wording */ }
+      const res = await sendTemplateToMe({ mailbox: t.mailbox, to: mineTo, subject, text }, adminAuth)
+      toast(res.demo
+        ? 'Demo mode — nothing was actually sent'
+        : real ? `Sent to ${mineTo}` : `Sent to ${mineTo} — with the placeholders still in it, nothing to fill them from`)
+    } catch (e) { setErr(e.message); toast('It did not send — the reason is shown above') } finally { setSending(null) }
+  }
+
   if (err && !rows) return <div className="body"><span className="b fail">{err}</span></div>
   if (!rows) return <div className="body"><span className="muted small">Loading…</span></div>
 
@@ -341,6 +372,15 @@ function Wording({ adminAuth, mailboxes }) {
           the list is under each one. Switch one off and it stops going out; nothing else changes.
         </span>
         {err && <p className="b fail">{err}</p>}
+        <div className="field" style={{ marginTop: 10, maxWidth: 360 }}>
+          <label className="fl">Send one to me at</label>
+          <input type="text" value={mineTo} placeholder="you@example.com"
+            onChange={(e) => setMineTo(e.target.value)} />
+          <span className="muted small">
+            Then use “Send it to me” under any of them. It goes out through the real thing, laid
+            out the way it will land in an inbox.
+          </span>
+        </div>
       </div>
 
       <div className="body">
@@ -403,6 +443,11 @@ function Wording({ adminAuth, mailboxes }) {
                   </button>{' '}
                   <button className="btn ghost sm" disabled={busy} onClick={() => showPreview(t)}>
                     Preview
+                  </button>{' '}
+                  <button className="btn ghost sm" disabled={busy || sending === t.key || !mineTo}
+                    title={mineTo ? `Send this one to ${mineTo}` : 'Put an address in the box at the top first'}
+                    onClick={() => sendToMe(t)}>
+                    {sending === t.key ? 'Sending…' : '✉ Send it to me'}
                   </button>{' '}
                   {t.updated_at && (
                     <span className="muted small">Last changed {new Date(t.updated_at).toLocaleString('en-GB')}</span>
