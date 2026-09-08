@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.56.0', build: 215, date: '8 Sep 2026',
+    title: 'The Teamup flip now shows Teamup, and it works',
+    notes: [
+      'It was doing nothing at all, and the reason is worth saying plainly: the copy of the Teamup calendar was locked so that only the system itself could read it, never the app. Every attempt to show it came back empty and said nothing about why. Two other things were quietly broken by the same fault \u2014 the note on an over-full course saying which Teamup entries it was built from, and the marking of people written on a course but never booked on it. All three work now. It had only ever been checked from the database side, which is not the same as checking it from the app, and it will be checked the right way round from now on.',
+      'And it now shows THEIR calendar rather than ours with their entries drawn on it. Flip it and you get Teamup laid out the way Teamup was: one row for each of their calendars \u2014 Keith Assessments, Commercial COM x, Hols / Not Available, all twenty-five \u2014 with their entries on the days they were on, under the titles they were given. Click one and you get it exactly as it was written: the times, who it said, which calendar it sat on, and the note in the formatting it was typed in, with the crossings-out still crossed out. Nothing is re-worded and nothing can be changed.',
+      'Under each entry it also says what became of it in this system \u2014 a course, time off, a diary entry, or nothing at all. That is the one thing added, and it is said as a fact about SGAS, not as a change to theirs.',
+    ],
+  },
+  {
     v: '1.55.1', build: 214, date: '8 Sep 2026',
     title: 'The course is changed at the top, where it already was',
     notes: [

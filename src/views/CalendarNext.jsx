@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   listBlocks, listCourses, listStaff, listHolidays, getPool, loadPool,
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
-  addAssist, removeAssist, getSessionOrigin, listTeamupEntries,
+  addAssist, removeAssist, getSessionOrigin,
   getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
   createBlock, setBookingAttendance, deleteBlock,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
@@ -39,6 +39,7 @@ const span = (a, b) => {
 }
 import { toast } from '../lib/toast.js'
 import Popover from '../components/Popover.jsx'
+import TeamupArchive from './TeamupArchive.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CALENDAR (NEW) — a visual revamp, on its own tab. Nothing existing is touched.
@@ -506,13 +507,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
      with every block: it is one extra query for the one course being looked at,
      and listBlocks already carries enough. */
   const [origin, setOrigin] = useState(null)
-  /* THE TEAMUP FLIP. The old calendar, laid over the new one, read-only, behind
-     a switch — so when the subscription lapses in October nothing is lost and
-     nobody pays to keep looking at it. Loaded the first time it is switched on
-     rather than with every calendar: it is 1,235 rows and most visits never
-     ask for it. */
+  /* THE TEAMUP FLIP — a MODE, not an overlay.
+     Chris: "I need to flip to the Teamup as is, not an interpretation." Drawing
+     their events as SGAS bars on the SGAS calendar was the interpretation. This
+     switches the calendar out for theirs — their sub-calendars, their titles,
+     their notes in their own formatting — in TeamupArchive.jsx. */
   const [teamupOn, setTeamupOn] = useState(false)
-  const [teamupRows, setTeamupRows] = useState(null)
   // Which course the in-flight origin lookup is for. A ref, not state: reading
   // it inside a state updater would be a side effect in a function React is
   // allowed to call twice.
@@ -609,15 +609,6 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   useEffect(() => { try { localStorage.setItem(VIEW_KEY, view) } catch { /* private */ } }, [view])
   useEffect(() => { try { localStorage.setItem(RAIL_KEY, rail ? '1' : '0') } catch { /* private */ } }, [rail])
   useEffect(() => { try { localStorage.setItem(FILT_KEY, JSON.stringify(filt)) } catch { /* private */ } }, [filt])
-
-  useEffect(() => {
-    if (!teamupOn || teamupRows) return
-    let alive = true
-    listTeamupEntries()
-      .then((r) => { if (alive) setTeamupRows(r) })
-      .catch(() => { if (alive) setTeamupRows([]) })
-    return () => { alive = false }
-  }, [teamupOn, teamupRows])
   useEffect(() => { try { localStorage.setItem(CARDS_KEY, JSON.stringify(shut)) } catch { /* private */ } }, [shut])
   useEffect(() => { try { localStorage.setItem(DENSE_KEY, dense ? '1' : '0') } catch { /* private */ } }, [dense])
 
@@ -656,7 +647,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     // Cleared first, so a slow answer for the new course cannot arrive under the
     // banner from the last one and label the wrong course as a merge.
     setOrigin(null)
-    originFor.current = b && !b.isHoliday && !b.isEngagement && !b.isTeamup ? b.id : null
+    originFor.current = b && !b.isHoliday && !b.isEngagement ? b.id : null
     if (originFor.current != null) {
       const forId = b.id
       getSessionOrigin(forId)
@@ -772,7 +763,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
      by trainer and thereby hiding the courses that have no trainer is the exact
      opposite of what you want when you are staffing a month. */
   const schemes = useMemo(
-    () => [...new Set((blocks || []).filter((b) => !b.isHoliday && !b.isEngagement && !b.isTeamup)
+    () => [...new Set((blocks || []).filter((b) => !b.isHoliday && !b.isEngagement)
       .map((b) => b.scheme).filter(Boolean))].sort(), [blocks])
   const filtered = useMemo(() => (blocks || []).filter((b) => {
     if (b.isHoliday || b.isEngagement) return !filt.onlyCourses
@@ -812,16 +803,9 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const poolHidden = waiting.length - railWaiting.length
   const resitHidden = resits.length - railResits.length
 
-  const shown = useMemo(() => {
-    const live = filtered.map((b) => (
-      preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
-    ))
-    /* Added after the filters on purpose. The scheme and trainer filters are
-       about SGAS's own records; a Teamup entry has neither, and quietly hiding
-       the archive because a filter is on would be the one thing an archive must
-       not do. */
-    return teamupOn && teamupRows ? [...live, ...teamupRows] : live
-  }, [filtered, preview, teamupOn, teamupRows])
+  const shown = useMemo(() => filtered.map((b) => (
+    preview && preview.id === b.id ? { ...b, start: preview.start, end: preview.end } : b
+  )), [filtered, preview])
 
   /* Which days of which course have somebody helping on them. Worked out once
      here rather than per bar per render -- the month grid draws a bar for every
@@ -848,12 +832,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     ? b.start.slice(0, 4) <= month.slice(0, 4) && b.end.slice(0, 4) >= month.slice(0, 4)
     : b.start.slice(0, 7) <= month && b.end.slice(0, 7) >= month)
   const thisMonth = useMemo(() => (shown || [])
-    .filter((b) => !b.isHoliday && !b.isEngagement && !b.isTeamup && inRange(b))
+    .filter((b) => !b.isHoliday && !b.isEngagement && inRange(b))
     .sort((a, z) => a.start.localeCompare(z.start)), [shown, month, view])
   // Scoped to the month, this hid overdue problems the moment you paged away
   // from them. An alert is only an alert if it follows you.
   const needsWork = useMemo(() => (shown || [])
-    .filter((b) => !b.isHoliday && !b.isEngagement && !b.isTeamup && (!b.trainerId || b.trainerGone || !b.delegates.length))
+    .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || b.trainerGone || !b.delegates.length))
     .sort((a, z) => a.start.localeCompare(z.start)), [shown])
   // What a trainer already has on, so you are not dropping blind.
   const teaching = (id) => {
@@ -1279,9 +1263,11 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
               belongs beside the other things that change the view. */}
           <button type="button" className={'cx-keybtn' + (teamupOn ? ' on' : '')}
             aria-pressed={teamupOn}
-            data-tip="The old Teamup calendar, kept here and laid over the top. Read-only."
+            data-tip={teamupOn
+              ? 'Back to the SGAS calendar'
+              : 'Flip to the Teamup calendar as it was — their calendars, their words. Read-only.'}
             onClick={() => setTeamupOn((v) => !v)}>
-            🗄 Teamup{teamupOn && teamupRows ? ` \u00b7 ${teamupRows.length}` : ''}
+            🗄 {teamupOn ? 'Back to SGAS' : 'Teamup'}
           </button>
         </div>
         <div className="cx-tools">
@@ -1457,7 +1443,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
         <section className="cx-cal" aria-label={'Courses — ' + title}>
           {view === 'Month' && <div className="cx-dow" data-cols={cols}>{DOW.slice(0, cols).map((d) => <div key={d}>{d}</div>)}</div>}
 
-          {blocks === null ? (
+          {teamupOn ? (
+            /* Their calendar, in place of ours. Not an overlay: an overlay is
+               our layout with their data in it, which is the interpretation
+               Chris did not want. */
+            <TeamupArchive month={month} monthLabel={monthName(month)} />
+          ) : blocks === null ? (
             <div className="cx-skel">{Array.from({ length: 35 }, (_, i) => <div key={i} />)}</div>
           ) : view === 'Year' ? (
             <YearGrid year={month.slice(0, 4)} blocks={shown} onOpen={openAt} canWrite={canWrite}
@@ -1485,7 +1476,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                   })}
                   {segments.filter((s) => s.row === r).map((s) => (
                     <button key={s.key} type="button" data-bid={s.b.id} data-head={s.head ? '1' : '0'}
-                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (s.b.isTeamup ? ' tu' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
+                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
                       style={{
                         left: `calc(${(s.col / cols) * 100}% + 4px)`,
                         width: `calc(${(s.span / cols) * 100}% - 8px)`,
@@ -1499,7 +1490,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                       onClick={(e) => openAt(s.b, e)}
                       data-assist={assistOn.has(String(s.b.id)) ? '1' : undefined}
                       data-tip={barTip(s.b)}>
-                      {canWrite && !s.b.isHoliday && !s.b.isTeamup && s.head && <span className="cx-grab" aria-hidden="true" />}
+                      {canWrite && !s.b.isHoliday && s.head && <span className="cx-grab" aria-hidden="true" />}
                       {/* The days somebody is in helping, marked in place on the
                           bar rather than as a badge at the end of it -- "Phil is
                           on this course" and "Phil is on Thursday and Friday of
@@ -1535,7 +1526,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                           </span>
                         )}
                       </span>
-                      {canWrite && !s.b.isHoliday && !s.b.isTeamup && s.tail && <span className="cx-resize" aria-hidden="true" />}
+                      {canWrite && !s.b.isHoliday && s.tail && <span className="cx-resize" aria-hidden="true" />}
                       {hint && preview?.id === s.b.id && s.head && <span className="cx-chip-len">{hint}</span>}
                     </button>
                   ))}
@@ -1948,64 +1939,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
         </Popover>
       )}
 
-      {/* A Teamup entry gets its OWN panel — read-only, and saying plainly what
-          became of it over here. Nothing on it can be changed: the moment this
-          is editable it stops being a record of what their calendar said. */}
-      {open && open.isTeamup && (
-        <Popover at={at} onClose={() => setOpen(null)} label="Teamup entry" className="cx-course-pop">
-          <header className="cx-pop-head" style={{ '--c': '#8a93a3' }}>
-            <span className="cx-pop-dot" />
-            <span className="cx-pop-title" style={{ padding: '0 2px' }}>{open.title}</span>
-          </header>
-          <div className="cx-rows">
-            <div className="cx-row2">
-              <span className="cx-ricon" aria-hidden="true">🗓</span>
-              <span className="cx-rwrap">
-                <span className="cx-rlabel">When</span>
-                <span className="cx-rtext">
-                  {open.start === open.end ? fmt(open.start) : `${fmt(open.start)} – ${fmt(open.end)}`}
-                </span>
-              </span>
-            </div>
-            {open.who && (
-              <div className="cx-row2">
-                <span className="cx-ricon" aria-hidden="true">👤</span>
-                <span className="cx-rwrap">
-                  <span className="cx-rlabel">Who it said</span>
-                  <span className="cx-rtext">{open.who}</span>
-                </span>
-              </div>
-            )}
-            <div className="cx-row2">
-              <span className="cx-ricon" aria-hidden="true">↪</span>
-              <span className="cx-rwrap">
-                <span className="cx-rlabel">In this system</span>
-                <span className="cx-rtext">
-                  {open.becameSession ? 'It became a course.'
-                    : open.becameHoliday ? 'It became time off.'
-                      : open.becameEngagement ? 'It became a diary entry.'
-                        : 'Nothing was made from it — it is kept here as a record.'}
-                  {open.goneFromTeamup ? ' It has since been deleted in Teamup.' : ''}
-                </span>
-              </span>
-            </div>
-            {open.note && (
-              <div className="cx-row2 top">
-                <span className="cx-ricon" aria-hidden="true">📝</span>
-                <div className="cx-rfill">
-                  <span className="cx-rlabel">What the entry said</span>
-                  <pre className="cx-tu-note">{open.note}</pre>
-                </div>
-              </div>
-            )}
-          </div>
-          <footer className="cx-pop-foot">
-            <span className="muted small">A copy of Teamup, kept here. Nothing on it can be changed.</span>
-          </footer>
-        </Popover>
-      )}
-
-      {open && !open.isHoliday && !open.isEngagement && !open.isTeamup && (
+      {open && !open.isHoliday && !open.isEngagement && (
         <Popover at={at} onClose={() => setOpen(null)} label={open.course} className="cx-course-pop">
           {/* No edit mode. You type into it and it saves — the way Calendars
               does it — instead of asking you to unlock the thing first. */}
@@ -3059,12 +2993,12 @@ function YearGrid({ year, blocks, onOpen, canWrite, onBarDown, flash, chip, onCe
                   style={{ left: `calc(${(col / 31) * 100}% + 2px)`, width: `calc(${(span / 31) * 100}% - 4px)`,
                     top: lane * 22 + 6, height: 18, '--c': b.color || '#5b6b80' }}
                   onPointerDown={(e) => {
-                    if (!canWrite || b.isHoliday || b.isTeamup) return
+                    if (!canWrite || b.isHoliday) return
                     if (e.target.classList.contains('cx-grab')) onBarDown(b, e, 'move')
                     else if (e.target.classList.contains('cx-resize')) onBarDown(b, e, 'resize')
                   }}
                   onClick={(e) => onOpen(b, e)}>
-                  {canWrite && !b.isHoliday && !b.isTeamup && <span className="cx-grab" />}
+                  {canWrite && !b.isHoliday && <span className="cx-grab" />}
                   {(b.assists || []).map((a) => {
                     // Clipped to the part of this month the bar actually draws.
                     const aFrom = a.from < b.start ? b.start : a.from

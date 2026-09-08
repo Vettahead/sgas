@@ -1916,6 +1916,60 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 .cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
   background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
 
+/* ── THE TEAMUP ARCHIVE — their calendar, not ours with their data in it ────
+   Laid out the way their Teamup is: one row per sub-calendar, days across.
+   Deliberately plainer than the SGAS calendar — it is a record being read, not
+   a week being planned, and it should not be mistaken for something to work in. */
+.cx-tu-wrap{border:1px solid var(--cx-line);border-radius:12px;background:var(--cx-panel);
+  padding:12px 14px 14px;overflow:auto}
+.cx-tu-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;margin-bottom:10px}
+.cx-tu-head b{font-size:14px;color:var(--cx-ink)}
+.cx-tu-head span{font-size:12px;color:var(--cx-mute)}
+.cx-tu-grid{min-width:640px}
+.cx-tu-row{display:grid;grid-template-columns:168px 1fr;gap:10px;align-items:start;
+  border-top:1px solid var(--cx-line-faint,var(--cx-line))}
+.cx-tu-row:first-child{border-top:0}
+.cx-tu-label{padding:8px 0 0;font-size:11.5px;line-height:1.3;color:var(--cx-mute);
+  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.cx-tu-track{position:relative;min-height:32px}
+.cx-tu-cell{position:absolute;top:0;bottom:0;border-left:1px solid var(--cx-line-faint,var(--cx-line));opacity:.5}
+.cx-tu-scale .cx-tu-track{min-height:18px;height:18px}
+.cx-tu-scale span{position:absolute;top:0;font-size:10px;color:var(--cx-mute);text-align:left;padding-left:2px}
+/* Their entries. One neutral colour on purpose: giving them SGAS's scheme
+   colours would be us interpreting their calendar, which is the whole thing
+   this view exists to stop. */
+.cx-tu-ev{position:absolute;height:20px;border:1px solid color-mix(in srgb,var(--cx-mute) 45%,transparent);
+  background:color-mix(in srgb,var(--cx-mute) 10%,var(--cx-panel));border-radius:5px;
+  padding:0 6px;font:inherit;font-size:11px;line-height:18px;color:var(--cx-ink);
+  text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cx-tu-ev:hover{background:color-mix(in srgb,var(--cx-mute) 18%,var(--cx-panel))}
+.cx-tu-ev.on{border-color:var(--cx-brand);background:var(--cx-brand-soft)}
+/* Deleted in Teamup since we copied it — still ours to keep, and said so. */
+.cx-tu-ev.gone{text-decoration:line-through;opacity:.6}
+
+.cx-tu-detail{margin-top:12px;border-top:1px solid var(--cx-line);padding-top:12px}
+.cx-tu-dh{display:flex;align-items:flex-start;gap:10px}
+.cx-tu-dh b{flex:1;font-size:14px;color:var(--cx-ink)}
+.cx-tu-facts{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;margin:8px 0 0;font-size:12.5px}
+.cx-tu-facts dt{color:var(--cx-mute)}
+.cx-tu-facts dd{margin:0;color:var(--cx-ink)}
+/* Their notes, in the formatting they were written in — struck-through lines
+   included, because that is how a cancellation was recorded. */
+.cx-tu-notes{margin-top:10px;padding:10px 12px;background:var(--cx-soft);border-radius:8px;
+  font-size:12.5px;line-height:1.55;color:var(--cx-ink);max-height:320px;overflow:auto}
+.cx-tu-notes ol,.cx-tu-notes ul{margin:4px 0 4px 18px;padding:0}
+.cx-tu-notes li{margin:2px 0}
+.cx-tu-notes p{margin:4px 0}
+.cx-tu-notes del{opacity:.65}
+
+/* A name written in a course's notes: on the course, or named and missing.
+   Two states, one row — the point is the comparison, so they sit together
+   rather than in separate lists. */
+.cx-origin-n .cx-nm{display:inline-block;margin:1px 4px 1px 0;padding:1px 6px;border-radius:5px}
+.cx-origin-n .cx-nm.on{color:var(--cx-mute)}
+.cx-origin-n .cx-nm.off{color:var(--cx-warn);font-weight:600;
+  background:color-mix(in srgb,var(--cx-warn) 10%,transparent)}
+
 /* THE TEAMUP FLIP — the old calendar shown over the new one. Deliberately looks
    like a record rather than a plan: no fill of its own, a dashed edge, muted
    text. It must never be mistaken for something you can move. */

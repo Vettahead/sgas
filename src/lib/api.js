@@ -1882,57 +1882,61 @@ export async function deleteClientRecord(clientId) {
 // twenty-five belong would be inventing the answer.
 // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
-// THE TEAMUP FLIP
+// THE TEAMUP ARCHIVE — their calendar, AS IT WAS
 //
-// Simon's words: "I'll create a Teamup flip so you can see all the historical
-// ones. So that's when Teamup locks you out, you've got a record of it all.
-// You've not lost anything, so you don't have to pay the recurring fee."
+// Chris, 8 Sep: "I need to flip to the Teamup as is, not an interpretation."
+// The first attempt drew the captured events as SGAS bars on the SGAS calendar,
+// which is precisely an interpretation — SGAS colours, SGAS layout, the notes
+// flattened to plain text. What is wanted is their calendar: their
+// sub-calendars, their titles, their notes with their own formatting.
 //
-// The pull already copies Teamup verbatim into teamup_event and keeps the raw
-// JSON. What was missing was a way to LOOK at it. This is that: the old
-// calendar, on the new calendar, read-only, behind a switch.
-//
-// Read-only is the whole point. These rows are a record of what their calendar
-// said, and the moment anything here can be edited it stops being one. Nothing
-// in this file writes to teamup_event and nothing on the screen offers to.
+// ⛔ AND IT RETURNED NOTHING. teamup_event, teamup_note_line and
+// teamup_subcalendar had RLS on with ZERO policies and no SELECT grant to
+// `authenticated`, so every read from the browser came back empty and the
+// switch appeared to do nothing. Fixed in 20260908000100_teamup_archive_readable
+// (SELECT only — the archive is written by the pull, never by a browser).
+// The errors are NOT swallowed here any more: that is what hid it.
 // ---------------------------------------------------------------------------
-const stripHtml = (v) => String(v || '')
-  .replace(/<li[^>]*>/gi, '\n\u2022 ')
-  .replace(/<\/(p|div|li|ol|ul|tr)>/gi, '\n')
-  .replace(/<br\s*\/?>/gi, '\n')
-  .replace(/<[^>]+>/g, '')
-  .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-  .replace(/\n{3,}/g, '\n\n').trim()
-
-export async function listTeamupEntries() {
+export async function listTeamupSubcalendars() {
   if (!LIVE) return []
-  const { data } = await supabase.from('teamup_event')
-    .select('event_id,title,who,start_dt,end_dt,notes,session_id,holiday_id,engagement_id,gone_from_teamup')
+  const { data, error } = await supabase.from('teamup_subcalendar')
+    .select('subcalendar_id,name,events').order('name')
+  if (error) throw new Error(`Could not read the Teamup calendars: ${error.message}`)
+  return (data || []).map((c) => ({ id: String(c.subcalendar_id), name: c.name || `Calendar ${c.subcalendar_id}`, events: c.events || 0 }))
+}
+
+// One month of their calendar. Everything is returned as stored — the title
+// unedited, the notes as the HTML they were written in. `<del>` in particular
+// MUST survive: struck through is how a cancellation was recorded, and
+// flattening it to text is how three people who had moved to another week ended
+// up seated on a course. See [[sgas-phantom-delegates]].
+export async function listTeamupMonth(month) {
+  if (!LIVE) return []
+  const from = `${month}-01`
+  const [y, m] = month.split('-').map(Number)
+  const to = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10)
+  const { data, error } = await supabase.from('teamup_event')
+    .select('event_id,title,who,location,start_dt,end_dt,all_day,notes,subcalendar_ids,session_id,holiday_id,engagement_id,gone_from_teamup')
+    .lte('start_dt', `${to}T23:59:59Z`).gte('end_dt', `${from}T00:00:00Z`)
     .order('start_dt')
-  return (data || []).map((e) => {
-    const start = String(e.start_dt || '').slice(0, 10)
-    const end = String(e.end_dt || e.start_dt || '').slice(0, 10)
-    return {
-      // Prefixed so it can never collide with a session id anywhere that keys
-      // or looks a block up by id.
-      id: 'tu-' + e.event_id,
-      eventId: e.event_id,
-      isTeamup: true,
-      title: e.title || '(no title)',
-      course: e.title || '(no title)',
-      who: e.who || null,
-      start, end: end < start ? start : end,
-      note: stripHtml(e.notes),
-      // What it turned into over here, if anything. "Nothing" is a fact worth
-      // showing: it is the part of their calendar that never became a record.
-      becameSession: e.session_id != null,
-      becameHoliday: e.holiday_id != null,
-      becameEngagement: e.engagement_id != null,
-      goneFromTeamup: !!e.gone_from_teamup,
-      // Block-shaped so the grid can draw it without knowing what it is.
-      delegates: [], color: '#8a93a3', ready: true,
-    }
-  }).filter((e) => e.start)
+  if (error) throw new Error(`Could not read the Teamup entries: ${error.message}`)
+  return (data || []).map((e) => ({
+    id: e.event_id,
+    title: e.title || '(no title)',
+    who: e.who || '',
+    location: e.location || '',
+    start: String(e.start_dt || '').slice(0, 10),
+    end: String(e.end_dt || e.start_dt || '').slice(0, 10),
+    startTime: e.all_day ? null : String(e.start_dt || '').slice(11, 16),
+    endTime: e.all_day ? null : String(e.end_dt || '').slice(11, 16),
+    allDay: !!e.all_day,
+    notesHtml: e.notes || '',
+    calendars: (e.subcalendar_ids || []).map(String),
+    became: e.session_id != null ? 'course'
+      : e.holiday_id != null ? 'time off'
+        : e.engagement_id != null ? 'diary entry' : null,
+    gone: !!e.gone_from_teamup,
+  }))
 }
 
 export async function getSessionOrigin(sessionId) {
