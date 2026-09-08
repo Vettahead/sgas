@@ -701,7 +701,7 @@ export async function createClient(d) {
 
 // ---- Course & qualification catalogue (item 5) --------------------------
 export async function createCourse(d) {
-  const row = { name: d.name, scheme: d.scheme || null, price: d.price ?? null, teamup_designator: d.teamup_designator || null, color: d.color || null, is_active: d.is_active !== false }
+  const row = { name: d.name, scheme: d.scheme || null, price: d.price ?? null, teamup_designator: d.teamup_designator || null, color: d.color || null, is_active: d.is_active !== false, default_seats: d.default_seats ?? null }
   if (LIVE) {
     const { data, error } = await supabase.from('course').insert(row).select().single()
     if (error) throw new Error(error.message)
@@ -1546,7 +1546,9 @@ export function weekdayDays(from, to) {
 }
 
 // ---- Engagements (personal timed calendar entries) --------------------------
-const ENG_COLS = 'engagement_id,owner_user_id,title,start_date,end_date,half,kind,start_time,end_time'
+// company_id is the outfit DELIVERING a kind='training' entry — office staff
+// being trained by somebody outside. Null on every other kind.
+const ENG_COLS = 'engagement_id,owner_user_id,title,start_date,end_date,half,kind,start_time,end_time,company_id,company:company_id(name)'
 // An engagement shows on your calendar if you own it OR you're a member (your staff_id).
 export async function listEngagements(ownerUserId, ownerStaffId) {
   if (LIVE) {
@@ -1571,6 +1573,7 @@ export async function listEngagements(ownerUserId, ownerStaffId) {
       engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title,
       date: e.start_date, endDate: e.end_date || e.start_date, half: e.half || null,
       kind: e.kind || 'other',
+      companyId: e.company_id ?? null, provider: e.company?.name || null,
       startTime: e.start_time, endTime: e.end_time, members: memMap[e.engagement_id] || [],
     }))
   }
@@ -1581,6 +1584,7 @@ export async function listEngagements(ownerUserId, ownerStaffId) {
   return [...owned, ...extra].map((e) => ({
     engagementId: e.engagement_id, ownerUserId: e.owner_user_id, title: e.title,
     date: e.start_date, endDate: e.end_date || e.start_date, half: e.half || null, kind: e.kind || 'other',
+    companyId: e.company_id ?? null, provider: co(e.company_id)?.name || null,
     startTime: e.start_time, endTime: e.end_time,
     members: D.engagementMembers.filter((m) => m.engagement_id === e.engagement_id).map((m) => ({ staffId: m.staff_id, name: (D.assessors.find((a) => a.assessor_id === m.staff_id) || {}).name || '—' })),
   }))
@@ -1590,7 +1594,7 @@ export async function listEngagements(ownerUserId, ownerStaffId) {
 // are half a day. A whereabouts entry takes its label from the kind when no
 // title is typed, because "In the office" is not worth making anybody type.
 export async function createEngagement({
-  ownerUserId, title, date, endDate, half, kind, startTime, endTime, memberStaffIds,
+  ownerUserId, title, date, endDate, half, kind, startTime, endTime, memberStaffIds, companyId,
 }) {
   if (!title || !title.trim()) throw new Error('Enter a title')
   if (!date) throw new Error('Pick a date')
@@ -1601,6 +1605,7 @@ export async function createEngagement({
       owner_user_id: ownerUserId ?? null, title: title.trim(),
       start_date: date, end_date: endDate || date, half: half || null, kind: kind || 'other',
       start_time: startTime || null, end_time: endTime || null,
+      company_id: companyId ? Number(companyId) : null,
     }).select('engagement_id').single()
     if (error) throw new Error(error.message)
     if (members.length) {
@@ -1611,7 +1616,7 @@ export async function createEngagement({
   }
   D.engagements = D.engagements || []; D.seq.engagement = D.seq.engagement || 0; D.engagementMembers = D.engagementMembers || []
   const id = ++D.seq.engagement
-  D.engagements.push({ engagement_id: id, owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, end_date: endDate || date, half: half || null, kind: kind || 'other', start_time: startTime || null, end_time: endTime || null })
+  D.engagements.push({ engagement_id: id, owner_user_id: ownerUserId ?? null, title: title.trim(), start_date: date, end_date: endDate || date, half: half || null, kind: kind || 'other', start_time: startTime || null, end_time: endTime || null, company_id: companyId ? Number(companyId) : null })
   for (const sid of members) D.engagementMembers.push({ engagement_id: id, staff_id: sid })
 }
 export async function deleteEngagement(engagementId) {
@@ -1628,12 +1633,13 @@ export async function updateHoliday(holidayId, { from, to }) {
   if (LIVE) { const { error } = await supabase.from('holiday').update(patch).eq('holiday_id', Number(holidayId)); if (error) throw new Error(error.message); return }
   const h = (D.holidays || []).find((x) => x.holiday_id === Number(holidayId)); if (h) Object.assign(h, patch)
 }
-export async function updateEngagement(engagementId, { date, startTime, endTime, memberStaffIds }) {
+export async function updateEngagement(engagementId, { date, startTime, endTime, memberStaffIds, companyId }) {
   const id = Number(engagementId)
   const patch = {}
   if (date) patch.start_date = date
   if (startTime !== undefined) patch.start_time = startTime || null
   if (endTime !== undefined) patch.end_time = endTime || null
+  if (companyId !== undefined) patch.company_id = companyId ? Number(companyId) : null
   if (LIVE) {
     if (Object.keys(patch).length) { const { error } = await supabase.from('engagement').update(patch).eq('engagement_id', id); if (error) throw new Error(error.message) }
     if (memberStaffIds !== undefined) {
@@ -1683,10 +1689,11 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
+      seats: s.seats ?? null, courseSeats: s.course?.default_seats ?? null,
       courseId: s.course?.course_id, course: s.course?.name, scheme: s.course?.scheme, color: s.course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
@@ -1711,6 +1718,7 @@ export async function listBlocks() {
     const bks = D.bookings.filter((b) => b.session_id === s.session_id)
     return block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: course?.teamup_designator,
+      seats: s.seats ?? null, courseSeats: course?.default_seats ?? null,
       courseId: s.course_id, course: course?.name, scheme: course?.scheme, color: course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
@@ -2123,15 +2131,38 @@ export async function listSchemes() {
 }
 
 // Create an empty block (course + span) in advance — Simon authors these ahead of time.
-export async function createBlock({ courseId, from, to }) {
+export async function createBlock({ courseId, from, to, seats }) {
   if (LIVE) {
-    const { data, error } = await supabase.from('session').insert({ course_id: courseId, start_date: from, end_date: to }).select().single()
+    // Start from the course's usual number so putting a run in the diary stays
+    // one click. It is only a starting point — the limit that counts is the one
+    // on the run, because the Teamup titles show it changes week to week.
+    let start = seats ?? null
+    if (start == null && courseId) {
+      const { data: c } = await supabase.from('course').select('default_seats').eq('course_id', courseId).maybeSingle()
+      start = c?.default_seats ?? null
+    }
+    const { data, error } = await supabase.from('session').insert({ course_id: courseId, start_date: from, end_date: to, seats: start }).select().single()
     if (error) throw new Error(error.message)
     return data.session_id
   }
   const session_id = ++D.seq.session
-  D.sessions.push({ session_id, course_id: courseId, start_date: from, end_date: to, trainer_id: null, assessor_id: null, verifier_id: null, teamup_event_id: 'tu-' + session_id })
+  D.sessions.push({ session_id, course_id: courseId, start_date: from, end_date: to, seats: seats ?? crs(courseId)?.default_seats ?? null, trainer_id: null, assessor_id: null, verifier_id: null, teamup_event_id: 'tu-' + session_id })
   return session_id
+}
+
+// How many fit on THIS run. Null clears the limit rather than setting it to
+// nothing — a run with no number must not read as full everywhere.
+export async function setSessionSeats(sessionId, seats) {
+  const n = seats === '' || seats == null ? null : Number(seats)
+  if (n != null && (!Number.isInteger(n) || n < 1 || n > 99)) throw new Error('Seats must be a whole number between 1 and 99')
+  if (LIVE) {
+    const { error } = await supabase.from('session').update({ seats: n }).eq('session_id', Number(sessionId))
+    if (error) throw new Error(error.message)
+    return n
+  }
+  const s = D.sessions.find((x) => x.session_id === Number(sessionId))
+  if (s) s.seats = n
+  return n
 }
 
 // Move/resize a block on the calendar — persist new start/end dates (drag-move or

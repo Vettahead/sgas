@@ -5,11 +5,12 @@ import {
   addDelegatesToBlock, assignBlockRole, updateBlock, returnToPool, staffOnHoliday,
   addAssist, removeAssist, getSessionOrigin,
   getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
-  createBlock, setBookingAttendance, deleteBlock,
+  createBlock, setBookingAttendance, deleteBlock, setSessionSeats, listCompanies,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
   getSettings, getFormData, getBlockFormData,
 } from '../lib/api.js'
+import { dayLoad, loadLabel } from '../lib/seats.js'
 import { downloadCombined, downloadZip, downloadForm, formFaults } from '../lib/acspdf.js'
 import { todayISO, fmt } from '../lib/util.js'
 
@@ -437,6 +438,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   // The bookable catalogue, for adding a qualification to somebody already on a
   // course. The last thing that existed only on the Schedule board.
   const [cats, setCats] = useState([])
+  // Employers, used only to name who is delivering a training day.
+  const [companies, setCompanies] = useState([])
   /* The same person can appear in BOTH lists, and they are NOT the same thing:
      the waiting pool holds unplaced bookings, the re-sit list is derived from
      bookings that came back NYC or no-show. One entry takes a NEW booking, the
@@ -562,12 +565,15 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
      per kind — is what makes calendars unmaintainable. `isHoliday` and
      `isEngagement` were already threaded through this file waiting for them. */
   async function load() {
-    const [b, s, h, cs, eng, set, rb, cat] = await Promise.all([
+    const [b, s, h, cs, eng, set, rb, cat, comp] = await Promise.all([
       listBlocks(), listStaff(), listHolidays(), listCourses(),
       listEngagements(user?.user_id, user?.staffId).catch(() => []),
       getSettings().catch(() => ({})),
       getReschedulePool().catch(() => []),
       listBookableCategories().catch(() => []),
+      // Only needed to name who is DELIVERING a training day, so a failure
+      // here must not take the calendar down with it.
+      listCompanies().catch(() => []),
     ])
     const holBlocks = h.map((x) => ({
       id: 'h' + x.holidayId, holidayId: x.holidayId, isHoliday: true,
@@ -584,11 +590,15 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
       id: 'e' + e.engagementId, engagementId: e.engagementId, isEngagement: true,
       title: e.title, startTime: e.startTime, endTime: e.endTime,
       kind: e.kind || 'other', half: e.half || null,
+      companyId: e.companyId ?? null, provider: e.provider || null,
       ownerUserId: e.ownerUserId, members: e.members || [],
       // A whereabouts entry says who it is about; a plain diary entry is just
       // a note, so it keeps reading as one.
       course: (e.kind && e.kind !== 'other')
         ? `${(e.members || []).map((m) => m.name).join(', ') || 'Someone'} — ${whereaboutsLabel(e.kind).toLowerCase()}`
+          // Training put on by an outside outfit: whose it is matters more than
+          // the word "training", so it goes in the bar.
+          + (e.kind === 'training' && e.provider ? ` with ${e.provider}` : '')
           + (e.half === 'am' ? ' (morning)' : e.half === 'pm' ? ' (afternoon)' : '')
         : e.title,
       scheme: 'Diary', color: (e.kind && e.kind !== 'other') ? '#6b7f9e' : '#475569',
@@ -599,7 +609,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
       trainer: null, assessor: null, verifier: null, delegates: [], ready: true,
     }))
     const all = [...b, ...holBlocks, ...engBlocks]
-    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool()); setResits(rb); setCats(cat)
+    setBlocks(all); setStaff(s); setHolidays(h); setPool(getPool()); setResits(rb); setCats(cat); setCompanies(comp || [])
     setSettings(set)
     setCourses(cs.filter((c) => c.is_active !== false))
     return all
@@ -1850,6 +1860,30 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                     </span>
                   </span>
                 </div>
+                {/* Train the trainer: office staff being taught by somebody
+                    outside. It is NOT a course — nobody is booked on it, nothing
+                    is invoiced and no certificates come out — but it does take
+                    the person out of teaching, which kind='training' already
+                    does. The only thing missing was who is putting it on, and
+                    that is an employer we already hold. */}
+                {creating.where === 'training' && (
+                  <div className={'cx-row2' + (creating.companyId ? '' : ' empty')}>
+                    <span className="cx-ricon" aria-hidden="true">🏢</span>
+                    <span className="cx-rwrap">
+                      <span className="cx-rlabel">Who is delivering it (optional)</span>
+                      <select value={creating.companyId || ''} aria-label="Who is delivering it"
+                        onChange={(e) => setCreating({ ...creating, companyId: e.target.value })}>
+                        <option value="">— nobody outside / in house —</option>
+                        {companies.map((c) => (
+                          <option key={c.company_id} value={c.company_id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <span className="muted small">
+                        Their own qualifications, or a supplier in to train the trainers.
+                      </span>
+                    </span>
+                  </div>
+                )}
                 <div className="cx-row2">
                   <span className="cx-ricon" aria-hidden="true">🕘</span>
                   <span className="cx-rwrap">
@@ -1954,6 +1988,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                     title: (creating.title || '').trim() || whereaboutsLabel(creating.where),
                     date: creating.from, endDate: creating.to || creating.from,
                     half: creating.half || null, kind: creating.where,
+                    companyId: creating.where === 'training' ? (creating.companyId || null) : null,
                     memberStaffIds: [Number(creating.staffId)],
                   })
                   setCreating(null); await load()
@@ -2145,7 +2180,11 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                     Built from <b>{origin.events} separate Teamup entries</b> that week, and everybody named on any of
                     them was put on this course.
                     {origin.claimed != null && (
-                      <> The titles said <b>{origin.claimed}</b>; there {open.delegates.length === 1 ? 'is' : 'are'} <b>{open.delegates.length}</b> on it.</>
+                      <> The titles said <b>{origin.claimed}</b>; there {open.delegates.length === 1 ? 'is' : 'are'} <b>{open.delegates.length}</b> on it
+                        {dayLoad(open).peak !== open.delegates.length && (
+                          <> — though only <b>{dayLoad(open).peak}</b> are in on the busiest day, so some of them are
+                            here for part of the week rather than being on it wrongly</>
+                        )}.</>
                     )}
                   </span>
                   {/* Each entry with the people ITS OWN notes name. This is
@@ -2204,6 +2243,16 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                   await removeAssist(id)
                   const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
                   toast('Taken off')
+                } catch (err) { toast(err.message) } finally { setBusy(false) }
+              }} />
+
+            <SeatsRow open={open} canWrite={canWrite} busy={busy}
+              onSet={async (v) => {
+                setBusy(true)
+                try {
+                  await setSessionSeats(open.id, v === '' ? null : v)
+                  const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                  toast(v === '' ? 'No limit on this run now' : `${v} seats on this run`)
                 } catch (err) { toast(err.message) } finally { setBusy(false) }
               }} />
 
@@ -2574,6 +2623,66 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
 // staffing the week, and Simon overrules it often enough that a greyed-out
 // option would just be a dead end. The clash is stated, then allowed.
 // ─────────────────────────────────────────────────────────────────────────────
+/* HOW MANY FIT, AND HOW MANY ARE IN EACH DAY.
+   The number lives on the RUN, not the course: the Teamup titles show it
+   changes week to week. And the headcount is per DAY, because somebody in for
+   the Tuesday only does not take a seat on the Thursday — count bookings and
+   the 14 Sep Commercial week reads as twelve when there were never more than
+   ten in the room. */
+function SeatsRow({ open, canWrite, busy, onSet }) {
+  const load = dayLoad(open)
+  const [val, setVal] = useState(load.seats == null ? '' : String(load.seats))
+  const [editing, setEditing] = useState(false)
+  useEffect(() => { setVal(load.seats == null ? '' : String(load.seats)); setEditing(false) }, [open.id, load.seats])
+
+  const suggest = open.courseSeats ?? null
+  return (
+    <div className={'cx-row2 top' + (load.anyOver ? ' warn' : '')}>
+      <span className="cx-ricon" aria-hidden="true">🪑</span>
+      <div className="cx-rfill">
+        <span className="cx-rlabel">How many fit</span>
+        <span className="cx-rtext">{loadLabel(open)}</span>
+
+        {load.days.length > 1 && load.people > 0 && (
+          <ul className="cx-seatdays">
+            {load.days.map((d) => (
+              <li key={d.day} className={d.over ? 'over' : ''}>
+                <b>{fmt(d.day).slice(0, 6)}</b>
+                <span>{d.n}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {canWrite && (editing ? (
+          <span className="cx-formrow">
+            <input type="number" min="1" max="99" value={val} aria-label="Seats"
+              placeholder={suggest != null ? String(suggest) : '10'}
+              onChange={(e) => setVal(e.target.value)} style={{ width: '5rem' }} />
+            <button className="cx-x" disabled={busy}
+              onClick={async () => { await onSet(val); setEditing(false) }}>Save</button>
+            <button className="cx-x" onClick={() => { setVal(load.seats == null ? '' : String(load.seats)); setEditing(false) }}>Cancel</button>
+            {load.seats != null && (
+              <button className="cx-x" disabled={busy}
+                onClick={async () => { await onSet(''); setEditing(false) }}
+                data-tip="Back to no limit — not zero">Clear</button>
+            )}
+          </span>
+        ) : (
+          <span className="cx-formrow">
+            <button className="cx-x" onClick={() => setEditing(true)}>
+              {load.seats == null ? 'Set how many fit' : 'Change it'}
+            </button>
+            {load.seats == null && load.peak > 0 && (
+              <span className="muted small">Nobody has put a number on this run — {load.peak} would cover it.</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function AssistRow({ open, staff, blocks, canWrite, busy, whyNot, onAdd, onRemove }) {
   const [adding, setAdding] = useState(false)
   const [who, setWho] = useState('')

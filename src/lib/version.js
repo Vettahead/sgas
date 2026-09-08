@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.58.0', build: 218, date: '8 Sep 2026',
+    title: 'How many fit, counted day by day',
+    notes: [
+      'There was no seat limit anywhere in this system \u2014 not on a course, not on a week, not on the centre. The only place that number has ever lived is the "(10)" typed into a Teamup title. So nothing could tell anyone a day was over full. There is now a seat count on each week in the diary, set where the course is opened, and it sits on the WEEK rather than the course because the Teamup titles show plainly that it changes: ten one week, nine the next.',
+      'The headcount is now counted per DAY, and that turns out to matter more than the limit does. Take the Commercial week of 14 September. Nine people are on it all week, Steve Comer comes in for the Tuesday only, and Darren Smith joins on the Wednesday. That is ten in the room every single day and eleven different people across the week. Counting the bookings gives eleven and makes the week look over full when it never was. The course now shows a figure for each day, marks the days that are genuinely over, and says both numbers when they differ instead of picking one and being wrong.',
+      'The note on a course built from several Teamup entries says this too now. Rather than "the titles said 10, there are 12 on it" and leaving you to work out which two are wrong, it adds how many are actually in on the busiest day \u2014 so part-week attendance stops reading as people wrongly on the course.',
+      'Recording who is only in for part of the week was already there and had simply never been used. It is on every delegate, it prints on the list for the desk, and it is what these day counts read.',
+      'Train the trainer is no longer a course. Office staff being trained is not a course \u2014 nobody is booked on, nothing is invoiced, no certificates come out \u2014 but it does take that person out of teaching for the day, which the calendar already understood. What was missing was who is putting it on, so a training day now takes a company from the Companies list and says so on the calendar. One week in September is currently filed as a Commercial Gas ACS with nobody on it because it came across from an entry called "Aggreko Train the trainer"; that one still needs moving over by hand, along with who from the office was on it.',
+    ],
+  },
+  {
     v: '1.57.0', build: 217, date: '8 Sep 2026',
     title: 'The Teamup flip is laid out like Teamup',
     notes: [

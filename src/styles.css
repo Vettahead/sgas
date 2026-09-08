@@ -1855,6 +1855,20 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
 /* The add-someone form. Three controls on one line where there is room, and the
    date boxes keep their own labels — an unlabelled pair of dates beside a name
    is a puzzle. */
+/* Seats, day by day. The strip is the point: one number for the week hides a
+   Tuesday that is over full, which is exactly how the 14 Sep Commercial run
+   read as twelve when there were never more than ten in the room. */
+.cx-seatdays{display:flex;flex-wrap:wrap;gap:4px;list-style:none;margin:8px 0 0;padding:0}
+.cx-seatdays li{display:flex;flex-direction:column;align-items:center;gap:1px;min-width:44px;
+  padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.cx-seatdays li b{font-size:10px;font-weight:600;letter-spacing:.02em;opacity:.65;text-transform:uppercase}
+.cx-seatdays li span{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+/* Over the limit is a fact about that ONE day, so it is marked on that day and
+   nowhere else. */
+.cx-seatdays li.over{border-color:#c0392b;background:rgba(192,57,43,.10)}
+.cx-seatdays li.over span{color:#c0392b}
+.cx-row2.warn .cx-rlabel{color:#c0392b}
+
 .cx-assist-form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px;margin-top:8px}
 .cx-assist-form select{min-width:190px;flex:1 1 190px}
 .cx-assist-form label{display:flex;flex-direction:column;gap:3px}
