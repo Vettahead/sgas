@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.59.1', build: 221, date: '8 Sep 2026',
+    title: 'Twenty-nine delegates who were never people',
+    notes: [
+      'Some of the lines in the Teamup notes were never anybody \u2014 they were instructions \u2014 and the import put them on courses as delegates. "Send Certs to Employer", "PSA Manager TBC WWU", an invoice number for South Coast Insulation, "Tues AM Only", the air-conditioning firm who came to fit a unit upstairs, and the document shredders. And one called simply "No Show", which had been added to twenty-one different courses. Twenty-nine of them are gone, with the fifty-five bookings they were carrying, off forty-nine courses. Every one is kept in a backup, so any of it can be put back.',
+      'Six were NOT deleted, and they are the reason this was checked by eye rather than left to a rule. Their note began with the word "Plus" \u2014 "Plus Tony Jones", "Plus Ryan Benson" \u2014 and the import read the first two words as the name, so they were on the system as "Plus Tony" and "Plus Ryan". They are real people who really were on those courses. They have simply been given their proper names back: Dane Wilson, Evan Blurton, Ryan Benson, Tom Clarke, Tony Jones and Paul Lord.',
+      'Each course now starts with a suggested number of seats, worked out from the largest single group that course has ever run with. Commercial, Domestic and I-GAS all top out at thirteen, which is a good sign that thirteen is what the room actually holds. It is only the number the box starts at \u2014 change it on any week where it is wrong.',
+      'What was NOT done, and why: the number in brackets at the front of a Teamup title is how many are ON the course, not how many fit. Thirteen of them say "(0)", and those weeks have nobody booked. Filling the seat limit in from those would have made every course read as exactly full the moment it was looked at. So the seat number on each week is still blank and waiting to be set.',
+      'One correction to what was said this morning about the Commercial week of the 14th. The line reading "SGAS no 20733" is not Sam Pitt\u2019s number on a second line \u2014 it is Joel Robbins, a different man, named on the course and never booked onto it. So each of those two Teamup entries names eleven people, not ten, and the counts in the titles are simply behind. He has not been added: he belongs on it or he does not, and only Simon knows which.',
+    ],
+  },
+  {
     v: '1.59.0', build: 220, date: '8 Sep 2026',
     title: 'Both calendar densities are tighter, and Compact is the Teamup one',
     notes: [
