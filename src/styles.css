@@ -1429,9 +1429,18 @@ select.cx-pop-title:focus-visible{outline:none;background:var(--cx-panel);border
    popover's title is a heading you can change, not a form field, and its rows
    are lines of text — so they opt out. */
 .cx .cx-pop{text-align:left}
-.cx .cx-pop select.cx-pop-title{border-color:transparent;background:none;padding:3px 6px;
-  font-weight:700;font-size:19px;line-height:1.25;height:auto}
-.cx .cx-pop select.cx-pop-title:hover{border-color:var(--cx-line);background:var(--cx-soft)}
+/* The panel title IS the course picker. It looked like a heading, so nobody
+   knew a mis-read Teamup title could be corrected there — hence a chevron, and
+   a hover that says it is a control. There is deliberately no second Course row
+   lower down: two ways to change one thing is worse than none. */
+.cx .cx-pop select.cx-pop-title{border-color:transparent;background:none;padding:3px 22px 3px 6px;
+  font-weight:700;font-size:19px;line-height:1.25;height:auto;
+  -webkit-appearance:none;appearance:none;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),
+    linear-gradient(135deg,currentColor 50%,transparent 50%);
+  background-position:calc(100% - 11px) calc(50% + 1px),calc(100% - 6px) calc(50% + 1px);
+  background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+.cx .cx-pop select.cx-pop-title:hover{border-color:var(--cx-line);background-color:var(--cx-soft)}
 .cx .cx-pop .cx-row2 select{border-color:transparent;background:none;font-weight:500;font-size:13px;line-height:1.4;
   padding:5px 6px;height:auto}
 .cx .cx-pop .cx-row2:hover select{border-color:var(--cx-line);background:var(--cx-panel)}

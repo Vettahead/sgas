@@ -19,6 +19,13 @@
 
 export const RELEASES = [
   {
+    v: '1.55.1', build: 214, date: '8 Sep 2026',
+    title: 'The course is changed at the top, where it already was',
+    notes: [
+      'The course a block is set to is changed by clicking its name at the top of the panel \u2014 and always has been. It just looked like a heading, so there was no way of knowing, which is why a second Course box got added halfway down. That box has gone and the title now carries a little arrow and says what it does when you hover it. Two ways to change one thing was worse than none.',
+    ],
+  },
+  {
     v: '1.55.0', build: 213, date: '8 Sep 2026',
     title: 'Three things put right',
     notes: [

@@ -2012,7 +2012,13 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           <header className="cx-pop-head" style={{ '--c': open.color || '#5b6b80' }}>
             <span className="cx-pop-dot" />
             {canWrite ? (
-              <select className="cx-pop-title" value={open.courseId || ''} disabled={busy}
+              /* The course is changed HERE, at the top — it has always been a
+                 picker, it just did not look like one, so a Teamup title read
+                 wrongly (GL8 came through as "gas mixture") had no obvious way
+                 to be put right. Now it carries a chevron and says so on hover.
+                 Do NOT add a second Course row further down: there was one, and
+                 two ways to change the same thing is worse than none. */
+              <select className="cx-pop-title" title="Change the course" value={open.courseId || ''} disabled={busy}
                 onChange={async (e) => {
                   setBusy(true)
                   try {
@@ -2100,33 +2106,6 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 </span>
               </div>
             ))}
-
-            {/* THE COURSE ITSELF. The Teamup titles were a private shorthand
-                and the parser read some of them wrong — GL8 came through as
-                "gas mixture", a "gas meeting" was really incident
-                investigation. Simon is correcting these by hand rather than
-                re-importing, so the course has to be changeable here. */}
-            <div className="cx-row2">
-              <span className="cx-ricon" aria-hidden="true">📕</span>
-              <span className="cx-rwrap">
-                <span className="cx-rlabel">Course</span>
-                {canWrite ? (
-                  <select value={open.courseId || ''} disabled={busy} aria-label="Course" onChange={async (e) => {
-                    const id = Number(e.target.value)
-                    if (!id || id === open.courseId) return
-                    setBusy(true)
-                    try {
-                      await updateBlock(open.id, { courseId: id })
-                      const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
-                      toast('Course changed')
-                    } catch (err) { toast(err.message) } finally { setBusy(false) }
-                  }}>
-                    {!open.courseId && <option value="">Pick the course</option>}
-                    {courses.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
-                  </select>
-                ) : <span className="cx-rtext">{open.course || 'No course'}</span>}
-              </span>
-            </div>
 
             {/* ⚠ WHERE THIS COURSE CAME FROM — see getSessionOrigin(). 138 of
                 the 495 imported courses were built by merging several Teamup
