@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.60.1', build: 223, date: '9 Sep 2026',
+    title: 'Enquiries, not inquiries',
+    notes: [
+      'The screen, the menu, the buttons and the help all say Enquiries now. It was the one American spelling anywhere in the system \u2014 everything else was already colour, centre and catalogue \u2014 and it was on the menu where it could not be missed.',
+      'Two things were left alone on purpose. The word "authorised" appears thirty-five times in the code, but every one of them is checking a message the server sends back, so respelling them would stop the check matching and start showing the wrong error. And the table the enquiries are stored in is still spelled the old way; renaming a live table for a spelling would buy nothing and risks a great deal. Neither is ever seen on screen.',
+      'A fault this turned up: Train the Trainer was being offered to clients. It was showing in the course list on both Enquiries and Book a Delegate \u2014 an internal course, on a form for booking a paying delegate. Both screens now ask one shared question about which courses a client can go on, rather than each listing everything.',
+      'The page is also now marked up as British English rather than plain English, which is what tells a browser to spell-check and read it back the right way. Worth knowing: it does NOT change the little date boxes. Chrome takes those from the language the browser itself is set to, not from the page \u2014 so if one shows mm/dd/yyyy, that is Chrome\u2019s own language setting and nothing in here can override it. Every date the system writes out was already in the British order.',
+    ],
+  },
+  {
     v: '1.60.0', build: 222, date: '9 Sep 2026',
     title: 'Internal courses \u2014 our own people, booked on part or full',
     notes: [
@@ -841,7 +851,7 @@ export const RELEASES = [
     v: '1.2.0', build: 29, date: '26 Jun 2026',
     title: 'Post-demo polish',
     notes: [
-      'Inquiries screen for capturing leads and converting them into a booking.',
+      'Enquiries screen for capturing leads and converting them into a booking.',
       'Courses screen became full management rather than a read-only list.',
       'Mixed new + reassessment on one booking; add a qualification to an existing booking.',
       'The dashboard modules fold away, so a long screen is only as long as you want it.',

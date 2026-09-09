@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { listInquiries, createInquiry, setInquiryStatus, listCourses } from '../lib/api.js'
+import { listInquiries, createInquiry, setInquiryStatus, listClientCourses } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -18,7 +18,7 @@ const ago = (iso) => {
 
 export default function Inquiries({ go }) {
   const { data: inquiries, loading, reload } = useData(listInquiries)
-  const { data: courses } = useData(listCourses)
+  const { data: courses } = useData(listClientCourses)
   const [f, setF] = useState(EMPTY)
   const [picked, setPicked] = useState(() => new Set())
 
@@ -33,7 +33,7 @@ export default function Inquiries({ go }) {
       name: f.name.trim(), email: f.email.trim(), mobile: f.mobile.trim(),
       courses: [...picked].join(', '), prefFrom: f.prefFrom || null, prefTo: f.prefTo || null, notes: f.notes.trim(),
     })
-    toast(`Inquiry logged: ${f.name.trim()}`)
+    toast(`Enquiry logged: ${f.name.trim()}`)
     setF(EMPTY); setPicked(new Set()); reload()
   }
 
@@ -45,14 +45,14 @@ export default function Inquiries({ go }) {
 
   async function close(q) {
     await setInquiryStatus(q.inquiryId, 'closed')
-    toast(`Inquiry closed: ${q.name}`)
+    toast(`Enquiry closed: ${q.name}`)
     reload()
   }
 
   return (
     <div className="row c2">
       <div className="card">
-        <h3>① Log an inquiry <span className="tag">quick capture</span></h3>
+        <h3>① Log an enquiry <span className="tag">quick capture</span></h3>
         <div className="body">
           <div className="hint">Anyone on reception can grab a lead in seconds — a name, a way to reach them, and what they want. Fill in what you have; the rest can wait.</div>
           <div className="field">
@@ -82,17 +82,17 @@ export default function Inquiries({ go }) {
             <label className="fl">Notes (optional)</label>
             <textarea rows={2} value={f.notes} onChange={(e) => setF({ ...f, notes: e.target.value })} placeholder="Anything they said…" />
           </div>
-          <button className="btn" onClick={save}>Log inquiry</button>
+          <button className="btn" onClick={save}>Log enquiry</button>
         </div>
       </div>
 
       <div className="card">
-        <h3>② Open inquiries <span className="tag">{(inquiries || []).length} to follow up</span></h3>
+        <h3>② Open enquiries <span className="tag">{(inquiries || []).length} to follow up</span></h3>
         <table>
           <thead><tr><th>Name</th><th>Contact</th><th>Wants</th><th></th></tr></thead>
           <tbody>
             {loading && <tr><td colSpan={4} className="empty">Loading…</td></tr>}
-            {!loading && (!inquiries || inquiries.length === 0) && <tr><td colSpan={4} className="empty">No open inquiries — all followed up</td></tr>}
+            {!loading && (!inquiries || inquiries.length === 0) && <tr><td colSpan={4} className="empty">No open enquiries — all followed up</td></tr>}
             {(inquiries || []).map((q) => (
               <tr key={q.inquiryId}>
                 <td><b>{q.name}</b><div className="muted small">{ago(q.createdAt)}</div></td>
@@ -103,7 +103,7 @@ export default function Inquiries({ go }) {
                   {q.notes && <div className="muted" style={{ marginTop: 2 }}>{q.notes}</div>}
                 </td>
                 <td className="nowrap">
-                  <button className="btn ghost sm" onClick={() => convert(q)} title="Open Book a Delegate pre-filled from this inquiry">→ Convert</button>
+                  <button className="btn ghost sm" onClick={() => convert(q)} title="Open Book a Delegate pre-filled from this enquiry">→ Convert</button>
                   <button className="btn ghost sm" onClick={() => close(q)} title="Close without booking">Close</button>
                 </td>
               </tr>

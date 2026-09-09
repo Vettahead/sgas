@@ -37,7 +37,7 @@ const isDrawer = () =>
 
 const TITLES = {
   dash: ['Dashboard', 'The renewal engine, scheduled sessions, and what is outstanding'],
-  inquiries: ['Inquiries', 'Capture leads fast, then work them off a follow-up list'],
+  inquiries: ['Enquiries', 'Capture leads fast, then work them off a follow-up list'],
   book: ['Book a Delegate', 'Create a draft booking — anyone on reception, not just the Director'],
   setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
   calendarnext: ['Calendar', 'Where courses are scheduled. Drag to book, move or resize; add trainers and delegates, print ACS forms, and book time off.'],
@@ -55,7 +55,7 @@ const TITLES = {
 const NAV_GROUPS = [
   { grp: 'Operations', items: [
     { v: 'dash', ic: '▦', label: 'Dashboard' },
-    { v: 'inquiries', ic: '💬', label: 'Inquiries' },
+    { v: 'inquiries', ic: '💬', label: 'Enquiries' },
     { v: 'book', ic: '＋', label: 'Book a Delegate' },
     { v: 'setup', ic: '🪄', label: 'Set up a course' },
     { v: 'calendarnext', ic: '📅', label: 'Calendar' },

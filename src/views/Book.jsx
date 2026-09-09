@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { searchDelegates, listCompanies, listBookableCategories, listCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
+import { searchDelegates, listCompanies, listBookableCategories, listClientCourses, createClient, createCompany, addToPool, createMLP } from '../lib/api.js'
 import { lookupPostcode } from '../lib/postcode.js'
 import { useData } from '../lib/hooks.js'
 import { toast } from '../lib/toast.js'
@@ -29,7 +29,7 @@ export default function Book({ prefill = null }) {
   const delegatesTotal = dres?.total
   const { data: companies, loading: l2, reload: reloadCompanies } = useData(listCompanies)
   const { data: categories, loading: l3 } = useData(listBookableCategories)
-  const { data: courses, loading: l4 } = useData(listCourses)
+  const { data: courses, loading: l4 } = useData(listClientCourses)
 
   const [clientId, setClientId] = useState('')
   // The chosen delegate is HELD, not looked up: with a paged search the row can
@@ -44,7 +44,7 @@ export default function Book({ prefill = null }) {
   const [nc, setNc] = useState({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
   const [nco, setNco] = useState({ name: '', address: '', contact_name: '', phone: '', email: '', sage_ref: '' })
 
-  // Convert-from-inquiry: open the new-delegate form pre-filled from the inquiry.
+  // Convert-from-enquiry: open the new-delegate form pre-filled from the enquiry.
   useEffect(() => {
     if (!prefill) return
     const parts = (prefill.name || '').trim().split(/\s+/)

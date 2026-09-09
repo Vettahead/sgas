@@ -389,6 +389,15 @@ export async function listAssessors() {
   return D.assessors.map((a) => ({ ...a, sessions: D.sessions.filter((s) => s.assessor_id === a.assessor_id).length, color: ASSESSOR_COLOR[a.assessor_id] || '#48566a' }))
 }
 
+/* Courses a CLIENT can be put on. An internal course is our own staff being
+   trained — no delegates, no invoice — so it must never appear on Enquiries or
+   Book a Delegate. One place decides that, because it was already offered on
+   both screens the moment internal courses existed. Courses and the Calendar
+   still use listCourses: you have to be able to see and schedule them. */
+export async function listClientCourses() {
+  return (await listCourses()).filter((c) => !c.is_internal)
+}
+
 export async function listCourses() {
   if (LIVE) {
     const { data } = await supabase.from('course').select('*').order('name')
@@ -749,7 +758,12 @@ export async function updateCategory(categoryId, d) {
   if (c) Object.assign(c, d)
 }
 
-// ---- Inquiries (lead capture, item 1) -----------------------------------
+/* ---- Enquiries (lead capture, item 1) -----------------------------------
+   ⚠ The TABLE is `inquiry` and its key is `inquiry_id`, spelled the American
+   way, and they stay that way. The screen says Enquiries because that is what
+   Chris reads; renaming a live table and every PostgREST call that touches it
+   would buy nothing and could break the lot. Function names below follow the
+   table, not the label, so it stays obvious which is which. */
 function inqShape(r) {
   return {
     inquiryId: r.inquiry_id, name: r.name, email: r.email || '', mobile: r.mobile || '',

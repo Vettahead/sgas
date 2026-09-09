@@ -77,8 +77,8 @@ export const SECTIONS = [
         q: 'What are the roles?',
         a: [
           '• Admin — sees everything, including the Admin screen for managing staff and logins.',
-          '• Standard (reception) — Dashboard, Inquiries, Book a delegate, the Calendar, Delegates and Companies. No scheduling or assessing.',
-          '• Scheduler — Dashboard, Inquiries, Book, Set up a course and the Calendar.',
+          '• Standard (reception) — Dashboard, Enquiries, Book a delegate, the Calendar, Delegates and Companies. No scheduling or assessing.',
+          '• Scheduler — Dashboard, Enquiries, Book, Set up a course and the Calendar.',
           '• Assessor — Dashboard (their own blocks to assess) and the Assess screen.',
           '• Accounts — Dashboard (outstanding to chase) and the Payments & chase screen.',
         ],
@@ -132,12 +132,12 @@ export const SECTIONS = [
     ],
   },
 
-  // ── 4. Inquiries ─────────────────────────────────────────────────────────────
+  // ── 4. Enquiries ─────────────────────────────────────────────────────────────
   {
-    id: 'inquiries', icon: '💬', title: 'Inquiries (leads)',
+    id: 'inquiries', icon: '💬', title: 'Enquiries (leads)',
     items: [
       {
-        q: 'What is the Inquiries screen for?',
+        q: 'What is the Enquiries screen for?',
         a: [
           'It is quick lead capture for when the phone rings. You jot down the caller’s name, a contact (email or mobile), which courses they are interested in, any preferred dates and a note — without having to set up a full booking on the spot.',
         ],
