@@ -768,21 +768,33 @@ function inqShape(r) {
   return {
     inquiryId: r.inquiry_id, name: r.name, email: r.email || '', mobile: r.mobile || '',
     courses: r.courses || '', prefFrom: r.pref_date_from || null, prefTo: r.pref_date_to || null,
-    notes: r.notes || '', createdAt: r.created_at,
+    notes: r.notes || '', status: r.status || 'open', createdAt: r.created_at, handledAt: r.handled_at || null,
+    closeReason: r.close_reason || null, closeNote: r.close_note || '',
   }
 }
+// Reasons an enquiry can be closed without a booking. Jen and Chris agreed
+// the first three; 'booked' is for the person who rang twice and was booked
+// directly off the second call, so the first enquiry is not counted as lost.
+export const INQUIRY_CLOSE_REASONS = [
+  { k: 'no_response', label: 'Didn’t respond' },
+  { k: 'too_expensive', label: 'Too expensive' },
+  { k: 'went_elsewhere', label: 'Went elsewhere' },
+  { k: 'booked', label: 'Booked another way' },
+  { k: 'other', label: 'Other' },
+]
+// Everything, newest first. The screen splits it into open / converted /
+// closed itself; one query rather than three keeps the counts honest.
 export async function listInquiries() {
   if (LIVE) {
-    const { data } = await supabase.from('inquiry').select('*').eq('status', 'open').order('created_at', { ascending: false })
+    const { data } = await supabase.from('inquiry').select('*').order('created_at', { ascending: false }).range(0, 999)
     return (data || []).map(inqShape)
   }
-  return D.inquiries.filter((x) => x.status === 'open')
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(inqShape)
+  return [...D.inquiries].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(inqShape)
 }
 export async function createInquiry(d) {
   const row = {
     name: d.name, email: d.email || null, mobile: d.mobile || null, courses: d.courses || null,
-    pref_date_from: d.prefFrom || null, pref_date_to: d.prefTo || null, notes: d.notes || null,
+    pref_date_from: d.prefFrom || null, pref_date_to: d.prefTo || null, notes: null,
   }
   if (LIVE) {
     const { data, error } = await supabase.from('inquiry').insert(row).select().single()
@@ -794,14 +806,124 @@ export async function createInquiry(d) {
   D.inquiries.unshift(full)
   return inqShape(full)
 }
-export async function setInquiryStatus(inquiryId, status) {
+// Edit the details of an enquiry in place — the email address that arrives on
+// the second call, the courses they actually meant. Status is not touched here.
+export async function updateInquiry(inquiryId, d) {
+  const row = {
+    name: d.name, email: d.email || null, mobile: d.mobile || null, courses: d.courses || null,
+    pref_date_from: d.prefFrom || null, pref_date_to: d.prefTo || null,
+  }
   if (LIVE) {
-    const { error } = await supabase.from('inquiry').update({ status, handled_at: new Date().toISOString() }).eq('inquiry_id', inquiryId)
+    const { data, error } = await supabase.from('inquiry').update(row).eq('inquiry_id', inquiryId).select().single()
+    if (error) throw new Error(error.message)
+    return inqShape(data)
+  }
+  const r = D.inquiries.find((x) => x.inquiry_id === inquiryId)
+  if (r) Object.assign(r, row)
+  return r ? inqShape(r) : null
+}
+// status: 'open' | 'converted' | 'closed'. Reopening clears the close reason so
+// a reopened-then-reclosed enquiry says why it was closed the SECOND time.
+export async function setInquiryStatus(inquiryId, status, { reason = null, note = '' } = {}) {
+  const patch = {
+    status, handled_at: status === 'open' ? null : new Date().toISOString(),
+    close_reason: status === 'closed' ? reason : null,
+    close_note: status === 'closed' ? (note || null) : null,
+  }
+  if (LIVE) {
+    const { error } = await supabase.from('inquiry').update(patch).eq('inquiry_id', inquiryId)
     if (error) throw new Error(error.message)
     return
   }
   const r = D.inquiries.find((x) => x.inquiry_id === inquiryId)
-  if (r) { r.status = status; r.handled_at = new Date().toISOString() }
+  if (r) Object.assign(r, patch)
+}
+
+/* ---- Enquiry thread + @mentions ------------------------------------------
+   Each enquiry carries an append-only conversation, so Jen can log the call,
+   @Simon can answer with a date, and Jen picks it back up — instead of one
+   notes box that only ever held the first thing anybody typed. Mentions are
+   rows of their own; the sidebar badge counts the ones not yet seen. */
+const msgShape = (m) => ({
+  messageId: m.message_id, inquiryId: m.inquiry_id, userId: m.user_id ?? null,
+  author: m.author_name || 'Note', body: m.body || '', createdAt: m.created_at,
+})
+// Demo data: the seeded notes become the first message on each thread, the
+// same way the live migration carried the old notes column across.
+const demoMsgs = () => {
+  if (!D.inquiryMessages) {
+    D.inquiryMessages = D.inquiries.filter((i) => i.notes).map((i, n) => ({
+      message_id: n + 1, inquiry_id: i.inquiry_id, user_id: null, author_name: 'Note', body: i.notes, created_at: i.created_at,
+    }))
+  }
+  return D.inquiryMessages
+}
+export async function listInquiryMessages(inquiryId) {
+  if (LIVE) {
+    const { data, error } = await supabase.from('inquiry_message').select('*').eq('inquiry_id', inquiryId).order('created_at')
+    if (error) throw new Error(error.message)
+    return (data || []).map(msgShape)
+  }
+  return demoMsgs().filter((m) => m.inquiry_id === inquiryId).map(msgShape)
+}
+// Last message per enquiry, for the one-line preview in the list. One query
+// for the lot rather than one per row.
+export async function listInquiryLastMessages() {
+  const out = new Map()
+  let rows
+  if (LIVE) {
+    const { data } = await supabase.from('inquiry_message').select('*').order('created_at', { ascending: false }).range(0, 1999)
+    rows = data || []
+  } else {
+    rows = [...demoMsgs()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+  }
+  for (const m of rows) if (!out.has(m.inquiry_id)) out.set(m.inquiry_id, msgShape(m))
+  return out
+}
+// mentions: array of user_id. The database decides who the author is.
+export async function postInquiryMessage(inquiryId, body, mentions = [], user = null) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_inquiry_post', { p_inquiry_id: inquiryId, p_body: body, p_mentions: mentions })
+    if (error) throw new Error(/Not authorized/.test(error.message) ? 'Sign in again to post' : error.message)
+    return msgShape(data)
+  }
+  const row = {
+    message_id: Math.max(0, ...demoMsgs().map((m) => m.message_id)) + 1, inquiry_id: inquiryId, user_id: user?.user_id ?? null,
+    author_name: user?.name || user?.username || 'Note', body: String(body).trim(), created_at: new Date().toISOString(),
+    mentions: mentions.filter((m) => m !== user?.user_id),
+  }
+  demoMsgs().push(row)
+  return msgShape(row)
+}
+// Who can be @mentioned: every active login. Name only — nothing else about a
+// login leaves the database through this.
+export async function listMentionPeople() {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_mention_people')
+    if (error) return []
+    return (data || []).map((p) => ({ userId: p.user_id, name: p.name }))
+  }
+  return D.users.filter((u) => u.is_active).map((u) => ({ userId: u.user_id, name: u.name || u.username }))
+}
+// Unread mentions of me → [{ messageId, inquiryId, createdAt }]. Polled by the
+// sidebar for the badge; never throws, because a badge is not worth an error.
+export async function listMyMentions(user = null) {
+  if (LIVE) {
+    try {
+      const { data, error } = await supabase.rpc('app_my_mentions')
+      if (error) return []
+      return (data || []).map((m) => ({ messageId: m.message_id, inquiryId: m.inquiry_id, createdAt: m.created_at }))
+    } catch { return [] }
+  }
+  return demoMsgs().filter((m) => (m.mentions || []).includes(user?.user_id) && !(m.seenBy || []).includes(user?.user_id))
+    .map((m) => ({ messageId: m.message_id, inquiryId: m.inquiry_id, createdAt: m.created_at }))
+}
+export async function markInquiryMentionsSeen(inquiryId, user = null) {
+  if (LIVE) {
+    try { await supabase.rpc('app_mentions_seen', { p_inquiry_id: inquiryId }) } catch { /* badge only */ }
+    return
+  }
+  for (const m of demoMsgs()) if (m.inquiry_id === inquiryId && (m.mentions || []).includes(user?.user_id)) (m.seenBy = m.seenBy || []).push(user?.user_id)
 }
 
 // Add a draft booking to the staging pool (one entry per course/scheme ticked).

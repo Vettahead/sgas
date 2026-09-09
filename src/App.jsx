@@ -25,7 +25,7 @@ import PageHelp from './components/PageHelp.jsx'
 import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
 import { hasToken } from './lib/session.js'
-import { tokensEnabled, appLogout } from './lib/api.js'
+import { tokensEnabled, appLogout, listMyMentions } from './lib/api.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -198,6 +198,23 @@ export default function App() {
   // before; tokens ARE being issued and mine has gone means the session is
   // genuinely over.
   const [expired, setExpired] = useState(false)
+
+  // ── "@ you" on the Enquiries menu item ───────────────────────────────────
+  // How Simon finds out Jen has handed him an enquiry without leaving whatever
+  // he is doing. Counted on sign-in, again every minute, and straight away
+  // when an enquiry is opened (which marks its mentions as seen). A count is
+  // not worth an error: listMyMentions never throws.
+  const [mentionCount, setMentionCount] = useState(0)
+  const [mentionTick, setMentionTick] = useState(0)
+  useEffect(() => {
+    if (!user) { setMentionCount(0); return }
+    let alive = true
+    const check = () => listMyMentions(user).then((m) => { if (alive) setMentionCount(m.length) })
+    check()
+    const t = setInterval(check, 60000)
+    return () => { alive = false; clearInterval(t) }
+  }, [user, mentionTick])
+
   useEffect(() => {
     if (!LIVE || !user || hasToken()) return
     let cancelled = false
@@ -276,6 +293,7 @@ export default function App() {
                 onClick={() => go(item.v)}
               >
                 <span className="ic" aria-hidden="true">{item.ic}</span> {item.label}
+                {item.v === 'inquiries' && mentionCount > 0 && <span className="navbadge" title="Enquiries where someone has @mentioned you">@ {mentionCount}</span>}
               </button>
             )
           )}
@@ -314,7 +332,7 @@ export default function App() {
         </div>
         <div className="content">
           {activeView === 'dash' && <Dashboard go={go} user={user} />}
-          {activeView === 'inquiries' && <Inquiries go={go} />}
+          {activeView === 'inquiries' && <Inquiries go={go} user={user} onMentionsSeen={() => setMentionTick((n) => n + 1)} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user}
