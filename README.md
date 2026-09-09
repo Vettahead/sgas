@@ -75,6 +75,7 @@ be added then). Fine as-is for local/internal use.
 | Schedule | Course blocks (from Teamup) — assign Trainer + Assessor + Verifier and add delegates; all three roles required; calendar view | reads blocks/staff/pool; writes role assignments + bookings |
 | Staff | Shared people list (trainer/assessor/verifier), each with a Teamup sub-calendar | reads/writes staff |
 | Assess | Flip each booked qualification to pass/fail; expiry auto-calculated by the DB trigger | reads/writes `booking_category` |
+| Documentation | Where each certificate is after a pass: sent to awarding body → received back → sent to client (courses with `cert_returns=false` stop after "sent"); only sessions from `DOC_SINCE` (2026-09-01) | reads/writes `booking.date_sent_to_cb / cert_received_at / cert_sent_client_at` |
 | Payments & chase | Toggle MLP / IGAS / payment flags, chase | reads/writes `booking` flags |
 | Delegates | Search by name / NI / company; open one for full accreditation history | reads `client` + `booking` history |
 | Companies / Assessors / Courses | Reference record tables | reads |

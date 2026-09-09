@@ -14,6 +14,7 @@ import CalendarNext from './views/CalendarNext.jsx'
 import SetupWizard from './views/SetupWizard.jsx'
 import Modal from './components/Modal.jsx'
 import Assess from './views/Assess.jsx'
+import Documentation from './views/Documentation.jsx'
 import Payments from './views/Payments.jsx'
 import Delegates from './views/Delegates.jsx'
 import Companies from './views/Companies.jsx'
@@ -44,6 +45,7 @@ const TITLES = {
   setup: ['Set up a course', 'Step by step — the course, the dates, who is teaching and who is attending'],
   calendarnext: ['Calendar', 'Where courses are scheduled. Drag to book, move or resize; add trainers and delegates, print ACS forms, and book time off.'],
   assess: ['Assess', 'Flip the pre-selected qualifications to pass/fail — dates auto-generate'],
+  docs: ['Documentation', 'Where every certificate is — sent to the awarding body, back with us, sent to the client'],
   pay: ['Payments & chase', 'The final stage — set outstanding flags and chase the associated company'],
   delegates: ['Delegates', 'Search by name or NI number; open one to see their full history'],
   companies: ['Companies', 'Employers and sole traders — the only payers'],
@@ -62,6 +64,7 @@ const NAV_GROUPS = [
     { v: 'setup', ic: '🪄', label: 'Set up a course' },
     { v: 'calendarnext', ic: '📅', label: 'Calendar' },
     { v: 'assess', ic: '✓', label: 'Assess' },
+    { v: 'docs', ic: '📄', label: 'Documentation' },
     { v: 'pay', ic: '£', label: 'Payments & chase' },
   ] },
   { grp: 'Records', items: [
@@ -359,6 +362,7 @@ export default function App() {
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user}
             onSetup={() => setWizard(true)} reload={calReload} />}
           {activeView === 'assess' && <Assess />}
+          {activeView === 'docs' && <Documentation go={go} />}
           {activeView === 'pay' && <Payments />}
           {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
           {activeView === 'companies' && <Companies go={go} />}

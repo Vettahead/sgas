@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.63.0', build: 228, date: '9 Sep 2026',
+    title: 'Documentation, duplicates, the Sage company list, and three dashboard numbers',
+    notes: [
+      'A new Documentation screen under Operations answers "has my certificate gone?". Every passed assessment lands there and moves through three dates — sent to the awarding body, received back, sent to the client — one click each, editable, with a tab for each stage. Once it has gone to the client the row leaves the list and the three dates stay on the delegate’s record, where each passed course now says where its certificate is. Courses whose certificates go straight to the delegate are marked so in Courses ("Certificates come back to us", unticked) and only need the first date. Only courses from 1 September onwards are tracked; everything before was handled in Access.',
+      'Delegates has a "Find duplicates" button. It lists likely pairs — same surname plus a matching forename, date of birth, NI number, mobile or email — and says why. Open each to check, then "Keep this one" under the survivor: every booking and contact record moves across, blank details are filled in from the other, and the other is deleted. There are 109 candidate pairs in the imported data, Muhammad Ali among them.',
+      'Companies has "Import from Sage". Export the customer list from Sage as a CSV, pick the file, check the columns (the guesses are usually right), Import. Existing companies are matched on Sage reference then name and updated — nothing you hold is blanked — and the rest are created. Payment terms come in with it and show as a column, ready for the "10 days left" view of unpaid invoices.',
+      'Three new Dashboard cards: Enquiries (open, waiting for you, and this year’s conversion rate with the reasons for the ones lost), Certificates in progress (the three counts), and — for admins — Staff this year: how many courses each person trained, assessed, verified and assisted, by year. That last one is the "how many has Simon assessed this year" question, answered from the calendar, which is also why a course with nobody put on it does not count.',
+    ],
+  },
+  {
     v: '1.62.0', build: 227, date: '9 Sep 2026',
     title: 'Book straight onto a course, and see what they already hold',
     notes: [

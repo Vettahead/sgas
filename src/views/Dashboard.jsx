@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { MiniMonth } from './CalendarNext.jsx'
-import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays } from '../lib/api.js'
+import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays, listInquiries, listMyMentions, INQUIRY_CLOSE_REASONS, listDocumentation, staffYearSummary } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { roleLabel } from '../lib/roles.js'
@@ -22,16 +22,36 @@ const MODULES = [
   { id: 'assessment', title: '✅ Blocks to assess', roles: ['ADMIN', 'ASSESSOR'] },
   { id: 'outstanding', title: '💷 Outstanding to chase', roles: ['ADMIN', 'STANDARD', 'ACCOUNTS'] },
   { id: 'mlps', title: '🎓 Managed Learning Programmes', roles: ['ADMIN', 'STANDARD'] },
+  // Jen walkthrough §7 — the three numbers nobody could get before.
+  { id: 'enquiries', title: '💬 Enquiries', roles: ['ADMIN', 'STANDARD', 'SCHEDULER'] },
+  { id: 'docs', title: '📄 Certificates in progress', roles: ['ADMIN', 'STANDARD'] },
+  { id: 'staffyear', title: '👷 Staff this year', roles: ['ADMIN'] },
 ]
 
 const OPEN_KEY = 'sgas_dash_open'
 const layoutKey = (role) => 'sgas_dash_layout_' + role
 const loadSet = (k) => { try { return new Set(JSON.parse(localStorage.getItem(k) || '[]')) } catch { return new Set() } }
 const defaultLayout = (role) => MODULES.filter((m) => m.roles.includes(role)).map((m) => m.id)
+// Modules added after a layout was saved would otherwise never appear for
+// anyone who had already customised — they would sit under "Add a module"
+// unseen. NEW_SINCE lists what each layout version brought; a saved layout
+// older than the current version gets those appended once.
+const LAYOUT_VERSION = 2
+const NEW_SINCE = { 2: ['enquiries', 'docs', 'staffyear'] }
 function loadLayout(role) {
-  try { const v = JSON.parse(localStorage.getItem(layoutKey(role))); return Array.isArray(v) ? v : defaultLayout(role) } catch { return defaultLayout(role) }
+  try {
+    const v = JSON.parse(localStorage.getItem(layoutKey(role)))
+    if (!Array.isArray(v)) return defaultLayout(role)
+    const seen = Number(localStorage.getItem(layoutKey(role) + '_v') || 1)
+    if (seen >= LAYOUT_VERSION) return v
+    const allowed = new Set(defaultLayout(role))
+    const out = [...v]
+    for (let ver = seen + 1; ver <= LAYOUT_VERSION; ver++) for (const id of NEW_SINCE[ver] || []) if (allowed.has(id) && !out.includes(id)) out.push(id)
+    try { localStorage.setItem(layoutKey(role), JSON.stringify(out)); localStorage.setItem(layoutKey(role) + '_v', String(LAYOUT_VERSION)) } catch { /* ignore */ }
+    return out
+  } catch { return defaultLayout(role) }
 }
-const saveLayout = (role, ids) => { try { localStorage.setItem(layoutKey(role), JSON.stringify(ids)) } catch { /* ignore */ } }
+const saveLayout = (role, ids) => { try { localStorage.setItem(layoutKey(role), JSON.stringify(ids)); localStorage.setItem(layoutKey(role) + '_v', String(LAYOUT_VERSION)) } catch { /* ignore */ } }
 const widthsKey = (role) => 'sgas_dash_w_' + role
 const loadWidths = (role) => { try { return JSON.parse(localStorage.getItem(widthsKey(role))) || {} } catch { return {} } }
 const saveWidths = (role, w) => { try { localStorage.setItem(widthsKey(role), JSON.stringify(w)) } catch { /* ignore */ } }
@@ -390,7 +410,103 @@ function renderModule(id, c) {
       </DashCard>
     )
   }
+  if (id === 'enquiries') return <EnquiriesModule go={c.go} user={c.user} isOpen={c.isOpen} toggleCard={c.toggleCard} />
+  if (id === 'docs') return <DocsModule go={c.go} isOpen={c.isOpen} toggleCard={c.toggleCard} />
+  if (id === 'staffyear') return <StaffYearModule go={c.go} isOpen={c.isOpen} toggleCard={c.toggleCard} />
   return null
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Jen walkthrough §7 — three modules that load their own data.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Open enquiries, what is waiting for ME, and the year's conversion figure.
+function EnquiriesModule({ go, user, isOpen, toggleCard }) {
+  const { data: inqs } = useData(listInquiries)
+  const { data: mine } = useData(() => listMyMentions(user))
+  const all = inqs || []
+  const open = all.filter((q) => q.status === 'open')
+  const y = new Date().getFullYear()
+  const year = all.filter((q) => new Date(q.createdAt).getFullYear() === y)
+  const conv = year.filter((q) => q.status === 'converted').length
+  const closed = year.filter((q) => q.status === 'closed')
+  const reasons = {}
+  for (const q of closed) reasons[q.closeReason || 'other'] = (reasons[q.closeReason || 'other'] || 0) + 1
+  const label = (k) => INQUIRY_CLOSE_REASONS.find((r) => r.k === k)?.label || k
+  const pct = year.length ? Math.round((conv / year.length) * 100) : 0
+  const stale = open.filter((q) => (Date.now() - new Date(q.createdAt)) > 3 * 86400000).length
+  return (
+    <DashCard id="enquiries" title="💬 Enquiries" badge={`${open.length} open`} count={open.length} open={isOpen('enquiries')} onToggle={toggleCard}>
+      <div className="body">
+        <div className="stat-row">
+          <div className="stat brand"><div className="n">{open.length}</div><div className="l">open{stale ? ` · ${stale} older than 3 days` : ''}</div></div>
+          <div className="stat amber"><div className="n">{(mine || []).length}</div><div className="l">waiting for you</div></div>
+          <div className="stat green"><div className="n">{pct}%</div><div className="l">converted this year · {conv} of {year.length}</div></div>
+        </div>
+        {closed.length > 0 && <div className="muted small" style={{ marginTop: 10 }}>Lost this year: {Object.entries(reasons).map(([k, n]) => `${label(k)} ${n}`).join(', ')}.</div>}
+        <div style={{ marginTop: 10 }}><button className="btn ghost sm" onClick={() => go('inquiries')}>Open enquiries</button></div>
+      </div>
+    </DashCard>
+  )
+}
+
+// Certificates at each stage, so "a pile on the desk" has a number.
+function DocsModule({ go, isOpen, toggleCard }) {
+  const { data } = useData(listDocumentation)
+  const rows = data || []
+  const toSend = rows.filter((d) => !d.sent).length
+  const awaiting = rows.filter((d) => d.sent && d.certReturns && !d.received).length
+  const toClient = rows.filter((d) => d.sent && d.certReturns && d.received && !d.client).length
+  const n = toSend + awaiting + toClient
+  return (
+    <DashCard id="docs" title="📄 Certificates in progress" badge={n} count={n} open={isOpen('docs')} onToggle={toggleCard}>
+      <div className="body">
+        <div className="stat-row">
+          <div className="stat amber"><div className="n">{toSend}</div><div className="l">to send to the awarding body</div></div>
+          <div className="stat brand"><div className="n">{awaiting}</div><div className="l">out with the awarding body</div></div>
+          <div className="stat green"><div className="n">{toClient}</div><div className="l">back, to send to the client</div></div>
+        </div>
+        <div style={{ marginTop: 10 }}><button className="btn ghost sm" onClick={() => go('docs')}>Open documentation</button></div>
+      </div>
+    </DashCard>
+  )
+}
+
+// "How many courses has Simon assessed this year?" — a number, not a hunt.
+function StaffYearModule({ go, isOpen, toggleCard }) {
+  const { data: blocks } = useData(listBlocks)
+  const [year, setYear] = useState(new Date().getFullYear())
+  const rows = staffYearSummary(blocks, year)
+  const years = [...new Set((blocks || []).map((b) => (b.start || '').slice(0, 4)).filter(Boolean))].sort().reverse()
+  return (
+    <DashCard id="staffyear" title="👷 Staff this year" badge={`${rows.length} people`} count={rows.length} open={isOpen('staffyear')} onToggle={toggleCard}>
+      <div className="body" style={{ paddingBottom: 0 }}>
+        <label className="renew-window">Year:&nbsp;
+          <select value={year} onChange={(e) => setYear(Number(e.target.value))}>
+            {(years.length ? years : [String(year)]).map((yy) => <option key={yy} value={yy}>{yy}</option>)}
+          </select>
+        </label>
+        <span className="muted small" style={{ marginLeft: 10 }}>Courses on the calendar with this person in that role. Internal courses are not counted.</span>
+      </div>
+      <table>
+        <thead><tr><th>Person</th><th style={{ textAlign: 'center' }}>Trained</th><th style={{ textAlign: 'center' }}>Assessed</th><th style={{ textAlign: 'center' }}>Verified</th><th style={{ textAlign: 'center' }}>Assisted</th></tr></thead>
+        <tbody>
+          {!blocks && <tr><td colSpan={5} className="empty">Loading…</td></tr>}
+          {blocks && rows.length === 0 && <tr><td colSpan={5} className="empty">Nothing on the calendar for {year}</td></tr>}
+          {rows.map((r) => (
+            <tr key={r.name}>
+              <td><b>{r.name}</b></td>
+              <td style={{ textAlign: 'center' }}>{r.trained || <span className="muted">—</span>}</td>
+              <td style={{ textAlign: 'center' }}>{r.assessed || <span className="muted">—</span>}</td>
+              <td style={{ textAlign: 'center' }}>{r.verified || <span className="muted">—</span>}</td>
+              <td style={{ textAlign: 'center' }}>{r.assisted || <span className="muted">—</span>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="banner">Sessions with nobody in a role are the ones the "Blocks awaiting assignment" card lists — if a course was assessed but nobody was put on it, it is not counted here, which is the point: put the assessor on the course.</div>
+    </DashCard>
+  )
 }
 
 // Month at a glance — the SAME month grid as the calendar page, with

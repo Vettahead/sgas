@@ -173,6 +173,26 @@ export const SECTIONS = [
     ],
   },
 
+  // ── 4b. Documentation ───────────────────────────────────────────────────────
+  {
+    id: 'docs', icon: '📄', title: 'Documentation (certificates)',
+    items: [
+      {
+        q: 'What is the Documentation screen for?',
+        a: [
+          'It answers “has my certificate gone?”. Every passed assessment lands here and moves through three dates: sent to the awarding body, received back, sent to the client. One click stamps today; click a date to change it, or ✕ to clear it. When “sent to client” is stamped the row leaves the list and the three dates stay on the delegate’s record.',
+          'Some courses’ certificates go straight from the awarding body to the delegate. Untick “Certificates come back to us” on that course (Courses → edit) and those only need the first date — sending it is the end.',
+        ],
+      },
+      {
+        q: 'Somebody rings asking where their certificate is.',
+        a: [
+          'Open them in Delegates. Each passed course in their history says where the certificate is: not yet sent, with the awarding body since a date, received back, or sent on a date. The Dashboard also has a “Certificates in progress” card with the three counts.',
+        ],
+      },
+    ],
+  },
+
   // ── 5. Booking ───────────────────────────────────────────────────────────────
   {
     id: 'book', icon: '＋', title: 'Booking a delegate',
@@ -437,6 +457,12 @@ export const SECTIONS = [
           'Their name and contact details, address (used to fill the ACS form), date of birth and NI number, the company they are linked to, and their booking and assessment history.',
         ],
       },
+      {
+        q: 'The same person is in twice. How do I merge them?',
+        a: [
+          'Press “Find duplicates” at the top of the Delegates list. It shows likely pairs — same surname plus a matching forename, date of birth, NI number, mobile or email — and says why. Open each name to check, then press “Keep this one” under the record that should survive. Every booking and contact log moves across, blank details are filled in from the other, and the other record is deleted. It cannot be undone, so check first. “Not the same person” hides a pair.',
+        ],
+      },
     ],
   },
 
@@ -454,6 +480,12 @@ export const SECTIONS = [
         q: 'How do sole traders work?',
         a: [
           'A sole trader is both the delegate and the company. When booking you can copy a delegate straight into a new company so their own details become the paying company without retyping.',
+        ],
+      },
+      {
+        q: 'The company I need is not in the list.',
+        a: [
+          'The list started from what the old Access database held. The full customer list lives in Sage: export it from Sage, save it as a CSV file (an Excel file saved as CSV is fine), then press “Import from Sage” at the top of Companies and pick the file. Check each column is pointing at the right thing — the guesses are usually right — and press Import. Companies already here are matched on Sage reference, then on name, and updated; the rest are created. Nothing you already hold is blanked. Payment terms come in too, if the export has them.',
         ],
       },
     ],
@@ -703,6 +735,7 @@ export const VIEW_HELP = {
   calendar: ['calendar', 'holidays'],
   calendarnext: ['calendar', 'holidays'],
   assess: ['assess', 'acs'],
+  docs: ['docs'],
   pay: ['payments'],
   delegates: ['delegates'],
   companies: ['companies'],

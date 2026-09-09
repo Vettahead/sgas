@@ -4,6 +4,41 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-09 — v1.63.0 Documentation, duplicates, Sage companies, dashboard (Jen §4–7)
+
+### Schema (migration `jen_walkthrough_s4_s5_s6`, applied)
+- `company.payment_terms_days int`; `course.cert_returns bool default true`;
+  `booking.cert_received_at date`, `booking.cert_sent_client_at date`
+  (`booking.date_sent_to_cb` already existed = sent to awarding body).
+- `app_duplicate_delegates()` — pairs by folded surname + (forename | DOB | NI
+  | mobile ≥10 digits | email), with a `why`. 109 pairs on the live data.
+- `app_merge_delegates(keep, drop)` — repoints booking, mlp, renewal_contact,
+  stg_access_record, teamup_attachment, teamup_event_delegate (PK-safe), fills
+  the survivor's blanks, appends a note, deletes the other. Returns counts.
+- `app_import_companies(jsonb)` — match sage_ref then folded name; update with
+  COALESCE (never blanks); else insert. Returns created/updated/skipped.
+
+### App
+- §6 `views/Documentation.jsx` (nav `docs`, ADMIN + STANDARD): three tabs
+  (to send / awaiting return / to send to client), one-click today stamps,
+  editable/clearable dates, `cert_returns=false` courses stop after "sent".
+  `listDocumentation()` uses `session!inner` + `gte start_date DOC_SINCE`
+  (2026-09-01) — the 4,674 Access passes must not appear as "to send".
+  Delegate history header shows the trail (same DOC_SINCE gate). Courses edit
+  gains "Certificates come back to us".
+- §5 Delegates "Find duplicates" panel: pairs, why, open-to-check, "Keep this
+  one" (confirm), "Not the same person" hides locally.
+- §4 Companies "Import from Sage": inline CSV parser (quotes/CRLF/BOM), header
+  guessing (`TARGETS`), per-column mapping selects, Address 2–5/town/county/
+  postcode auto-joined, 5-row preview, confirm, RPC. Terms column in list +
+  detail. Excel users: save as CSV.
+- §7 Dashboard modules `enquiries`, `docs`, `staffyear` (self-loading);
+  `staffYearSummary(blocks, year)` in api.js from `listBlocks()`. Saved layouts
+  get new modules appended once via `LAYOUT_VERSION`/`NEW_SINCE` — otherwise
+  anyone who had customised would never see them.
+- `getDelegateHistory` rows carry certReturns/certSent/certReceived/certClient.
+- Help: Documentation section (+ `?` map), duplicates FAQ, Sage import FAQ.
+
 ## 2026-09-09 — v1.62.0 Book straight onto a course; what they already hold (Jen §3)
 
 - `views/Book.jsx`: "Which dates?" panel — per ticked scheme, chips for every

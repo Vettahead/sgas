@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { searchDelegates, getDelegateHistory, updateClient, clientDeleteCheck, deleteClientRecord } from '../lib/api.js'
+import { searchDelegates, getDelegateHistory, updateClient, clientDeleteCheck, deleteClientRecord, listDuplicateDelegates, mergeDelegates, DOC_SINCE } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, initials, resultClass } from '../lib/util.js'
@@ -126,10 +126,13 @@ function DelegateList({ onOpen }) {
   const rows = data?.rows || []
   const total = data?.total
   const truncated = data?.truncated
+  const [dupes, setDupes] = useState(false)
 
   return (
+    <>
+    {dupes && <Duplicates onOpen={onOpen} onClose={() => setDupes(false)} />}
     <div className="card">
-      <h3>👤 Delegates <span className="tag">{total != null ? `${rows.length} of ${total}` : `${rows.length} shown`}</span></h3>
+      <h3>👤 Delegates <span className="tag">{total != null ? `${rows.length} of ${total}` : `${rows.length} shown`} <button className="btn ghost sm" style={{ marginLeft: 10 }} onClick={() => setDupes((v) => !v)} title="Find the same person entered twice and merge them">⚭ Find duplicates</button></span></h3>
       <div style={{ padding: '14px 18px 0' }}>
         <div className="searchbar">
           {/* Stays mounted while loading, so typing never loses focus. */}
@@ -154,6 +157,75 @@ function DelegateList({ onOpen }) {
               <td className="muted">{c.date_of_birth ? fmt(c.date_of_birth) : '—'}</td>
               <td className="muted">{c.mobile || '—'}</td>
               <td className="muted">{c.email || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    </>
+  )
+}
+
+/* ---------------------------------------------------------------------------
+   Duplicates (Jen walkthrough §5). "Muhammad Ali" twice with a spelling
+   difference; the renewal engine surfaces them and the record splits. The
+   database lists the likely pairs (same surname plus a matching forename,
+   date of birth, NI number, mobile or email); somebody who knows decides
+   which record survives. Merging moves every booking, MLP and contact log to
+   the survivor, fills its blanks from the other, and deletes the other.
+   ------------------------------------------------------------------------- */
+function Duplicates({ onOpen, onClose }) {
+  const { data, loading, reload } = useData(listDuplicateDelegates)
+  const [busy, setBusy] = useState(null)
+  const [hidden, setHidden] = useState(() => new Set())
+  const pairs = (data || []).filter((p) => !hidden.has(p.a.client_id + ':' + p.b.client_id))
+
+  async function merge(p, keep, drop) {
+    const ok = window.confirm(
+      `Keep ${keep.forename} ${keep.surname} (#${keep.client_id}, ${keep.bookings} booking${keep.bookings === 1 ? '' : 's'})\n` +
+      `and merge in ${drop.forename} ${drop.surname} (#${drop.client_id}, ${drop.bookings} booking${drop.bookings === 1 ? '' : 's'})?\n\n` +
+      'Every booking and contact record moves to the one you keep, any blank details are filled from the other, and the other record is deleted. This cannot be undone.'
+    )
+    if (!ok) return
+    setBusy(p)
+    try {
+      const r = await mergeDelegates(keep.client_id, drop.client_id)
+      toast(`Merged into ${keep.forename} ${keep.surname} — ${r?.bookings_moved ?? 0} booking${r?.bookings_moved === 1 ? '' : 's'} moved`)
+      reload()
+    } catch (e) { toast('Could not merge: ' + e.message) } finally { setBusy(null) }
+  }
+
+  const Person = ({ c, other, onKeep }) => (
+    <td style={{ verticalAlign: 'top' }}>
+      <button className="dn-link" onClick={() => onOpen(c.client_id)}><b>{c.forename} {c.surname}</b></button> <span className="muted small">#{c.client_id}</span>
+      <div className="muted small">{c.company}</div>
+      <div className="muted small">
+        {c.ni_number || 'no NI'} · {c.date_of_birth ? fmt(c.date_of_birth) : 'no DOB'} · {c.mobile || 'no mobile'} · {c.email || 'no email'}
+      </div>
+      <div className="small" style={{ marginTop: 4 }}>
+        <span className={'b ' + (c.bookings ? 'pass' : 'pend')}>{c.bookings} booking{c.bookings === 1 ? '' : 's'}</span>
+        {' '}<button className="btn ghost sm" disabled={!!busy} onClick={onKeep} title={`Keep this one, merge ${other.forename} ${other.surname} into it`}>Keep this one</button>
+      </div>
+    </td>
+  )
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <h3>⚭ Possible duplicates <span className="tag">{loading ? 'looking…' : `${pairs.length} pair${pairs.length === 1 ? '' : 's'}`} <button className="btn ghost sm" style={{ marginLeft: 10 }} onClick={onClose}>Close</button></span></h3>
+      <div className="body" style={{ paddingBottom: 0 }}>
+        <div className="hint">Same surname, and one of: same forename, date of birth, NI number, mobile or email. Open each name to check before merging. <b>Keep this one</b> merges the other into it. <b>Not the same person</b> hides the pair for now.</div>
+      </div>
+      <table>
+        <thead><tr><th>One</th><th>The other</th><th>Why</th><th></th></tr></thead>
+        <tbody>
+          {loading && <tr><td colSpan={4} className="empty">Checking every surname…</td></tr>}
+          {!loading && pairs.length === 0 && <tr><td colSpan={4} className="empty">No likely duplicates found</td></tr>}
+          {pairs.map((p) => (
+            <tr key={p.a.client_id + ':' + p.b.client_id}>
+              <Person c={p.a} other={p.b} onKeep={() => merge(p, p.a, p.b)} />
+              <Person c={p.b} other={p.a} onKeep={() => merge(p, p.b, p.a)} />
+              <td className="small" style={{ verticalAlign: 'top' }}>{p.why}</td>
+              <td className="nowrap" style={{ verticalAlign: 'top' }}><button className="linkbtn" onClick={() => setHidden((h) => new Set(h).add(p.a.client_id + ':' + p.b.client_id))}>Not the same person</button></td>
             </tr>
           ))}
         </tbody>
@@ -251,6 +323,16 @@ function DelegateDetail({ clientId, back }) {
                 <span className="nm">{b.course}</span>
                 <span className={'b ' + resultClass(b.overall)}>{b.overall}</span>
                 <span className="muted small">{b.assessor}</span>
+                {/* Where the certificate is (§6) — the answer to "has mine gone?" */}
+                {b.overall === 'PASS' && ((b.start || '') >= DOC_SINCE || b.certSent || b.certClient) && (
+                  <span className="small" style={{ marginLeft: 8 }}>
+                    {!b.certSent && <span className="b pend">certificate not yet sent</span>}
+                    {b.certSent && !b.certReturns && <span className="b pass">sent to awarding body {fmt(b.certSent)} · goes direct</span>}
+                    {b.certSent && b.certReturns && !b.certReceived && <span className="b due">with awarding body since {fmt(b.certSent)}</span>}
+                    {b.certSent && b.certReturns && b.certReceived && !b.certClient && <span className="b due">received {fmt(b.certReceived)} · not yet sent on</span>}
+                    {b.certClient && <span className="b pass">certificate sent {fmt(b.certClient)}</span>}
+                  </span>
+                )}
                 <span className="dt">{fmt(b.start)}</span>
               </div>
               <table>

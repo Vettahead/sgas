@@ -298,12 +298,15 @@ export async function getDelegateHistory(clientId) {
       .eq('client_id', clientId).single()
     const { data: bookings } = await supabase
       .from('booking')
-      .select('booking_id,overall_result,session:session_id(start_date,end_date,assessor:assessor_id(name),course:course_id(name)),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
+      .select('booking_id,overall_result,date_sent_to_cb,cert_received_at,cert_sent_client_at,session:session_id(start_date,end_date,assessor:assessor_id(name),course:course_id(name,cert_returns)),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
       .eq('client_id', clientId)
     const bk = (bookings || []).map((b) => ({
       bookingId: b.booking_id, overall: b.overall_result,
       course: b.session?.course?.name || '—', assessor: b.session?.assessor?.name || '—',
       start: b.session?.start_date,
+      // Documentation trail (§6): where the certificate is.
+      certReturns: b.session?.course?.cert_returns !== false,
+      certSent: b.date_sent_to_cb || null, certReceived: b.cert_received_at || null, certClient: b.cert_sent_client_at || null,
       categories: (b.booking_category || []).map((x) => ({
         bcId: x.booking_category_id,
         code: x.category.code, desc: x.category.description, result: x.result, achieved: x.achieved_date, expiry: x.expiry_date,
@@ -339,6 +342,113 @@ export async function deleteBookingCategory(bcId) {
   }
   const i = D.booking_categories.findIndex((x) => x.booking_category_id === bcId && x.result !== 'PENDING')
   if (i >= 0) D.booking_categories.splice(i, 1)
+}
+
+/* ---- Duplicate delegates (Jen walkthrough §5) ----------------------------
+   The Access import could not tell "Muhammad Ali" from "Mohammed Ali", and the
+   renewal engine surfaces both. The database finds the candidates (same
+   surname plus one of: name, DOB, NI, mobile, email); a person decides which
+   record survives; everything that pointed at the other is moved across and
+   the other is deleted. */
+export async function listDuplicateDelegates() {
+  if (!LIVE) return []
+  const { data, error } = await supabase.rpc('app_duplicate_delegates')
+  if (error) throw new Error(error.message)
+  const pairs = data || []
+  const ids = [...new Set(pairs.flatMap((p) => [p.a_id, p.b_id]))]
+  if (!ids.length) return []
+  const { data: rows } = await supabase.from('client')
+    .select('client_id,forename,surname,ni_number,date_of_birth,mobile,email,company:company_id(name)').in('client_id', ids)
+  const { data: bks } = await supabase.from('booking').select('client_id').in('client_id', ids)
+  const counts = tally(bks || [], 'client_id')
+  const byId = new Map((rows || []).map((r) => [r.client_id, { ...r, company: r.company?.name || '—', bookings: counts[r.client_id] || 0 }]))
+  return pairs.filter((p) => byId.has(p.a_id) && byId.has(p.b_id)).map((p) => ({ a: byId.get(p.a_id), b: byId.get(p.b_id), why: p.why }))
+}
+export async function mergeDelegates(keepId, dropId) {
+  if (!LIVE) throw new Error('Merging needs the live database')
+  const { data, error } = await supabase.rpc('app_merge_delegates', { p_keep: keepId, p_drop: dropId })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Sign in again' : error.message)
+  return data
+}
+
+/* ---- Company import from Sage (§4) ---------------------------------------
+   rows: [{ name, sage_ref, address, contact_name, phone, email, payment_terms_days }]
+   already mapped by the screen. The database matches on Sage ref, then name. */
+export async function importCompanies(rows) {
+  if (!LIVE) throw new Error('Importing needs the live database')
+  const { data, error } = await supabase.rpc('app_import_companies', { p_rows: rows })
+  if (error) throw new Error(/Not authorized/.test(error.message) ? 'Sign in again' : error.message)
+  return data
+}
+
+/* ---- Documentation — certificates after assessment (§6) -------------------
+   Nothing recorded when a certificate went to the awarding body or came back;
+   Jen had a pile on her desk and people ringing to chase. Three dates on the
+   booking: sent to the awarding body (date_sent_to_cb, which already existed),
+   received back, sent to the client. A course whose certificates go direct
+   (course.cert_returns = false) only needs the first. */
+const DOC_COL = { sent: 'date_sent_to_cb', received: 'cert_received_at', client: 'cert_sent_client_at' }
+function docShape(b) {
+  const cats = b.booking_category || []
+  const passed = cats.filter((x) => x.result === 'PASS')
+  return {
+    bookingId: b.booking_id, clientId: b.client_id,
+    name: `${b.client?.forename || ''} ${b.client?.surname || ''}`.trim() || '—',
+    email: b.client?.email || null, mobile: b.client?.mobile || null,
+    employer: b.company?.name || null, sendToEmployer: b.company?.send_to_employer !== false,
+    course: b.session?.course?.name || '—', certReturns: b.session?.course?.cert_returns !== false,
+    start: b.session?.start_date || null, end: b.session?.end_date || null,
+    codes: passed.map((x) => x.category?.code).filter(Boolean),
+    overall: b.overall_result,
+    sent: b.date_sent_to_cb || null, received: b.cert_received_at || null, client: b.cert_sent_client_at || null,
+  }
+}
+// Everything with a PASS that has not yet gone to the client, newest course
+// first. Done ones are kept on the record, not on this list.
+//
+// DOC_SINCE: the 4,674 passes imported from Access were all dealt with in the
+// old system and carry no dates, so without a line in the sand every one of
+// them would sit here as "to send". Courses from the start of the SGAS
+// parallel run onwards are the ones this screen tracks.
+export const DOC_SINCE = '2026-09-01'
+export async function listDocumentation() {
+  if (LIVE) {
+    const { data, error } = await supabase.from('booking')
+      .select('booking_id,client_id,overall_result,date_sent_to_cb,cert_received_at,cert_sent_client_at,client:client_id(forename,surname,email,mobile),company:company_id(name,send_to_employer),session:session_id!inner(start_date,end_date,course:course_id(name,cert_returns)),booking_category(result,category:category_id(code))')
+      .is('cert_sent_client_at', null)
+      .gte('session.start_date', DOC_SINCE)
+      .order('booking_id', { ascending: false })
+      .range(0, 999)
+    if (error) throw new Error(error.message)
+    return (data || []).map(docShape).filter((d) => d.codes.length > 0 || d.overall === 'PASS')
+      .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
+  }
+  return []
+}
+// stage: 'sent' | 'received' | 'client'; date: ISO date or null to clear.
+export async function setCertStage(bookingId, stage, date) {
+  const col = DOC_COL[stage]
+  if (!col) throw new Error('Unknown stage')
+  if (LIVE) {
+    const { error } = await supabase.from('booking').update({ [col]: date || null }).eq('booking_id', bookingId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const b = D.bookings.find((x) => x.booking_id === bookingId)
+  if (b) b[col] = date || null
+}
+// Per-staff activity for a year: courses trained, assessed, assisted. Built
+// from listBlocks() so the calendar and this number cannot disagree.
+export function staffYearSummary(blocks, year) {
+  const y = String(year)
+  const out = new Map()
+  const bump = (name, k) => { if (!name) return; const r = out.get(name) || { name, trained: 0, assessed: 0, assisted: 0, verified: 0 }; r[k]++; out.set(name, r) }
+  for (const b of blocks || []) {
+    if (!b.start || !b.start.startsWith(y) || b.isInternal) continue
+    bump(b.trainer, 'trained'); bump(b.assessor, 'assessed'); bump(b.verifier, 'verified')
+    for (const a of b.assists || []) bump(a.name, 'assisted')
+  }
+  return [...out.values()].sort((a, b) => (b.trained + b.assessed + b.assisted) - (a.trained + a.assessed + a.assisted))
 }
 
 export async function listCompanies() {

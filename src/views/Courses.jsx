@@ -162,11 +162,11 @@ function AddQualGlobal({ schemes, onDone }) {
 }
 
 function CourseEdit({ course, onSaved }) {
-  const [d, setD] = useState({ name: course.name || '', scheme: course.scheme || '', price: course.price ?? '', teamup_designator: course.teamup_designator || '', is_active: course.is_active !== false, color: course.color || '#48566a' })
+  const [d, setD] = useState({ name: course.name || '', scheme: course.scheme || '', price: course.price ?? '', teamup_designator: course.teamup_designator || '', is_active: course.is_active !== false, color: course.color || '#48566a', cert_returns: course.cert_returns !== false })
   async function save() {
     if (!d.name.trim()) return toast('Course name is required')
     if (!d.scheme.trim()) return toast('Scheme is required')
-    await updateCourse(course.course_id, { name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: d.is_active, color: d.color })
+    await updateCourse(course.course_id, { name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: d.is_active, color: d.color, cert_returns: !!d.cert_returns })
     toast('Course updated')
     onSaved()
   }
@@ -193,6 +193,7 @@ function CourseEdit({ course, onSaved }) {
           <label className="fl">Status &amp; colour</label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <label className="chk" style={{ margin: 0 }}><input type="checkbox" checked={d.is_active} onChange={(e) => setD({ ...d, is_active: e.target.checked })} /> Active</label>
+            <label className="chk" style={{ margin: 0 }} title="Untick if the awarding body posts certificates straight to the delegate — Documentation then only needs the 'sent' date"><input type="checkbox" checked={d.cert_returns} onChange={(e) => setD({ ...d, cert_returns: e.target.checked })} /> Certificates come back to us</label>
             <input type="color" value={d.color} onChange={(e) => setD({ ...d, color: e.target.value })} title="Course colour — shows across the schedule" style={{ width: 40, height: 28, padding: 1, border: '1px solid #d4dae3', borderRadius: 6, cursor: 'pointer' }} />
           </div>
         </div>

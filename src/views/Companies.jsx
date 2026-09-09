@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { listCompanies, getCompany, setSendToEmployer } from '../lib/api.js'
+import { listCompanies, getCompany, setSendToEmployer, importCompanies } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
@@ -26,6 +26,7 @@ function SendBadge({ on, onClick }) {
 function CompanyList({ onOpen }) {
   const { data, loading, reload } = useData(listCompanies)
   const [q, setQ] = useState('')
+  const [importing, setImporting] = useState(false)
   const rows = useMemo(() => {
     if (!data) return []
     const s = q.trim().toLowerCase()
@@ -48,34 +49,193 @@ function CompanyList({ onOpen }) {
   if (loading || !data) return <div className="loading">Loading companies…</div>
 
   return (
-    <div className="card">
-      <h3>🏢 Companies <span className="tag">{rows.length} shown</span></h3>
-      <div style={{ padding: '14px 18px 0' }}>
-        <div className="searchbar">
-          <input type="search" placeholder="Search by company, contact, or Sage ref…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+    <>
+      {importing && <SageImport onDone={() => { setImporting(false); reload() }} onClose={() => setImporting(false)} />}
+      <div className="card">
+        <h3>🏢 Companies <span className="tag">{rows.length} shown <button className="btn ghost sm" style={{ marginLeft: 10 }} onClick={() => setImporting((v) => !v)} title="Bring the customer list in from a Sage export">⬆ Import from Sage</button></span></h3>
+        <div style={{ padding: '14px 18px 0' }}>
+          <div className="searchbar">
+            <input type="search" placeholder="Search by company, contact, or Sage ref…" value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+          </div>
         </div>
+        <table>
+          <thead><tr>
+            <th>Company</th><th>Contact</th><th>Phone</th><th>Email</th><th>Sage ref</th><th>Terms</th>
+            <th style={{ textAlign: 'center' }}>To employer</th>
+            <th style={{ textAlign: 'center' }}>Delegates</th>
+          </tr></thead>
+          <tbody>
+            {rows.length === 0 && <tr><td colSpan={8} className="empty">No matching companies</td></tr>}
+            {rows.map((c) => (
+              <tr key={c.company_id} className="clickrow" onClick={() => onOpen(c.company_id)}>
+                <td><b>{c.name}</b></td>
+                <td className="muted">{c.contact_name || '—'}</td>
+                <td className="muted">{c.phone || '—'}</td>
+                <td className="muted">{c.email || '—'}</td>
+                <td className="muted">{c.sage_ref || '—'}</td>
+                <td className="muted nowrap">{c.payment_terms_days != null ? c.payment_terms_days + ' days' : '—'}</td>
+                <td style={{ textAlign: 'center' }}><SendBadge on={c.sendToEmployer} onClick={(e) => toggle(e, c)} /></td>
+                <td style={{ textAlign: 'center' }}>{c.delegates}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
-      <table>
-        <thead><tr>
-          <th>Company</th><th>Contact</th><th>Phone</th><th>Email</th><th>Sage ref</th>
-          <th style={{ textAlign: 'center' }}>To employer</th>
-          <th style={{ textAlign: 'center' }}>Delegates</th>
-        </tr></thead>
-        <tbody>
-          {rows.length === 0 && <tr><td colSpan={7} className="empty">No matching companies</td></tr>}
-          {rows.map((c) => (
-            <tr key={c.company_id} className="clickrow" onClick={() => onOpen(c.company_id)}>
-              <td><b>{c.name}</b></td>
-              <td className="muted">{c.contact_name || '—'}</td>
-              <td className="muted">{c.phone || '—'}</td>
-              <td className="muted">{c.email || '—'}</td>
-              <td className="muted">{c.sage_ref || '—'}</td>
-              <td style={{ textAlign: 'center' }}><SendBadge on={c.sendToEmployer} onClick={(e) => toggle(e, c)} /></td>
-              <td style={{ textAlign: 'center' }}>{c.delegates}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    </>
+  )
+}
+
+/* ---------------------------------------------------------------------------
+   Import from Sage (Jen walkthrough §4).
+
+   The company list only had what the Access import could see, so Jen kept
+   hitting "the company isn't in there". Sage has the real customer list. Jen
+   exports it (Customers → export, save as CSV — an Excel file saved as CSV is
+   fine), drops the file here, checks which column is which, and imports.
+   Matched on Sage reference first, then on name; matches are updated (never
+   blanked), the rest are created. The later read-only Sage pull will land on
+   the same fields, which is why the mapping is to OUR columns, not theirs.
+   ------------------------------------------------------------------------- */
+const TARGETS = [
+  ['name', 'Company name', /^(name|company|customer|account name|a\/c name)$/i, /name|company|customer/i],
+  ['sage_ref', 'Sage reference', /^(a\/c|account ref|account|ref|reference|a\/c ref|customer ref)$/i, /a\/c|ref|account/i],
+  ['address', 'Address (one column, or the first of several)', /^(address|address ?1|street ?1)$/i, /address/i],
+  ['contact_name', 'Contact', /^(contact|contact name)$/i, /contact/i],
+  ['phone', 'Phone', /^(telephone|phone|tel|telephone ?1)$/i, /tel|phone/i],
+  ['email', 'Email', /^(e-?mail|email ?1|email address)$/i, /mail/i],
+  ['payment_terms_days', 'Payment terms (days)', /^(payment due days|settlement due days|terms|payment terms|due days)$/i, /due days|terms/i],
+]
+
+// A small CSV reader: quotes, escaped quotes, commas and newlines inside
+// quotes, CRLF. Enough for a Sage or Excel export; not a general parser.
+function parseCsv(text) {
+  const rows = []
+  let row = [], cell = '', inQ = false
+  const s = String(text || '').replace(/^\uFEFF/, '')
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]
+    if (inQ) {
+      if (ch === '"') { if (s[i + 1] === '"') { cell += '"'; i++ } else inQ = false }
+      else cell += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === ',') { row.push(cell); cell = '' }
+    else if (ch === '\n' || ch === '\r') {
+      if (ch === '\r' && s[i + 1] === '\n') i++
+      row.push(cell); cell = ''
+      if (row.some((c) => c.trim() !== '')) rows.push(row)
+      row = []
+    } else cell += ch
+  }
+  row.push(cell)
+  if (row.some((c) => c.trim() !== '')) rows.push(row)
+  return rows
+}
+
+function guessMap(headers) {
+  const m = {}
+  for (const [key, , exact, loose] of TARGETS) {
+    let idx = headers.findIndex((h) => exact.test(h.trim()))
+    if (idx < 0) idx = headers.findIndex((h, i) => loose.test(h) && !Object.values(m).includes(i))
+    if (idx >= 0) m[key] = idx
+  }
+  return m
+}
+
+function SageImport({ onDone, onClose }) {
+  const [headers, setHeaders] = useState(null)
+  const [rows, setRows] = useState([])
+  const [map, setMap] = useState({})
+  const [addrCols, setAddrCols] = useState([]) // extra address columns to join on
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState(null)
+  const [fileName, setFileName] = useState('')
+
+  function onFile(e) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setFileName(f.name)
+    const reader = new FileReader()
+    reader.onload = () => {
+      const all = parseCsv(reader.result)
+      if (all.length < 2) { toast('That file has no rows under the heading line'); return }
+      const hs = all[0].map((h) => h.trim())
+      setHeaders(hs); setRows(all.slice(1)); setResult(null)
+      const g = guessMap(hs)
+      setMap(g)
+      // "Address 2..5" style columns join onto the address automatically.
+      const extra = hs.map((h, i) => (/^address ?[2-9]$/i.test(h) || /^(town|city|county|post ?code)$/i.test(h)) && i !== g.address ? i : -1).filter((i) => i >= 0)
+      setAddrCols(extra)
+    }
+    reader.onerror = () => toast('Could not read that file')
+    reader.readAsText(f)
+  }
+
+  const mapped = useMemo(() => {
+    if (!headers) return []
+    return rows.map((r) => {
+      const get = (k) => (map[k] != null ? (r[map[k]] || '').trim() : '')
+      const addr = [get('address'), ...addrCols.map((i) => (r[i] || '').trim())].filter(Boolean).join(', ')
+      const terms = get('payment_terms_days').replace(/[^0-9]/g, '')
+      return { name: get('name'), sage_ref: get('sage_ref'), address: addr, contact_name: get('contact_name'), phone: get('phone'), email: get('email'), payment_terms_days: terms || null }
+    }).filter((x) => x.name)
+  }, [headers, rows, map, addrCols])
+
+  async function run() {
+    if (map.name == null) return toast('Say which column is the company name')
+    if (!mapped.length) return toast('No rows with a company name')
+    if (!window.confirm(`Import ${mapped.length} compan${mapped.length === 1 ? 'y' : 'ies'} from ${fileName}?\n\nExisting companies (matched by Sage reference, then name) are updated — nothing you already hold is blanked. New ones are created.`)) return
+    setBusy(true)
+    try {
+      const r = await importCompanies(mapped)
+      setResult(r)
+      toast(`Imported: ${r.created} new, ${r.updated} updated${r.skipped ? `, ${r.skipped} skipped` : ''}`)
+      onDone()
+    } catch (e) { toast('Import failed: ' + e.message) } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="card" style={{ marginBottom: 18 }}>
+      <h3>⬆ Import companies from Sage <span className="tag"><button className="btn ghost sm" onClick={onClose}>Close</button></span></h3>
+      <div className="body">
+        <div className="hint">In Sage, export the <b>customer list</b> and save it as a <b>CSV</b> file (an Excel file saved as CSV is fine). Pick it below, check each column is pointing at the right thing, then Import. Companies already here are matched on Sage reference, then on name, and updated; the rest are created.</div>
+        <div className="field">
+          <label className="fl">Sage export (.csv)</label>
+          <input type="file" accept=".csv,text/csv" onChange={onFile} />
+        </div>
+        {headers && (
+          <>
+            <div className="subform">
+              <div className="sfh">Which column is which — {rows.length} rows in {fileName}</div>
+              <div className="twocol">
+                {TARGETS.map(([key, label]) => (
+                  <div className="field" key={key}>
+                    <label className="fl">{label}</label>
+                    <select value={map[key] ?? ''} onChange={(e) => setMap({ ...map, [key]: e.target.value === '' ? undefined : Number(e.target.value) })}>
+                      <option value="">— not in this file —</option>
+                      {headers.map((h, i) => <option key={i} value={i}>{h || `(column ${i + 1})`}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              {addrCols.length > 0 && <div className="muted small">Also joined onto the address: {addrCols.map((i) => headers[i]).join(', ')}.</div>}
+            </div>
+            <div className="sfh" style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--slate)', marginBottom: 6 }}>Preview — first 5 of {mapped.length}</div>
+            <table>
+              <thead><tr><th>Name</th><th>Sage ref</th><th>Address</th><th>Contact</th><th>Phone</th><th>Email</th><th>Terms</th></tr></thead>
+              <tbody>
+                {mapped.slice(0, 5).map((x, i) => (
+                  <tr key={i}><td><b>{x.name}</b></td><td>{x.sage_ref || '—'}</td><td className="small">{x.address || '—'}</td><td>{x.contact_name || '—'}</td><td>{x.phone || '—'}</td><td>{x.email || '—'}</td><td>{x.payment_terms_days ? x.payment_terms_days + 'd' : '—'}</td></tr>
+                ))}
+                {mapped.length === 0 && <tr><td colSpan={7} className="empty">No rows have a company name with this mapping</td></tr>}
+              </tbody>
+            </table>
+            <div className="inrow" style={{ marginTop: 12, alignItems: 'center' }}>
+              <button className="btn" onClick={run} disabled={busy || !mapped.length}>Import {mapped.length} compan{mapped.length === 1 ? 'y' : 'ies'}</button>
+              {result && <span className="muted small">Done: {result.created} created, {result.updated} updated{result.skipped ? `, ${result.skipped} skipped (no name)` : ''}.</span>}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   )
 }
@@ -107,6 +267,7 @@ function CompanyDetail({ companyId, back, go }) {
             <Field label="Email" value={company.email} />
             <Field label="Sage reference" value={company.sage_ref} />
             <Field label="Address" value={company.address} />
+            <Field label="Payment terms" value={company.payment_terms_days != null ? company.payment_terms_days + ' days' : null} />
             <div className="field">
               <label className="fl">Send certificates to employer</label>
               <div style={{ padding: '7px 0' }}>
