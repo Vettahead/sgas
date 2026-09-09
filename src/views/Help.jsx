@@ -307,6 +307,15 @@ export const SECTIONS = [
         ],
       },
       {
+        q: 'The imported course has the wrong people on it. How do I fix it?',
+        a: [
+          'Open the course. The course itself is the dropdown at the top — change it there if the title came through wrong. The dates are the two boxes underneath.',
+          'Each person on it has: rename (the name is misspelt — corrects their record), swap (the wrong person is on this booking — search for the right one and the booking, with its results and qualifications, moves to them), take off (back to the waiting list), and, for names with an amber ? on them, that’s right (confirms they are a real person) or delete record (removes note text that was imported as a person — “Tuesday am”, “ADD HWSS” — along with its bookings).',
+          'The amber ? marks names the old calendar’s notes produced and nobody has confirmed yet; hover it to see the note it came from. Delete is refused for anyone with history from the Access database — take them off the course instead.',
+          'Somebody who was on the course but was never named on it: “Add a delegate by name”, search, click. They go straight on; add their qualifications with “add a qual”.',
+        ],
+      },
+      {
         q: 'How do I create or change a course block on the calendar?',
         a: [
           'Drag across the days you want and a “new block” box opens for you to pick the course. To change an existing block, drag it to move it, or drag its edge to make it longer or shorter.',

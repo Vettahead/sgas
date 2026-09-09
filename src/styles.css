@@ -1206,6 +1206,17 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 .cx-addq-all input{width:13px;height:13px;margin:0}
 .cx-addq .cx-x{margin-left:0}
 .cx-addq .cx-x:first-of-type{margin-left:auto}
+/* Hand-editing the import: the "?" on a name the Teamup note parser invented,
+   and the person picker that swaps / adds somebody by searching the database.
+   Same box as the qualification picker so the popover reads as one thing. */
+.cx-unconf{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;
+  border-radius:50%;background:var(--amber);color:#fff;font-style:normal;font-size:10px;font-weight:800;vertical-align:1px;cursor:help}
+.cx-pick{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:7px;
+  padding:8px 9px;border-radius:9px;background:var(--cx-panel);border:1px solid var(--cx-line)}
+.cx-pick input[type=search]{width:100%;font-size:12px;padding:7px 9px}
+.cx-pick .cx-chips{margin:0}
+.cx-pick .cx-x{align-self:flex-end}
+.cx-split input[type=text]{flex:1;min-width:90px;font-size:12px;padding:6px 8px}
 .cx-addq-none{font-style:normal;font-weight:500;font-size:10.5px;line-height:1.45;color:var(--cx-mute)}
 .cx-split input[type=date]{width:auto;padding:7px 9px;font-size:12px}
 .cx-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}

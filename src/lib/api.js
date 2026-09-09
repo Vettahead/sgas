@@ -1993,7 +1993,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,client_id,legacy_access_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname,needs_confirming,from_teamup_line),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
@@ -2015,7 +2015,13 @@ export async function listBlocks() {
         from: a.from_date, to: a.to_date, note: a.note || null,
       })).sort((x, z) => x.from.localeCompare(z.from)),
       delegates: (s.booking || []).map((b) => ({
-        bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`,
+        bookingId: b.booking_id, name: `${b.client?.forename || ''} ${b.client?.surname || ''}`.trim() || '—',
+        clientId: b.client_id,
+        // Somebody the Teamup note parser INVENTED, not yet confirmed as a
+        // real person (or a real name). The popover flags these and offers
+        // rename / swap / delete right there, which is how Simon hand-edits.
+        unconfirmed: !!b.client?.needs_confirming, teamupLine: b.client?.from_teamup_line || null,
+        fromAccess: b.legacy_access_id != null,
         kind: kindFromFlags(b.disposition, (b.booking_category || []).map((x) => !!x.is_reassessment), b.resat_kind),
         resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
@@ -2039,7 +2045,8 @@ export async function listBlocks() {
       trainerLeftOn: asr(s.trainer_id)?.left_on || null,
       assists: assistRows(s.session_id),
       delegates: bks.map((b) => ({
-        bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`,
+        bookingId: b.booking_id, name: `${cl(b.client_id)?.forename || ''} ${cl(b.client_id)?.surname || ''}`.trim() || '—',
+        clientId: b.client_id, unconfirmed: !!cl(b.client_id)?.needs_confirming, teamupLine: cl(b.client_id)?.from_teamup_line || null, fromAccess: false,
         kind: kindFromFlags(b.disposition, D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => !!x.is_reassessment), b.resat_kind),
         resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
@@ -2184,7 +2191,10 @@ export async function removeAssist(assistId) {
 // until now the only way in was SQL.
 // ---------------------------------------------------------------------------
 const CLIENT_FIELDS = ['forename', 'surname', 'ni_number', 'date_of_birth', 'mobile', 'email',
-  'premise', 'street', 'town', 'county', 'postcode', 'company_id']
+  'premise', 'street', 'town', 'county', 'postcode', 'company_id',
+  // Cleared when Simon confirms or renames somebody the Teamup note parser
+  // invented — see the calendar popover's "that's right" / "rename".
+  'needs_confirming']
 
 export async function updateClient(clientId, patch) {
   const clean = {}
@@ -2260,6 +2270,49 @@ export async function deleteClientRecord(clientId) {
   D.bookings = D.bookings.filter((b) => b.client_id !== clientId)
   D.clients = D.clients.filter((c) => c.client_id !== clientId)
   return check
+}
+
+// ---------------------------------------------------------------------------
+// CORRECTING WHO IS ON AN IMPORTED COURSE (Simon, 7 Sep: "I'll hand-edit the
+// wrong rows"). Two moves the calendar popover needed and did not have:
+//
+//  swap  — the booking is right, the PERSON is wrong ("Mohammed Ali" seated
+//          where "Muhammad Ali" sat). The booking keeps its dates, results and
+//          qualifications; only client_id (and the payer) changes.
+//  add   — somebody who was on the course and was never named on it. A
+//          booking straight onto the session, no waiting-pool detour, with no
+//          qualifications yet — those are added with "add a qual".
+// ---------------------------------------------------------------------------
+export async function setBookingClient(bookingId, clientId) {
+  if (LIVE) {
+    const { data: c, error: e0 } = await supabase.from('client').select('client_id,company_id').eq('client_id', clientId).single()
+    if (e0 || !c) throw new Error('Delegate not found')
+    const { error } = await supabase.from('booking').update({ client_id: c.client_id, company_id: c.company_id || null }).eq('booking_id', bookingId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const b = D.bookings.find((x) => x.booking_id === bookingId)
+  const c = cl(clientId)
+  if (b && c) { b.client_id = c.client_id; b.company_id = c.company_id || null }
+}
+export async function addClientToBlock(blockId, clientId) {
+  if (LIVE) {
+    const { data: dup } = await supabase.from('booking').select('booking_id').eq('session_id', blockId).eq('client_id', clientId).maybeSingle()
+    if (dup) throw new Error('They are already on this course')
+    const { data: c, error: e0 } = await supabase.from('client').select('client_id,company_id').eq('client_id', clientId).single()
+    if (e0 || !c) throw new Error('Delegate not found')
+    const { data, error } = await supabase.from('booking')
+      .insert({ client_id: c.client_id, session_id: blockId, company_id: c.company_id || null, overall_result: 'PENDING' })
+      .select('booking_id').single()
+    if (error) throw new Error(error.message)
+    return data.booking_id
+  }
+  const c = cl(clientId)
+  if (!c) throw new Error('Delegate not found')
+  if (D.bookings.some((b) => b.session_id === blockId && b.client_id === clientId)) throw new Error('They are already on this course')
+  const booking_id = ++D.seq.booking
+  D.bookings.push({ booking_id, client_id: clientId, session_id: blockId, company_id: c.company_id || null, overall_result: 'PENDING', disposition: null })
+  return booking_id
 }
 
 // ---------------------------------------------------------------------------

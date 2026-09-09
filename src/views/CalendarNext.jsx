@@ -10,6 +10,7 @@ import {
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
   getSettings, getFormData, getBlockFormData,
+  setBookingClient, addClientToBlock, updateClient, deleteClientRecord, searchDelegates,
 } from '../lib/api.js'
 import { dayLoad, loadLabel, peopleOn } from '../lib/seats.js'
 import { downloadCombined, downloadZip, downloadForm, formFaults } from '../lib/acspdf.js'
@@ -473,6 +474,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   const [dense, setDense] = useState(() => readLS(DENSE_KEY, '0') === '1')
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState(null)
+  // "Add a delegate by name" open on the course popover.
+  const [addByName, setAddByName] = useState(false)
   const [courses, setCourses] = useState([])
   const [creating, setCreating] = useState(null)   // { from, to } after a drag
   /* THE PAST IS LOCKED.
@@ -2349,8 +2352,61 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                           setBusy(true)
                           try { await returnToPool(d.bookingId); const x = await load(); setOpen(x.find((y) => y.id === open.id) || null) }
                           catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
+                        /* Hand-editing the import (Simon, 7 Sep). Each of these
+                           reloads the course so the row shows what the database
+                           now says, not what the browser hopes it said. */
+                        onRename={async (forename, surname) => {
+                          setBusy(true)
+                          try {
+                            await updateClient(d.clientId, { forename, surname, needs_confirming: false })
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(`Renamed to ${forename} ${surname}`)
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
+                        onSwap={async (clientId) => {
+                          setBusy(true)
+                          try {
+                            await setBookingClient(d.bookingId, clientId)
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast('Booking moved to the other delegate')
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
+                        onConfirm={async () => {
+                          setBusy(true)
+                          try {
+                            await updateClient(d.clientId, { needs_confirming: false })
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(`${d.name} confirmed`)
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }}
+                        onDelete={async () => {
+                          setBusy(true)
+                          try {
+                            const r = await deleteClientRecord(d.clientId)
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null)
+                            toast(`Deleted “${d.name}”${r?.bookings ? ` and ${r.bookings} booking${r.bookings === 1 ? '' : 's'}` : ''}`)
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
                         }} />))}
                     </ul>}
+                {/* Somebody who was on the course and was never named on it —
+                    the other half of hand-editing. Straight onto this run, no
+                    waiting-pool detour; qualifications follow via "add a qual". */}
+                {canWrite && (
+                  <details className="cx-add" open={addByName} onToggle={(e) => setAddByName(e.target.open)}>
+                    <summary>Add a delegate by name</summary>
+                    {addByName && (
+                      <PersonPicker label="Who was on this course?" busy={busy}
+                        exclude={open.delegates.map((d) => d.clientId)}
+                        onCancel={() => setAddByName(false)}
+                        onPick={async (c) => {
+                          setBusy(true)
+                          try {
+                            await addClientToBlock(open.id, c.client_id)
+                            const x = await load(); setOpen(x.find((y) => y.id === open.id) || null)
+                            setAddByName(false); toast(`${c.forename} ${c.surname} put on the course — add their qualifications`)
+                          } catch (err) { toast(err.message) } finally { setBusy(false) }
+                        }} />
+                    )}
+                  </details>
+                )}
                 {/* Quiet until you want it — eight name chips permanently on
                     show made the popover twice as tall as it needed to be. */}
                 {canWrite && (resits.length + waiting.length) > 0 && (() => {
@@ -3000,12 +3056,19 @@ function RailCard({ id, title, count, shut, onToggle, className = '', children }
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove, onDragStart, onPrint, onAddQual }) {
+function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove, onDragStart, onPrint, onAddQual, onRename, onSwap, onConfirm, onDelete }) {
   const [edit, setEdit] = useState(false)
   // Adding a qualification to somebody already booked on. It opens under THEM,
   // rather than as a separate screen, because the question is always "another
   // one for this person" and never "another one for somebody".
   const [addq, setAddq] = useState(false)
+  // Correcting WHO this is (Simon hand-editing the import): 'rename' fixes the
+  // spelling on the record itself, 'swap' puts a different existing delegate
+  // on this booking. Both open under the person, like the qualification does.
+  const [fix, setFix] = useState(null) // null | 'rename' | 'swap'
+  const nameParts = (d.name || '').split(' ')
+  const [fn, setFn] = useState(nameParts[0] || '')
+  const [sn, setSn] = useState(nameParts.slice(1).join(' '))
   const [f, setF] = useState(d.attendFrom || block.start)
   const [t, setT] = useState(d.attendTo || block.end)
   const part = isPart(d)
@@ -3020,11 +3083,17 @@ function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove,
           and wrapped onto a third line of their own — 84px a delegate, so three
           people pushed the panel past its height and made you scroll for the
           rows underneath. This is two lines, always. */}
-      <b className="cx-dname">{d.name}</b>
+      <b className="cx-dname">
+        {d.name}
+        {/* Invented by the Teamup note parser and not yet confirmed as a real
+            person. The line it came from is the tooltip — that is the evidence
+            Simon judges by. */}
+        {d.unconfirmed && <em className="cx-unconf" data-tip={d.teamupLine ? `From the Teamup note: “${d.teamupLine}”` : 'From a Teamup note — not yet confirmed as a real person'}>?</em>}
+      </b>
       {/* Grouped so the three of them wrap onto their own line TOGETHER when
           the popover is narrow. Loose, they squeezed the name into a two-line
           column an inch wide. */}
-      {!edit && (
+      {!edit && !fix && (
         <span className="cx-dacts">
           {/* Printing one person's form is a read, so everyone who can see the
               course gets it — not only whoever can edit it. */}
@@ -3035,13 +3104,37 @@ function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove,
           {canWrite && onAddQual && <button className="cx-x" onClick={() => setAddq((v) => !v)}
             data-tip={`Add another qualification to ${d.name}'s booking`}>add a qual</button>}
           {canWrite && <button className="cx-x" onClick={() => setEdit(true)}>{part ? 'change days' : 'some days'}</button>}
+          {canWrite && onRename && <button className="cx-x" onClick={() => setFix('rename')} data-tip="The name is wrong — correct the spelling on their record">rename</button>}
+          {canWrite && onSwap && <button className="cx-x" onClick={() => setFix('swap')} data-tip="The wrong person is on this booking — put a different delegate on it">swap</button>}
+          {canWrite && d.unconfirmed && onConfirm && <button className="cx-x" disabled={busy} onClick={onConfirm} data-tip="This is a real person and the name is right">that’s right</button>}
           {canWrite && (
             <button className="cx-x danger" disabled={busy}
               onClick={() => { if (window.confirm(`Take ${d.name} off this course? They go back on the waiting list.`)) onRemove() }}>
               take off
             </button>
           )}
+          {/* A real DELETE, for the "Tuesday am" rows — years of somebody typing
+              into the wrong field. Guarded in the API: anybody carrying an
+              Access booking cannot be deleted from here. */}
+          {canWrite && onDelete && d.unconfirmed && !d.fromAccess && (
+            <button className="cx-x danger" disabled={busy}
+              onClick={() => { if (window.confirm(`Delete the record “${d.name}” entirely?\n\nUse this for note text that was imported as a person (“Tuesday am”, “ADD HWSS”). The record and every booking it carries are removed. If this is a real person with the wrong name, use rename or swap instead.`)) onDelete() }}>
+              delete record
+            </button>
+          )}
         </span>
+      )}
+      {fix === 'rename' && (
+        <span className="cx-split">
+          <input type="text" value={fn} placeholder="Forename" onChange={(e) => setFn(e.target.value)} />
+          <input type="text" value={sn} placeholder="Surname" onChange={(e) => setSn(e.target.value)} />
+          <button className="cx-x" disabled={busy || !fn.trim() || !sn.trim()} onClick={() => { onRename(fn.trim(), sn.trim()); setFix(null) }}>save</button>
+          <button className="cx-x" onClick={() => setFix(null)}>cancel</button>
+        </span>
+      )}
+      {fix === 'swap' && (
+        <PersonPicker label={`Who should be on this booking instead of ${d.name}?`} busy={busy}
+          exclude={[d.clientId]} onPick={(c) => { onSwap(c.client_id); setFix(null) }} onCancel={() => setFix(null)} />
       )}
       <small className="cx-dsub">
         {/* The amber/red follows them onto the course. Before booking.resat_kind
@@ -3068,6 +3161,49 @@ function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove,
         </span>
       )}
     </li>
+  )
+}
+
+/* Find an existing delegate by name — the database search, same as Book a
+   Delegate and Delegates use, so all 3,800 are reachable and never a list
+   held in the browser. Used to swap the person on a booking and to add
+   somebody straight onto a course. */
+function PersonPicker({ label, busy, exclude = [], onPick, onCancel }) {
+  const [q, setQ] = useState('')
+  const [rows, setRows] = useState([])
+  const [looking, setLooking] = useState(false)
+  useEffect(() => {
+    const s = q.trim()
+    if (s.length < 2) { setRows([]); return }
+    let alive = true
+    setLooking(true)
+    const t = setTimeout(() => {
+      searchDelegates(s, { limit: 8 })
+        .then((r) => { if (alive) setRows((r?.rows || []).filter((c) => !exclude.includes(c.client_id))) })
+        .catch(() => { if (alive) setRows([]) })
+        .finally(() => { if (alive) setLooking(false) })
+    }, 250)
+    return () => { alive = false; clearTimeout(t) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q])
+  return (
+    <span className="cx-pick" onPointerDown={(e) => e.stopPropagation()}>
+      <small className="cx-rlabel">{label}</small>
+      <input type="search" autoFocus value={q} placeholder="Type a name, NI number or company…" onChange={(e) => setQ(e.target.value)} />
+      {q.trim().length >= 2 && (
+        <div className="cx-chips">
+          {looking && rows.length === 0 && <small className="muted">Looking…</small>}
+          {!looking && rows.length === 0 && <small className="muted">Nobody on file matches — add them in Book a Delegate first.</small>}
+          {rows.map((c) => (
+            <button key={c.client_id} type="button" className="cx-chip" disabled={busy} onClick={() => onPick(c)}
+              data-tip={[c.ni_number, c.date_of_birth ? fmt(c.date_of_birth) : null, c.mobile].filter(Boolean).join(' · ') || 'No NI, DOB or mobile on record'}>
+              {c.forename} {c.surname}<span>{c.company}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      <button className="cx-x" type="button" onClick={onCancel}>cancel</button>
+    </span>
   )
 }
 

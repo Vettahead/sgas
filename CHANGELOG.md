@@ -4,6 +4,25 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-09 — v1.64.0 Hand-editing the imported calendar (Simon 7 Sep)
+
+- `listBlocks()` delegates now carry `clientId`, `unconfirmed`
+  (`client.needs_confirming`), `teamupLine`, `fromAccess` (`legacy_access_id`).
+- `CalendarNext` `Delegate` row: **rename** (inline forename/surname →
+  `updateClient` + `needs_confirming:false`), **swap** (`PersonPicker` →
+  `setBookingClient(bookingId, clientId)` — booking keeps results/quals, payer
+  follows the new client), **that's right** (clears `needs_confirming`),
+  **delete record** (only when `unconfirmed && !fromAccess`; calls the guarded
+  `deleteClientRecord`). Amber `?` (`.cx-unconf`) with the Teamup line as tip.
+- Course panel: **Add a delegate by name** `<details>` → `PersonPicker` →
+  `addClientToBlock(sessionId, clientId)` (direct booking, PENDING, no cats,
+  duplicate-on-course refused).
+- `PersonPicker` uses `searchDelegates` (server-side, 8 rows, 250 ms debounce)
+  — never a client-side list. `CLIENT_FIELDS` gains `needs_confirming`.
+- Course change (top dropdown) and dates already existed — not touched.
+- 718 clients still `needs_confirming` on live; 4 obviously junk names left
+  after the 28cc1ac clear-out. Help: calendar FAQ added.
+
 ## 2026-09-09 — v1.63.0 Documentation, duplicates, Sage companies, dashboard (Jen §4–7)
 
 ### Schema (migration `jen_walkthrough_s4_s5_s6`, applied)

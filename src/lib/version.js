@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.64.0', build: 229, date: '9 Sep 2026',
+    title: 'Hand-editing the imported calendar',
+    notes: [
+      'Simon judged the import about 70% right and said he would correct the rest by hand. These are the tools for that, all on the course panel in the calendar.',
+      'Each person on a course now has rename (the spelling is wrong — fixes their record), swap (the wrong person is on this booking — search for the right one and the booking moves to them with its results and qualifications intact), and the existing take off. Names that came out of the old calendar’s notes and have not been confirmed carry an amber ?; hover it to see the note they came from. For those there is that’s right, which confirms them, and delete record, which removes note text that was imported as a person — “Tuesday am”, “ADD HWSS”, “Exam Thursday” — together with its bookings. Delete refuses anyone who has history from the Access database.',
+      '“Add a delegate by name” puts somebody who was on the course but never named on it straight onto the run — search, click — without a trip through the waiting list. Add their qualifications with “add a qual” as before.',
+      'Changing the course a run is (the dropdown at the top of the panel) and its dates were already there; nothing about them has changed.',
+    ],
+  },
+  {
     v: '1.63.0', build: 228, date: '9 Sep 2026',
     title: 'Documentation, duplicates, the Sage company list, and three dashboard numbers',
     notes: [
