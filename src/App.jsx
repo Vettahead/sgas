@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { toast } from './lib/toast.js'
 import { SAGE_CODE_KEY, SAGE_STATE_KEY } from './views/SageSettings.jsx'
 import { LIVE } from './lib/supabase.js'
 import logoUrl from './assets/sgas-logo-white.png'
@@ -22,10 +23,11 @@ import Roadmap from './views/Roadmap.jsx'
 import Changelog from './views/Changelog.jsx'
 import Help from './views/Help.jsx'
 import PageHelp from './components/PageHelp.jsx'
+import Notifications from './components/Notifications.jsx'
 import ResetPassword from './views/ResetPassword.jsx'
 import { VERSION, BUILD, COMMIT } from './lib/version.js'
 import { hasToken } from './lib/session.js'
-import { tokensEnabled, appLogout } from './lib/api.js'
+import { tokensEnabled, appLogout, listMyMentions } from './lib/api.js'
 
 const SESSION_KEY = 'sgas_user'
 
@@ -183,6 +185,7 @@ export default function App() {
     // token cannot be replayed from anywhere else. Fire and forget: it never
     // throws, and the screen must not wait on the network to let somebody out.
     appLogout()
+    greeted.current = null
     setUser(null)
   }
 
@@ -198,6 +201,38 @@ export default function App() {
   // before; tokens ARE being issued and mine has gone means the session is
   // genuinely over.
   const [expired, setExpired] = useState(false)
+
+  // ── "@ you" on the Enquiries menu item ───────────────────────────────────
+  // How Simon finds out Jen has handed him an enquiry without leaving whatever
+  // he is doing. Counted on sign-in, again every minute, and straight away
+  // when an enquiry is opened (which marks its mentions as seen). A count is
+  // not worth an error: listMyMentions never throws.
+  const [mentions, setMentions] = useState([])
+  const mentionCount = mentions.length
+  const greeted = useRef(null)
+  const [mentionTick, setMentionTick] = useState(0)
+  const [bellOpen, setBellOpen] = useState(false)
+  // Which enquiry the Enquiries screen should open on arrival — set when a
+  // notification is clicked, cleared once the screen has used it.
+  const [openInquiry, setOpenInquiry] = useState(null)
+  useEffect(() => {
+    if (!user) { setMentions([]); return }
+    let alive = true
+    const check = () => listMyMentions(user).then((m) => {
+      if (!alive) return
+      setMentions(m)
+      // Signing in with things waiting deserves a word, not just a number —
+      // once per sign-in, not every time the count is refreshed.
+      if (greeted.current !== user.user_id && m.length) {
+        toast(`${m.length} enquir${m.length === 1 ? 'y is' : 'ies are'} waiting for you — see the bell at the top`)
+      }
+      greeted.current = user.user_id
+    })
+    check()
+    const t = setInterval(check, 60000)
+    return () => { alive = false; clearInterval(t) }
+  }, [user, mentionTick])
+
   useEffect(() => {
     if (!LIVE || !user || hasToken()) return
     let cancelled = false
@@ -276,6 +311,7 @@ export default function App() {
                 onClick={() => go(item.v)}
               >
                 <span className="ic" aria-hidden="true">{item.ic}</span> {item.label}
+                {item.v === 'inquiries' && mentionCount > 0 && <span className="navbadge" title="Enquiries where someone has @mentioned you">@ {mentionCount}</span>}
               </button>
             )
           )}
@@ -306,6 +342,9 @@ export default function App() {
           <div><h1>{title}</h1><div className="sub">{sub}</div></div>
           <div className="right">
             <PageHelp view={activeView} onOpenFaq={() => go('help')} />
+            {allowed.includes('inquiries') && (
+              <Notifications mentions={mentions} onOpen={(m) => { setOpenInquiry({ inquiryId: m.inquiryId, at: Date.now() }); go('inquiries') }} />
+            )}
             <span className={'srcbadge ' + (LIVE ? 'live' : 'demo')}>{LIVE ? '● LIVE' : '● DEMO'}</span>
             <span className="pill">{today}</span>
             <span>{user.name || user.username} · {roleLabel(user.role)}</span>
@@ -314,7 +353,7 @@ export default function App() {
         </div>
         <div className="content">
           {activeView === 'dash' && <Dashboard go={go} user={user} />}
-          {activeView === 'inquiries' && <Inquiries go={go} />}
+          {activeView === 'inquiries' && <Inquiries go={go} user={user} openId={openInquiry} onMentionsSeen={() => setMentionTick((n) => n + 1)} />}
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user}

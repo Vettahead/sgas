@@ -139,13 +139,29 @@ export const SECTIONS = [
       {
         q: 'What is the Enquiries screen for?',
         a: [
-          'It is quick lead capture for when the phone rings. You jot down the caller’s name, a contact (email or mobile), which courses they are interested in, any preferred dates and a note — without having to set up a full booking on the spot.',
+          'It is quick lead capture for when the phone rings. You jot down the caller’s name, a contact (email or mobile), which courses they are interested in, any preferred dates and what they said — without having to set up a full booking on the spot.',
+          'Each enquiry then has a conversation attached, so it can be handed between people. Click one in the list on the right and it opens on the left: edit the details as more arrives, post a message, convert it into a booking or close it.',
+        ],
+      },
+      {
+        q: 'How do I hand an enquiry to Simon (or anyone)?',
+        a: [
+          'Open it and type a message with @ and their name — “@Simon” brings up a picker; pick the person and carry on typing. When you post it, a count appears on the bell at the top of their screen (next to the ?) and on the Enquiries menu item, and they are told when they next sign in. Clicking the bell lists who said what on which enquiry; clicking one opens it, which clears it. They reply on the same thread and can @ you back.',
+          'The message box takes Ctrl+Enter to post. The names under the box are one-click shortcuts for the people you hand things to most.',
+        ],
+      },
+      {
+        q: 'Somebody gave me their email on the second call. Where do I put it?',
+        a: [
+          'Click the enquiry, type it into the Email box and press Save changes. You do not need to convert it to edit it — pressing Convert used to be the only way in, which is how one got lost.',
         ],
       },
       {
         q: 'What do I do with a lead afterwards?',
         a: [
-          'Open leads sit in a list on the right, newest first. When the lead firms up, press Convert — it carries the name and contact details straight into a new booking so you do not retype anything. If it comes to nothing, press Close.',
+          'Open leads sit in a list on the right, newest first. When the lead firms up, open it and press Convert to booking — it asks you to confirm, then carries the name and contact details straight into Book a Delegate so you do not retype anything. If the person is already a delegate, their record is found for you there; pick it rather than making a second one.',
+          'If it comes to nothing, press Close and say why: didn’t respond, too expensive, went elsewhere, booked another way, or other — plus an optional note. The reason is required because the year-end figure at the top of the list (how many came in, how many converted, how many were lost and why) is built from it.',
+          'Nothing is deleted. The Converted and Closed tabs keep every one, and each has a Reopen button — so an enquiry converted by accident, or closed too soon, goes straight back on the open list.',
         ],
       },
       {

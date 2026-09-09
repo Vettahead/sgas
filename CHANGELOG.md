@@ -4,6 +4,45 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-09 — v1.61.0 Enquiries become a thread (Jen walkthrough, 8 Sep)
+
+Jen answers the phone and Simon knows the dates; the one notes box on an
+enquiry could not be replied to, and the only way to edit one was Convert —
+which is how Simon deleted one looking for an email address.
+
+### Schema (migration `inquiry_threads_mentions_close_reason`, applied)
+- `inquiry` + `close_reason` (check: no_response / too_expensive /
+  went_elsewhere / booked / other) + `close_note`.
+- New `inquiry_message` (append-only thread, author from the session token) and
+  `inquiry_mention` (message × user, `seen_at`). Signed-in RLS, nothing for anon.
+- RPCs: `app_mention_people()` (id + name of active logins — the ONLY window
+  onto `app_user`), `app_inquiry_post(id, body, mentions[])`,
+  `app_my_mentions()`, `app_mentions_seen(inquiry_id)`.
+- Existing `inquiry.notes` copied into the thread as a first message dated at
+  creation, then nulled. `notes` is no longer written.
+
+### App
+- `views/Inquiries.jsx` rewritten: click a row to load it into the form; New
+  blanks it; Save changes (`updateInquiry`); Convert behind `window.confirm`;
+  Close requires a reason chip + optional note; Open / Converted / Closed tabs
+  with a Reopen button (the "send it back" undo); this-year logged / converted
+  / closed-by-reason line; "already a delegate" hint via `searchDelegates`.
+- Thread with @-picker (typed `@Sim…` or the shortcut names), Ctrl+Enter posts,
+  mentions derived from `@Full Name` in the body.
+- `App.jsx` polls `listMyMentions` every minute → `@ n` badge on the Enquiries
+  menu item AND a bell (`components/Notifications.jsx`, built from the PageHelp
+  button/popover classes) next to the ? in the top bar. The popover lists
+  author / enquiry / first 140 chars; clicking one sets `openInquiry` and goes
+  to Enquiries, which opens it (`openId` prop, keyed by `at` so a repeat click
+  works) and marks it seen. A one-time toast on sign-in says how many are
+  waiting (`greeted` ref, reset on sign-out). `app_my_mentions()` was widened
+  to return author_name / body / inquiry_name for this.
+- `Book.jsx`: a convert also puts the name in the delegate search so an
+  existing delegate is picked, not duplicated.
+- `styles.css`: `.inq-row/.sel`, `.inq-thread/.inq-msg/.mine`, `.inq-at`,
+  `.inq-atpick`, `.nav .navbadge`. Everything else reuses existing classes.
+- Help: three new enquiry FAQs.
+
 ## 2026-09-06 (night) — v1.43.0 Teamup, reassessed against the real pull
 
 Chris pulled the calendar. Looking at what actually landed found two faults in

@@ -44,7 +44,10 @@ export default function Book({ prefill = null }) {
   const [nc, setNc] = useState({ forename: '', surname: '', ni_number: '', date_of_birth: '', mobile: '', email: '', company_id: '', premise: '', street: '', town: '', county: '', postcode: '' })
   const [nco, setNco] = useState({ name: '', address: '', contact_name: '', phone: '', email: '', sage_ref: '' })
 
-  // Convert-from-enquiry: open the new-delegate form pre-filled from the enquiry.
+  // Convert-from-enquiry: open the new-delegate form pre-filled from the
+  // enquiry — AND put the name in the search box, so if this person is already
+  // a delegate (the second-time-round caller) their record is sitting in the
+  // list to pick, rather than a duplicate being created.
   useEffect(() => {
     if (!prefill) return
     const parts = (prefill.name || '').trim().split(/\s+/)
@@ -52,6 +55,7 @@ export default function Book({ prefill = null }) {
     const surname = parts.join(' ')
     setNc((p) => ({ ...p, forename, surname, email: prefill.email || '', mobile: prefill.mobile || '' }))
     setShowNewClient(true)
+    if (surname) { setQuery(prefill.name.trim()); setTerm(prefill.name.trim()) }
   }, [prefill])
 
   const schemeName = useMemo(() => {

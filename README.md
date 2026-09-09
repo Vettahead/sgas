@@ -70,6 +70,7 @@ be added then). Fine as-is for local/internal use.
 | Screen | What it does | Data |
 |---|---|---|
 | Dashboard | Renewal engine (expiring ≤90 days), session count, outstanding to chase | reads `v_live_qualification` + bookings |
+| Enquiries | Phone-call lead capture that can be handed between people: each enquiry is a ticket with an editable form, a message thread with @mentions (badge on the menu item for the person named), Convert (confirmed) → Book a Delegate, Close with a reason, Open/Converted/Closed tabs with Reopen, and a this-year conversion line | reads/writes `inquiry`, `inquiry_message`, `inquiry_mention` via `app_inquiry_post` / `app_my_mentions` / `app_mentions_seen` / `app_mention_people` |
 | Book a Delegate | Pick/add delegate + company, tick qualifications → unscheduled pool | reads clients/companies/categories; writes new client/company |
 | Schedule | Course blocks (from Teamup) — assign Trainer + Assessor + Verifier and add delegates; all three roles required; calendar view | reads blocks/staff/pool; writes role assignments + bookings |
 | Staff | Shared people list (trainer/assessor/verifier), each with a Teamup sub-calendar | reads/writes staff |

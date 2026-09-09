@@ -119,6 +119,28 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .inq-chip{border:1px solid #cfd8e3;background:#fff;border-radius:20px;padding:7px 13px;font-size:13px;font-weight:600;color:var(--slate);cursor:pointer;transition:.12s}
 .inq-chip:hover{border-color:var(--brand);color:var(--brand-dark)}
 .inq-chip.on{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-dark)}
+.inq-chip:disabled{opacity:.6;cursor:default}
+/* Enquiry thread: one message per row, mine pushed right; the @-picker floats
+   under the box; a clickable list row; the unread-mention count on the menu. */
+.inq-row{cursor:pointer}.inq-row:hover td{background:#f7f9fc}.inq-row.sel td{background:var(--brand-soft)}
+.inq-thread{max-height:320px;overflow:auto;display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.inq-msg{max-width:88%;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 11px;font-size:13px}
+.inq-msg.mine{align-self:flex-end;background:var(--brand-soft);border-color:#cfd8e3}
+.inq-meta{font-size:11.5px;margin-bottom:3px}
+.inq-body{white-space:pre-wrap;word-break:break-word}
+.inq-at{color:var(--brand-dark);background:#fff;border-radius:4px;padding:0 3px}
+.inq-atpick{position:absolute;left:0;top:100%;z-index:5;background:#fff;border:1px solid #cfd8e3;border-radius:8px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-width:200px}
+.inq-atpick button{border:none;background:none;text-align:left;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer;color:var(--ink)}
+.inq-atpick button:hover,.inq-atpick button:first-child{background:var(--brand-soft)}
+.nav .navbadge{margin-left:auto;background:var(--amber);color:#fff;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:10px}
+/* The bell next to the ? — same button, with a count pinned to its corner. */
+.pagehelp-btn.bell{font-size:13px;position:relative}
+.pagehelp-btn.bell.has{border-color:var(--amber)}
+.bell-n{position:absolute;top:-6px;right:-7px;background:var(--amber);color:#fff;font-size:9.5px;font-weight:700;min-width:16px;height:16px;padding:0 4px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;border:2px solid #fff}
+.bell-item{display:block;width:100%;text-align:left;border:none;border-bottom:1px solid #eef1f5;background:none;padding:10px 14px;cursor:pointer;font:inherit;color:var(--ink)}
+.bell-item:hover{background:var(--brand-soft)}
+.bell-t{font-size:12.5px;margin-bottom:3px}
+.bell-b{font-size:13px;color:#3a4658;white-space:pre-wrap;word-break:break-word}
 .seg-tabs{display:flex;gap:8px;margin-bottom:14px}
 .asr-pool{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:12px 14px;background:#fff;border:1px solid var(--line);border-radius:11px;box-shadow:var(--shadow);margin-bottom:18px}
 .asr-pool .lbl{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--slate);margin-right:4px}

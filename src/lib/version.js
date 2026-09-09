@@ -19,6 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.61.0', build: 224, date: '9 Sep 2026',
+    title: 'Enquiries you can hand to each other',
+    notes: [
+      'An enquiry is now something you pick up and work on, not a form you fill in once. Click one in the list and it opens on the left with everything editable — so the email address that turns up on the second call goes straight in, without pressing Convert to get at it (which is how one got lost).',
+      'Every enquiry has a conversation under it. Type a message and post it; type @ and a name and a picker appears — pick Simon, say what you need, post. A bell at the top of his screen, next to the ?, shows a count; when he signs in he is told there are things waiting. Clicking the bell lists who said what on which enquiry, and clicking one opens it — which clears it. The Enquiries menu item carries the same count. He answers on the same thread and it comes back to you the same way. The notes that were already on your enquiries are the first message on each.',
+      'Convert now asks you to confirm before it takes the enquiry off the list, and explains that editing is done here, not there. On the booking side it also searches for the name, so somebody who is already a delegate is found and picked rather than being created twice.',
+      'Closing one asks why: didn’t respond, too expensive, went elsewhere, booked another way, or other — with an optional note. That is what makes the line at the top of the list possible: how many came in this year, how many converted, how many were lost and for what reasons.',
+      'Nothing is thrown away. Converted and Closed have their own tabs, and every one of them has a Reopen button — an enquiry converted by mistake goes straight back. If the person is already on file as a delegate, the enquiry says so, with a link to the record.',
+    ],
+  },
+  {
     v: '1.60.1', build: 223, date: '9 Sep 2026',
     title: 'Enquiries, not inquiries',
     notes: [
