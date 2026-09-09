@@ -99,7 +99,13 @@ function blockSummaries(blocks) {
   // Only blocks that have NOT finished yet still need assigning — drop past ones.
   const awaitingBlocks = (blocks || []).filter((b) => !b.ready && (!b.end || b.end >= todayISO())).map((b) => ({
     id: b.id, course: b.course, start: b.start, end: b.end, scheme: b.scheme,
-    missing: [(!b.trainerId || b.trainerGone) && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
+    isInternal: !!b.isInternal,
+    // An internal course cannot be short of delegates -- it never has any --
+    // and its trainer is often the outside company running it, who is not on
+    // our staff list. The only thing it can be short of is people on it.
+    missing: b.isInternal
+      ? ['Anyone on it']
+      : [(!b.trainerId || b.trainerGone) && 'Trainer', !b.delegates.length && 'Delegates'].filter(Boolean),
   }))
   // Same again: a course that has already run is not waiting to be assessed.
   // 261 imported courses going back to 2022 have delegates on them and every
@@ -1704,17 +1710,33 @@ const assistRows = (sessionId) => assistDemo
                  from: a.from_date, to: a.to_date, note: a.note || null }))
   .sort((x, z) => x.from.localeCompare(z.from))
 
+// Demo-mode home for internal-course attendees. LIVE reads session_attendee.
+const attendeeDemo = LIVE ? [] : (D.sessionAttendees = D.sessionAttendees || [])
+const attendeeRows = (sessionId) => attendeeDemo
+  .filter((a) => a.session_id === sessionId)
+  .map((a) => ({ attendeeId: a.session_attendee_id, staffId: a.staff_id, name: asr(a.staff_id)?.name || '—',
+                 attendFrom: a.from_date || null, attendTo: a.to_date || null, note: a.note || null }))
+  .sort((x, z) => x.name.localeCompare(z.name))
+
 // A "block" = a course session (course + dates) with its FOUR role slots
 // (trainer, assessor, verifier, and any number of assists) and its delegates.
 export async function listBlocks() {
   if (LIVE) {
     const { data } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
       seats: s.seats ?? null, courseSeats: s.course?.default_seats ?? null,
+      isInternal: !!s.course?.is_internal,
+      // Our own people ON the course as learners. Shaped like a delegate on
+      // purpose (name / attendFrom / attendTo) so the day-by-day seat count in
+      // seats.js reads both with one rule.
+      attendees: (s.session_attendee || []).map((a) => ({
+        attendeeId: a.session_attendee_id, staffId: a.staff_id, name: a.staff?.name || '—',
+        attendFrom: a.from_date || null, attendTo: a.to_date || null, note: a.note || null,
+      })).sort((x, z) => x.name.localeCompare(z.name)),
       courseId: s.course?.course_id, course: s.course?.name, scheme: s.course?.scheme, color: s.course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: s.trainer?.name, assessor: s.assessor?.name, verifier: s.verifier?.name,
@@ -1740,6 +1762,8 @@ export async function listBlocks() {
     return block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: course?.teamup_designator,
       seats: s.seats ?? null, courseSeats: course?.default_seats ?? null,
+      isInternal: !!course?.is_internal,
+      attendees: attendeeRows(s.session_id),
       courseId: s.course_id, course: course?.name, scheme: course?.scheme, color: course?.color,
       trainerId: s.trainer_id, assessorId: s.assessor_id, verifierId: s.verifier_id,
       trainer: asr(s.trainer_id)?.name, assessor: asr(s.assessor_id)?.name, verifier: asr(s.verifier_id)?.name,
@@ -1767,7 +1791,15 @@ function block(b) {
   const trainerGone = Boolean(b.trainerId && b.trainerLeftOn && !over)
   // A block is schedulable/pushable once it has a Trainer and at least one
   // delegate. Assessor + Verifier are now chosen at the assessment phase.
-  const ready = Boolean(b.trainerId && !trainerGone && b.delegates.length)
+  //
+  // An INTERNAL course has no delegates and never will — our own staff go on
+  // it instead — so counting delegates would park every one of them in "Needs
+  // attention" for ever, complaining about a thing that cannot happen. It is
+  // ready once somebody is on it; the trainer may well be the outside company,
+  // who is not on our staff list at all.
+  const ready = b.isInternal
+    ? Boolean((b.attendees || []).length)
+    : Boolean(b.trainerId && !trainerGone && b.delegates.length)
   return { ...b, ready, trainerGone }
 }
 
@@ -1796,6 +1828,71 @@ export async function addAssist(blockId, staffId, from, to, note = null) {
   const id = (D.seq.sessionAssist = (D.seq.sessionAssist || 0) + 1)
   assistDemo.push({ session_assist_id: id, session_id: blockId, staff_id: Number(staffId), from_date: from, to_date: to, note })
   return id
+}
+
+/* ── WHO IS ON AN INTERNAL COURSE ───────────────────────────────────────────
+   Staff, as LEARNERS. Not session_assist (that is someone helping to teach)
+   and not `booking` (client_id is NOT NULL there, and everything downstream of
+   a booking — invoice, ACS form, certificate, waiting pool, Sage — assumes a
+   paying delegate).
+
+   Dates work exactly as they do on a booking: null/null means the whole run,
+   anything else is part of it. Same meaning, so seats.js counts both the same
+   way and nobody has to remember which is which. */
+export async function listAttendees(sessionId) {
+  if (LIVE) {
+    const { data, error } = await supabase.from('session_attendee')
+      .select('session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)')
+      .eq('session_id', Number(sessionId))
+    if (error) throw new Error(error.message)
+    return (data || []).map((a) => ({
+      attendeeId: a.session_attendee_id, staffId: a.staff_id, name: a.staff?.name || '—',
+      attendFrom: a.from_date || null, attendTo: a.to_date || null, note: a.note || null,
+    })).sort((x, z) => x.name.localeCompare(z.name))
+  }
+  return attendeeRows(Number(sessionId))
+}
+
+export async function addAttendee(sessionId, staffId, from = null, to = null, note = null) {
+  if (!sessionId || !staffId) throw new Error('Pick somebody to put on it')
+  if (from && to && to < from) throw new Error('The last day cannot be before the first')
+  if (LIVE) {
+    const { data, error } = await supabase.from('session_attendee')
+      .insert({ session_id: Number(sessionId), staff_id: Number(staffId), from_date: from, to_date: to, note })
+      .select('session_attendee_id').single()
+    // 23505 is the one-row-per-person unique key, which is a double-click
+    // guard rather than a fault worth showing a constraint name for.
+    if (error) throw new Error(error.code === '23505' ? 'They are already on this one' : error.message)
+    return data.session_attendee_id
+  }
+  const id = (D.seq.sessionAttendee = (D.seq.sessionAttendee || 0) + 1)
+  attendeeDemo.push({ session_attendee_id: id, session_id: Number(sessionId), staff_id: Number(staffId), from_date: from, to_date: to, note })
+  return id
+}
+
+// Null/null puts them back on for the whole run rather than taking them off.
+export async function setAttendeeDates(attendeeId, from, to) {
+  const patch = { from_date: from || null, to_date: to || null }
+  if (patch.from_date && patch.to_date && patch.to_date < patch.from_date) {
+    throw new Error('The last day cannot be before the first')
+  }
+  if (LIVE) {
+    const { error } = await supabase.from('session_attendee').update(patch).eq('session_attendee_id', Number(attendeeId))
+    if (error) throw new Error(error.message)
+    return
+  }
+  const a = attendeeDemo.find((x) => x.session_attendee_id === Number(attendeeId))
+  if (a) Object.assign(a, patch)
+}
+
+export async function removeAttendee(attendeeId) {
+  if (LIVE) {
+    const { error } = await supabase.from('session_attendee').delete().eq('session_attendee_id', Number(attendeeId))
+    if (error) throw new Error(error.message)
+    return
+  }
+  const i = attendeeDemo.findIndex((a) => a.session_attendee_id === Number(attendeeId))
+  if (i >= 0) attendeeDemo.splice(i, 1)
 }
 
 export async function removeAssist(assistId) {

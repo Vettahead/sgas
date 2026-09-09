@@ -19,6 +19,18 @@
 
 export const RELEASES = [
   {
+    v: '1.60.0', build: 222, date: '9 Sep 2026',
+    title: 'Internal courses \u2014 our own people, booked on part or full',
+    notes: [
+      'There is a new block in Courses called Internal, and the first course in it is Train the Trainer. It behaves like any other course on the calendar \u2014 put it in the diary, drag it, resize it, open it \u2014 but the people who go on it are our own staff, not delegates.',
+      'Open one and you get a list of who is on it, with a picker to add anybody from the staff list. Each person is on for the whole thing unless you say otherwise; press "part of it only" and you can set the days, exactly as you can for a delegate. The day-by-day count at the top reads those, so a week where two people are in on the Monday and one on the Thursday says so.',
+      'Anyone already busy on those days still appears in the picker, but with the reason next to their name \u2014 assessing on another course, on holiday, and now being taught on another internal one. Being on a course as a learner occupies you exactly as firmly as teaching it does, and it now counts that way everywhere availability is worked out.',
+      'What an internal course deliberately does NOT have: no delegates, no company, no invoice, no certificates, no ACS forms and no waiting list. Those sections are not empty on it \u2014 they are gone, because they are the wrong question.',
+      'The Aggreko week in September is now one of these, so you can open it and put the office staff on it. It was a calendar entry with nothing to click; that is what prompted this.',
+      'One fault fixed on the way through, which had been waiting to happen for a while: the "Needs attention" list was keeping its own copy of what makes a course ready, rather than asking the one place that already knew. The two disagreed the moment an internal course appeared \u2014 it has no delegates and never will, so every one of them would have sat there for ever complaining about it. There is one rule now, read in one place.',
+    ],
+  },
+  {
     v: '1.59.1', build: 221, date: '8 Sep 2026',
     title: 'Twenty-nine delegates who were never people',
     notes: [

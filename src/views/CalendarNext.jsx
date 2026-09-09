@@ -6,11 +6,12 @@ import {
   addAssist, removeAssist, getSessionOrigin,
   getReschedulePool, rescheduleDelegate, addQualsToBooking, listBookableCategories,
   createBlock, setBookingAttendance, deleteBlock, setSessionSeats, listCompanies,
+  addAttendee, removeAttendee, setAttendeeDates,
   createHoliday, decideHoliday, deleteHoliday, updateHoliday, canApproveHolidays,
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
   getSettings, getFormData, getBlockFormData,
 } from '../lib/api.js'
-import { dayLoad, loadLabel } from '../lib/seats.js'
+import { dayLoad, loadLabel, peopleOn } from '../lib/seats.js'
 import { downloadCombined, downloadZip, downloadForm, formFaults } from '../lib/acspdf.js'
 import { todayISO, fmt } from '../lib/util.js'
 
@@ -87,6 +88,18 @@ function barTip(b) {
   if (!b) return ''
   if (b.isHoliday) return `${b.course || b.title}\n${span(b.start, b.end)} \u00b7 time off`
   const days = between(b.start, b.end) + 1
+  // An internal course: our own people being taught, often by an outside firm
+  // who is not on our staff list. So no trainer slot to complain about, and
+  // the useful line is who is on it and for how much of it.
+  if (b.isInternal) {
+    const on = peopleOn(b)
+    return [
+      b.course || b.title,
+      `${span(b.start, b.end)} \u00b7 ${days} day${days === 1 ? '' : 's'} \u00b7 our own people`,
+      on.length === 0 ? 'Nobody on it yet'
+        : on.map((a) => a.name + (a.attendFrom || a.attendTo ? ' (part of it)' : '')).join(', '),
+    ].join('\n')
+  }
   const lines = [
     b.course || b.title,
     `${span(b.start, b.end)} \u00b7 ${days} day${days === 1 ? '' : 's'}`,
@@ -854,8 +867,14 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
     .sort((a, z) => a.start.localeCompare(z.start)), [shown, month, view])
   // Scoped to the month, this hid overdue problems the moment you paged away
   // from them. An alert is only an alert if it follows you.
+  // ⛔ This used to carry its OWN copy of the rule -- "no trainer, or the
+  // trainer has left, or no delegates" -- which is the same rule `ready`
+  // already applies in api.js. The two drifted the moment internal courses
+  // arrived: they have no delegates and never will, so every one of them sat
+  // here for ever complaining about something that cannot happen. One rule,
+  // read in one place.
   const needsWork = useMemo(() => (shown || [])
-    .filter((b) => !b.isHoliday && !b.isEngagement && (!b.trainerId || b.trainerGone || !b.delegates.length))
+    .filter((b) => !b.isHoliday && !b.isEngagement && !b.ready)
     .sort((a, z) => a.start.localeCompare(z.start)), [shown])
   // What a trainer already has on, so you are not dropping blind.
   const teaching = (id) => {
@@ -1595,7 +1614,12 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                         </span>
                         {s.head && !s.b.isHoliday && (
                           <span className="cx-bar-sub">
-                            {s.b.trainer || 'no trainer'} · {s.b.delegates?.length || 0} booked
+                            {/* An internal course has no delegates and its trainer is
+                                often the outside company, so "no trainer · 0 booked"
+                                would be two wrong facts about a perfectly fine week. */}
+                            {s.b.isInternal
+                              ? `our own · ${peopleOn(s.b).length} on it`
+                              : `${s.b.trainer || 'no trainer'} · ${s.b.delegates?.length || 0} booked`}
                           </span>
                         )}
                       </span>
@@ -1618,7 +1642,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 <button key={b.id} className="cx-row" data-bid={b.id} style={{ '--c': b.color || '#5b6b80' }}
                   data-tip={barTip(b)} onClick={(e) => openAt(b, e)}>
                   <i />
-                  <span><b>{b.course}</b><small>{!b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left` : 'no delegates'} · {shortDate(b.start)}</small></span>
+                  <span><b>{b.course}</b><small>{b.isInternal ? 'nobody on it yet'
+                    : !b.trainerId ? 'no trainer' : b.trainerGone ? `${b.trainer} has left` : 'no delegates'} · {shortDate(b.start)}</small></span>
                   <em className="cx-flag" aria-hidden="true" />
                 </button>
               ))}
@@ -1635,7 +1660,9 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 <i />
                 <span>
                   <b>{b.course}</b>
-                  <small>{span(b.start, b.end)} · {b.trainer || 'no trainer'} · {b.delegates.length} booked</small>
+                  <small>{span(b.start, b.end)} · {b.isInternal
+                    ? `our own · ${peopleOn(b).length} on it`
+                    : `${b.trainer || 'no trainer'} · ${b.delegates.length} booked`}</small>
                 </span>
               </button>
             ))}
@@ -2260,6 +2287,40 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 } catch (err) { toast(err.message) } finally { setBusy(false) }
               }} />
 
+            {/* AN INTERNAL COURSE TAKES OUR OWN PEOPLE, NOT CLIENTS.
+                So everything below that belongs to a paying delegate — the
+                booking list, the waiting pool, the desk print, the ACS forms —
+                is not shown at all. It is not that they would be empty; they
+                are the wrong question. Staff go on through AttendeeRow above. */}
+            {open.isInternal && (
+              <AttendeeRow open={open} staff={staff} blocks={blocks || []} canWrite={canWrite} busy={busy}
+                onAdd={async (staffId) => {
+                  setBusy(true)
+                  try {
+                    await addAttendee(open.id, staffId)
+                    const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                    toast('Put on the course')
+                  } catch (err) { toast(err.message) } finally { setBusy(false) }
+                }}
+                onDates={async (attendeeId, from, to) => {
+                  setBusy(true)
+                  try {
+                    await setAttendeeDates(attendeeId, from, to)
+                    const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                    toast(from || to ? 'Days saved' : 'Back on for the whole course')
+                  } catch (err) { toast(err.message) } finally { setBusy(false) }
+                }}
+                onRemove={async (attendeeId) => {
+                  setBusy(true)
+                  try {
+                    await removeAttendee(attendeeId)
+                    const f = await load(); setOpen(f.find((x) => x.id === open.id) || null)
+                    toast('Taken off')
+                  } catch (err) { toast(err.message) } finally { setBusy(false) }
+                }} />
+            )}
+
+            {!open.isInternal && (<>
             <div className={'cx-row2 top' + (open.delegates.length ? '' : ' empty')}>
               <span className="cx-ricon" aria-hidden="true">👥</span>
               <div className="cx-rfill">
@@ -2428,6 +2489,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                 )}
               </div>
             </div>
+            </>)}
 
             <div className="cx-row2 empty">
               <span className="cx-ricon" aria-hidden="true">🏷</span>
@@ -2633,6 +2695,115 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
    the Tuesday only does not take a seat on the Thursday — count bookings and
    the 14 Sep Commercial week reads as twelve when there were never more than
    ten in the room. */
+/* WHO IS ON AN INTERNAL COURSE.
+   Our own staff, as learners. Deliberately NOT the delegate list: there is no
+   booking behind them, no company, no invoice, no ACS form and no certificate
+   — putting them through `booking` would mean teaching every one of those
+   screens an exception.
+
+   Each person is on for the whole run unless dates are set, exactly as a
+   delegate's part-week works, so the day-by-day seat count reads both with one
+   rule (see peopleOn in seats.js).
+
+   Anyone already committed those days is still offered, but greyed with the
+   reason: being taught blocks teaching, so the clash matters in both
+   directions and hiding it would hide why somebody cannot be added. */
+function AttendeeRow({ open, staff, blocks, canWrite, busy, onAdd, onDates, onRemove }) {
+  const [picked, setPicked] = useState('')
+  const on = open.attendees || []
+  const already = new Set(on.map((a) => String(a.staffId)))
+
+  const whyBusy = (staffId) => {
+    const c = assistClash((blocks || []).filter((b) => b.id !== open.id), staffId, open.start, open.end)
+    return c ? `${c.role} on ${c.block.course || 'another course'}` : null
+  }
+
+  return (
+    <div className={'cx-row2 top' + (on.length ? '' : ' empty')}>
+      <span className="cx-ricon" aria-hidden="true">🎓</span>
+      <div className="cx-rfill">
+        <span className="cx-rlabel">On this course{on.length ? ` · ${on.length}` : ''}</span>
+        {on.length === 0
+          ? <span className="cx-rtext">Nobody on it yet — this one takes our own people, not delegates</span>
+          : <ul className="cx-delg">
+              {on.map((a) => (
+                <AttendeeLine key={a.attendeeId} a={a} block={open} canWrite={canWrite} busy={busy}
+                  onDates={onDates} onRemove={onRemove} />
+              ))}
+            </ul>}
+
+        {canWrite && (
+          <span className="cx-assist-form">
+            <label>
+              <small>Add somebody</small>
+              <select value={picked} aria-label="Add somebody to this course"
+                onChange={(e) => setPicked(e.target.value)}>
+                <option value="">— choose —</option>
+                {(staff || []).filter((x) => !x.left_on && !already.has(String(x.staff_id))).map((x) => {
+                  const why = whyBusy(x.staff_id)
+                  return (
+                    <option key={x.staff_id} value={x.staff_id}>
+                      {x.name}{why ? ` — ${why}` : ''}
+                    </option>
+                  )
+                })}
+              </select>
+            </label>
+            <button className="cx-x" disabled={busy || !picked}
+              onClick={async () => { await onAdd(picked); setPicked('') }}>Put them on</button>
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* One person on an internal course. Full run by default; the dates only appear
+   when you go to change them, because most people are on for the whole thing
+   and a pair of date boxes per person would drown the list. */
+function AttendeeLine({ a, block, canWrite, busy, onDates, onRemove }) {
+  const part = !!(a.attendFrom || a.attendTo)
+  const [editing, setEditing] = useState(false)
+  const [f, setF] = useState(a.attendFrom || block.start)
+  const [t, setT] = useState(a.attendTo || block.end)
+  useEffect(() => { setF(a.attendFrom || block.start); setT(a.attendTo || block.end); setEditing(false) },
+    [a.attendeeId, a.attendFrom, a.attendTo, block.start, block.end])
+
+  return (
+    // Same list shape and the same `part` highlight the delegate list uses:
+    // reusing the class rather than inventing a parallel set.
+    <li className={part ? 'part' : undefined}>
+      <b>{a.name}</b>
+      <small>{part ? `${fmt(a.attendFrom || block.start)} – ${fmt(a.attendTo || block.end)} only` : 'full course'}</small>
+      {canWrite && !editing && (
+        <>
+          <button type="button" className="cx-x" onClick={() => setEditing(true)}>
+            {part ? 'change days' : 'part of it only'}
+          </button>
+          <button type="button" className="cx-x" disabled={busy}
+            aria-label={`Take ${a.name} off`} onClick={() => onRemove(a.attendeeId)}>take off</button>
+        </>
+      )}
+      {canWrite && editing && (
+        <span className="cx-assist-form">
+          <label><small>From</small>
+            <input type="date" value={f} min={block.start} max={block.end} onChange={(e) => setF(e.target.value)} /></label>
+          <label><small>To</small>
+            <input type="date" value={t} min={block.start} max={block.end} onChange={(e) => setT(e.target.value)} /></label>
+          <button className="cx-x" disabled={busy}
+            onClick={async () => { await onDates(a.attendeeId, f, t); setEditing(false) }}>Save</button>
+          {part && (
+            <button className="cx-x" disabled={busy}
+              onClick={async () => { await onDates(a.attendeeId, null, null); setEditing(false) }}
+              data-tip="Back on for the whole course">All of it</button>
+          )}
+          <button className="cx-x" onClick={() => setEditing(false)}>Cancel</button>
+        </span>
+      )}
+    </li>
+  )
+}
+
 function SeatsRow({ open, canWrite, busy, onSet }) {
   const load = dayLoad(open)
   const [val, setVal] = useState(load.seats == null ? '' : String(load.seats))

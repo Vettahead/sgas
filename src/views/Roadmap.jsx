@@ -11,7 +11,7 @@ import ImportReview from './ImportReview.jsx'
 // Items can nest: a child has `parent:'<id>'` and renders under the item with that `id`.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const UPDATED = '8 Sep 2026 (late)'
+const UPDATED = '9 Sep 2026'
 
 const STATUS = {
   done:  { label: 'Done',             color: '#1a8a4b', soft: '#e4f6ec' },

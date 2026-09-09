@@ -120,6 +120,14 @@ export function assistClash(blocks, staffId, from, to) {
       if (String(a.staffId) !== id) continue
       if (a.from <= to && a.to >= from) return { block: b, role: 'assisting' }
     }
+    // Being ON an internal course is being taught, which occupies you just as
+    // firmly as teaching does. A null date means the whole run.
+    for (const a of b.attendees || []) {
+      if (String(a.staffId) !== id) continue
+      const f = a.attendFrom || b.start
+      const t = a.attendTo || b.end
+      if (f <= to && t >= from) return { block: b, role: 'being trained' }
+    }
   }
   return null
 }

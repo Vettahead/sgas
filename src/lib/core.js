@@ -39,6 +39,9 @@ export const store = {
     // re-sitting is a fact about THEM — booking_category.is_reassessment — and
     // a domestic day routinely holds both.
     { course_id: 1, name: 'Domestic Gas ACS', scheme: 'ACS Domestic', price: 1450, teamup_designator: 'ACS-DOM', color: '#0a5ad6' },
+    // Internal: our own staff go on it, never clients. No price, because
+    // nobody is invoiced for it.
+    { course_id: 21, name: 'Train the Trainer', scheme: 'Internal', is_internal: true, price: null, teamup_designator: null, color: '#7c5cbf' },
     { course_id: 3, name: 'OFTEC Oil', scheme: 'OFTEC', price: 780, teamup_designator: 'OFTEC', color: '#b7791f' },
     { course_id: 4, name: 'Commercial Gas ACS', scheme: 'ACS Commercial', price: 1650, teamup_designator: 'ACS-COM', color: '#1a8a4b' },
     { course_id: 5, name: 'Air Source Heat Pump L3', scheme: 'Renewables', price: 1100, teamup_designator: 'ASHP', color: '#0a7d63' },
@@ -176,6 +179,7 @@ export const store = {
     s(4, 5, '2026-07-06', '2026-07-10', 'tu-4', 5, 3, 2),
     s(5, 1, '2026-07-13', '2026-07-15', 'tu-5', null, null, null),
     s(6, 5, '2026-07-20', '2026-07-24', 'tu-6', null, null, null),
+    s(7, 21, '2026-06-29', '2026-07-03', 'tu-7', null, null, null),
   ],
   /* A slice of the Teamup copy, so the archive screen has something to draw in
      demo mode and can be checked without the live database. The shapes are
@@ -317,7 +321,14 @@ export const store = {
   engagementMembers: [
     { engagement_id: 1, staff_id: 1 },
   ],
-  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4, sessionAssist: 2, engagement: 2 },
+  /* Staff ON an internal course, as learners. One all week, one for two days
+     of it, so the part/full split and the per-day seat count are both visible
+     without a live database. */
+  sessionAttendees: [
+    { session_attendee_id: 1, session_id: 7, staff_id: 1, from_date: null, to_date: null, note: null },
+    { session_attendee_id: 2, session_id: 7, staff_id: 3, from_date: '2026-06-29', to_date: '2026-06-30', note: null },
+  ],
+  seq: { client: 8, company: 4, course: 17, cat: 110, session: 6, booking: 7, bcat: 13, pool: 108, user: 5, staff: 5, chase: 1, mlp: 1, mlpc: 3, renewal: 6, inquiry: 2, staffAccred: 4, sessionAssist: 2, engagement: 2, sessionAttendee: 2 },
 }
 
 export const ASSESSOR_COLOR = { 1: '#0a5ad6', 2: '#1a8a4b', 3: '#9a3fb5', 4: '#b7791f', 5: '#0a7d63' }

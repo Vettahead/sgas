@@ -40,8 +40,18 @@ export function daysFor(delegate, start, end) {
   return daysOf(from, to)
 }
 
-/** True if this delegate is only in for part of the block. */
+/** True if this person is only in for part of the block. */
 export const isPartWeek = (d) => !!(d?.attendFrom || d?.attendTo)
+
+/**
+ * Who is ON this course. A normal course has delegates; an INTERNAL one has
+ * our own staff as attendees, in `attendees`. One accessor so every count,
+ * label and day strip asks the question once and cannot drift.
+ * Both carry attendFrom/attendTo with the same meaning, which is why this can
+ * be a swap rather than a second code path.
+ */
+export const peopleOn = (block) =>
+  (block?.isInternal ? block?.attendees : block?.delegates) || []
 
 /**
  * The load on a block, day by day.
@@ -60,7 +70,7 @@ export const isPartWeek = (d) => !!(d?.attendFrom || d?.attendTo)
 export function dayLoad(block) {
   const start = block?.start
   const end = block?.end || block?.start
-  const delegates = block?.delegates || []
+  const delegates = peopleOn(block)
   const seats = block?.seats != null && Number.isFinite(Number(block.seats)) ? Number(block.seats) : null
 
   const count = new Map()
