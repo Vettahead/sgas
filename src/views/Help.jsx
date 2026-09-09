@@ -181,7 +181,8 @@ export const SECTIONS = [
         q: 'What does “Book a Delegate” do?',
         a: [
           'It creates the booking — who is coming, which company pays, and which qualifications they are taking. Anyone on reception can do it; it is not just for the Director.',
-          'A booking does not put anyone on a course date yet. It places them in a “waiting pool” ready to be scheduled onto a block. Think of it as: book first, schedule second, assess third, chase payment last.',
+          'Once you have ticked their qualifications, “Which dates?” lists the scheduled courses for each course group over the next six months, with the spaces left on each. Click a date and the delegate goes straight onto it when you press the button. Leave it on “Waiting pool” and they wait for Simon to place them — that is still right for “I want a course you haven’t got dates for yet”, and it is what Simon uses to see whether a course is worth scheduling.',
+          'When you pick a delegate, a panel shows what they already hold and when each one runs out, with expired and due-within-90-days counted at the top. Read it back to them — “is that right?” — then “＋ renew” puts that qualification on this booking as a reassessment (the “your water is due in three months, do it the same week” conversation), and ✕ takes a wrong imported line off their record.',
         ],
       },
       {

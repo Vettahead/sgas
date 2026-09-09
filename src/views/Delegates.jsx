@@ -2,41 +2,10 @@ import { useEffect, useState } from 'react'
 import { searchDelegates, getDelegateHistory, updateClient, clientDeleteCheck, deleteClientRecord } from '../lib/api.js'
 import { toast } from '../lib/toast.js'
 import { useData } from '../lib/hooks.js'
-import { fmt, initials, resultClass, daysUntil } from '../lib/util.js'
-
-// Roll the booking history up into the delegate's current accreditations:
-// one row per qualification, keeping the most-recent PASS, cross-referenced
-// against today to flag what's due for renewal.
-function renewalSummary(bookings) {
-  const byCode = {}
-  for (const b of bookings) {
-    for (const x of b.categories) {
-      if (x.result !== 'PASS') continue
-      const prev = byCode[x.code]
-      if (!prev || (x.achieved || '') > (prev.achieved || '')) {
-        byCode[x.code] = { code: x.code, desc: x.desc, achieved: x.achieved, expiry: x.expiry, course: b.course }
-      }
-    }
-  }
-  const rows = Object.values(byCode).map((r) => {
-    const d = r.expiry ? daysUntil(r.expiry) : null
-    let status = 'none'
-    if (d != null) status = d < 0 ? 'expired' : d <= 90 ? 'soon' : 'active'
-    return { ...r, days: d, status }
-  }).sort((a, b) => {
-    const order = { expired: 0, soon: 1, active: 2, none: 3 }
-    if (order[a.status] !== order[b.status]) return order[a.status] - order[b.status]
-    return (a.expiry || '') < (b.expiry || '') ? -1 : 1
-  })
-  return rows
-}
-
-const RENEWAL_BADGE = {
-  active: ['pass', 'Active'],
-  soon: ['due', 'Renew soon'],
-  expired: ['fail', 'Expired'],
-  none: ['scheme', 'No expiry'],
-}
+import { fmt, initials, resultClass } from '../lib/util.js'
+// The roll-up of history → current accreditations moved to lib/renewals.js so
+// Book a Delegate can show the same answer while somebody is on the phone.
+import { renewalSummary, RENEWAL_BADGE } from '../lib/renewals.js'
 
 export default function Delegates({ openDelegate }) {
   const [selected, setSelected] = useState(openDelegate || null)

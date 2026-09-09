@@ -4,6 +4,28 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-09 — v1.62.0 Book straight onto a course; what they already hold (Jen §3)
+
+- `views/Book.jsx`: "Which dates?" panel — per ticked scheme, chips for every
+  non-internal `listBlocks()` run ending today or later and starting within 6
+  months, with `dayLoad()` spaces / full badge; "Waiting pool" chip is the
+  default. `createBooking()` still calls `addToPool()`, then
+  `addDelegatesToBlock(sessionId, [entry.id])` for each scheme with a pick —
+  same path as dragging onto the calendar, so seats/emails/notifications behave
+  identically. Button text says which it will do.
+- "What X already holds" panel: `getDelegateHistory()` → `renewalSummary()`
+  (moved from Delegates.jsx into `lib/renewals.js` with `RENEWAL_BADGE`);
+  expired / due ≤90 counts; "＋ renew" sets that code REASSESS on the booking;
+  ✕ → new `deleteBookingCategory(bcId)` (refuses PENDING rows). History rows
+  now carry `bcId`.
+- Delegate emails OFF: `email_template.enabled=false` for the four `bookings`
+  mailbox keys (booking_confirmed / moved / rescheduled / cancelled). Chris, 9
+  Sep: "turn it off for now until we finalise the way they do this." Re-enable
+  in Admin → Email when the wording and bookings@ sender are agreed.
+- Git note: cd03447 was pushed while being amended to ff609a0; GitHub Desktop
+  produced a conflicted merge. Resolved by taking ours (ff609a0 is a superset)
+  as merge e40f1f3. Nothing lost except api.js edits made mid-conflict, re-applied.
+
 ## 2026-09-09 — v1.61.0 Enquiries become a thread (Jen walkthrough, 8 Sep)
 
 Jen answers the phone and Simon knows the dates; the one notes box on an

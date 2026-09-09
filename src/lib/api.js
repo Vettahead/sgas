@@ -305,6 +305,7 @@ export async function getDelegateHistory(clientId) {
       course: b.session?.course?.name || '—', assessor: b.session?.assessor?.name || '—',
       start: b.session?.start_date,
       categories: (b.booking_category || []).map((x) => ({
+        bcId: x.booking_category_id,
         code: x.category.code, desc: x.category.description, result: x.result, achieved: x.achieved_date, expiry: x.expiry_date,
       })),
     })).sort((a, b) => new Date(b.start || 0) - new Date(a.start || 0))
@@ -317,11 +318,27 @@ export async function getDelegateHistory(clientId) {
       bookingId: b.booking_id, overall: demoRollup(b.booking_id),
       course: crs(s.course_id)?.name || '—', assessor: asr(s.assessor_id)?.name || '—', start: s.start_date,
       categories: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => ({
+        bcId: x.booking_category_id,
         code: cat(x.category_id).code, desc: cat(x.category_id).description, result: x.result, achieved: x.achieved_date, expiry: x.expiry_date,
       })),
     }
   }).sort((a, b) => new Date(b.start || 0) - new Date(a.start || 0))
   return { client: { ...client, company: co(client.company_id)?.name || '—' }, bookings: bk }
+}
+
+// Take ONE qualification off a delegate's history — the imported Access record
+// that says he holds something he never did. Jen corrects these as she finds
+// them while booking ("is that right?" — "no, I've never done that"). The
+// booking itself stays; only that line goes. Nothing on a PENDING booking
+// (one still to be sat) is touched this way — that is the Assess screen's job.
+export async function deleteBookingCategory(bcId) {
+  if (LIVE) {
+    const { error } = await supabase.from('booking_category').delete().eq('booking_category_id', bcId).neq('result', 'PENDING')
+    if (error) throw new Error(error.message)
+    return
+  }
+  const i = D.booking_categories.findIndex((x) => x.booking_category_id === bcId && x.result !== 'PENDING')
+  if (i >= 0) D.booking_categories.splice(i, 1)
 }
 
 export async function listCompanies() {

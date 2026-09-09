@@ -19,6 +19,16 @@
 
 export const RELEASES = [
   {
+    v: '1.62.0', build: 227, date: '9 Sep 2026',
+    title: 'Book straight onto a course, and see what they already hold',
+    notes: [
+      'Most bookings are for a date the caller already has in mind, so Book a Delegate no longer sends everybody to the waiting pool. Once the qualifications are ticked, a "Which dates?" panel lists every scheduled course for that course group over the next six months, with the spaces left on each. Click one and the delegate goes straight onto it. The waiting pool is still there as the first option — Simon still uses it to see whether a course is worth putting on — and a booking with nothing picked goes there exactly as before.',
+      'Pick a delegate and a panel appears showing what they already hold and when each one runs out, with anything expired or due inside 90 days counted at the top. That is the phone-call Jen asked for: "I can see your water and plumbing is due in three months, why not do it the same week?" A "renew" button puts that qualification on the booking as a reassessment in one click.',
+      'The same panel is where the imported record gets corrected. Read it back — "is that right?" — and if they have never held one of them, the cross takes that line off. Only that line goes; the course it came from stays.',
+      'The delegate emails (booked, moved, released) are switched off for now, until the wording and who they come from is settled. Staff and holiday emails are unaffected.',
+    ],
+  },
+  {
     v: '1.61.0', build: 224, date: '9 Sep 2026',
     title: 'Enquiries you can hand to each other',
     notes: [
