@@ -4,7 +4,30 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
-## 2026-09-10 — v1.65.0 QoL pass (21 items from a whole-app review)
+## 2026-09-10 — v1.66.0 Mixed courses + follow-ups (Simon 7 Sep)
+
+- `listBlocks()` delegates carry `schemes` (from `category.scheme`); `block()`
+  derives `mixed` + `extraSchemes` (any delegate scheme ≠ block scheme,
+  internal courses excluded). Never stored.
+- `AddQual` (CalendarNext): "override the grouping" → grouping select → course
+  select (only if >1 course in the grouping) → qualification. Replaces the
+  "every scheme" tickbox. Needs `courses` prop (passed from the popover).
+- On an outside-grouping add, `onAddQual` calls `addFollowUp({kind:'override'…})`
+  (failure swallowed — the qual is already on) and the toast says "mixed".
+- Bars get `.mixed` (amber stripes over `--c`); popover header `.mixed` +
+  `.cx-mixed-tag`; key row `.cx-l-mixed`.
+- Migration `follow_up_table`: `follow_up` (kind, title, detail, booking/client/
+  session FKs set-null, created_by from session token, done_at/done_by), signed-in
+  RLS; RPCs `app_follow_up_add(kind,title,detail,booking,client,session)`,
+  `app_follow_up_done(id, bool)`. api.js `listFollowUps / addFollowUp /
+  setFollowUpDone`.
+- Dashboard module `followups` (ADMIN/STANDARD/SCHEDULER), `LAYOUT_VERSION` 3.
+  Done with Undo; links to delegate + course (`go('calendarnext',{id})` now
+  anchors on the block's own start when no date is passed).
+- Help: calendar FAQ for the override. Release title convention: plain and
+  factual (Chris, 10 Sep) — v1.65.0's title reworded.
+
+## 2026-09-10 — v1.65.0 Fixes and usability improvements (21 items from a whole-app review)
 
 ### Bugs
 - `Dashboard.jsx` STAT.outstanding `or: 'payments'` → `'pay'` (no such view).

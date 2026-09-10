@@ -2047,7 +2047,7 @@ export async function listBlocks() {
   if (LIVE) {
     const { data, error } = await supabase
       .from('session')
-      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,client_id,legacy_access_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname,needs_confirming,from_teamup_line),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
+      .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,client_id,legacy_access_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname,needs_confirming,from_teamup_line),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code,scheme))))')
       .order('start_date')
       // 495 imported runs plus everything since; the 1,000-row cap would
       // silently drop the NEWEST courses first once it is reached.
@@ -2084,6 +2084,9 @@ export async function listBlocks() {
         resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: (b.booking_category || []).map((x) => x.category?.code).filter(Boolean),
         categoryIds: (b.booking_category || []).map((x) => x.category_id),
+        // Which course groupings this person's qualifications belong to. A
+        // scheme that is not the course's own makes the run a MIXED course.
+        schemes: [...new Set((b.booking_category || []).map((x) => x.category?.scheme).filter(Boolean))],
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
         employer: b.company?.name || null,
       })),
@@ -2109,6 +2112,7 @@ export async function listBlocks() {
         resit: !!b.resat_kind, resatFrom: b.resat_from || null,
         codes: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.code).filter(Boolean),
         categoryIds: D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => x.category_id),
+        schemes: [...new Set(D.booking_categories.filter((x) => x.booking_id === b.booking_id).map((x) => cat(x.category_id)?.scheme).filter(Boolean))],
         attendFrom: b.attend_from || null, attendTo: b.attend_to || null,
         employer: co(b.company_id)?.name || null,
       })),
@@ -2134,7 +2138,54 @@ function block(b) {
   const ready = b.isInternal
     ? Boolean((b.attendees || []).length)
     : Boolean(b.trainerId && !trainerGone && b.delegates.length)
-  return { ...b, ready, trainerGone }
+  // MIXED: somebody on this run is doing a qualification from another course
+  // grouping ("I'll do my COM while I'm here"). Derived every time from what is
+  // actually booked, never stored, so it cannot drift from the truth. The
+  // calendar stripes the bar and the panel names the extra groupings.
+  const extraSchemes = b.isInternal ? [] : [...new Set((b.delegates || []).flatMap((d) => d.schemes || []).filter((sc) => b.scheme && sc !== b.scheme))]
+  const mixed = extraSchemes.length > 0
+  return { ...b, ready, trainerGone, mixed, extraSchemes }
+}
+
+/* ---- Follow-ups --------------------------------------------------------
+   "Somebody needs to ring them." Raised by the system (first: a qualification
+   added from outside the course's grouping) and ticked off on the Dashboard.
+   Generic on purpose — the waiting-list offer and the renewal chase can land
+   here later. */
+const fuShape = (f) => ({
+  id: f.follow_up_id, kind: f.kind, title: f.title, detail: f.detail || '',
+  bookingId: f.booking_id, clientId: f.client_id, sessionId: f.session_id,
+  by: f.created_by_name || '', at: f.created_at, doneAt: f.done_at || null,
+})
+export async function listFollowUps({ includeDone = false } = {}) {
+  if (LIVE) {
+    let q = supabase.from('follow_up').select('*').order('created_at', { ascending: false }).range(0, 499)
+    if (!includeDone) q = q.is('done_at', null)
+    const { data, error } = await q
+    if (error) throw new Error(error.message)
+    return (data || []).map(fuShape)
+  }
+  return (D.followUps || []).filter((f) => includeDone || !f.done_at).map(fuShape)
+}
+export async function addFollowUp({ kind = 'call', title, detail = '', bookingId = null, clientId = null, sessionId = null }) {
+  if (LIVE) {
+    const { data, error } = await supabase.rpc('app_follow_up_add', { p_kind: kind, p_title: title, p_detail: detail || null, p_booking: bookingId, p_client: clientId, p_session: sessionId })
+    if (error) throw new Error(error.message)
+    return fuShape(data)
+  }
+  D.followUps = D.followUps || []
+  const row = { follow_up_id: D.followUps.length + 1, kind, title, detail, booking_id: bookingId, client_id: clientId, session_id: sessionId, created_by_name: 'Demo', created_at: new Date().toISOString(), done_at: null }
+  D.followUps.unshift(row)
+  return fuShape(row)
+}
+export async function setFollowUpDone(id, done = true) {
+  if (LIVE) {
+    const { error } = await supabase.rpc('app_follow_up_done', { p_id: id, p_done: done })
+    if (error) throw new Error(error.message)
+    return
+  }
+  const f = (D.followUps || []).find((x) => x.follow_up_id === id)
+  if (f) f.done_at = done ? new Date().toISOString() : null
 }
 
 // ---------------------------------------------------------------------------

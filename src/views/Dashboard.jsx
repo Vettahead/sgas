@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { MiniMonth } from './CalendarNext.jsx'
-import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays, listInquiries, listMyMentions, INQUIRY_CLOSE_REASONS, listDocumentation, staffYearSummary } from '../lib/api.js'
+import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays, listInquiries, listMyMentions, INQUIRY_CLOSE_REASONS, listDocumentation, staffYearSummary, listFollowUps, setFollowUpDone } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { roleLabel } from '../lib/roles.js'
@@ -26,6 +26,9 @@ const MODULES = [
   { id: 'enquiries', title: '💬 Enquiries', roles: ['ADMIN', 'STANDARD', 'SCHEDULER'] },
   { id: 'docs', title: '📄 Certificates in progress', roles: ['ADMIN', 'STANDARD'] },
   { id: 'staffyear', title: '👷 Staff this year', roles: ['ADMIN'] },
+  // Reminders raised by the system — first: ring somebody whose booking had a
+  // qualification added from outside the course's grouping.
+  { id: 'followups', title: '📞 Follow-ups', roles: ['ADMIN', 'STANDARD', 'SCHEDULER'] },
 ]
 
 const OPEN_KEY = 'sgas_dash_open'
@@ -36,8 +39,8 @@ const defaultLayout = (role) => MODULES.filter((m) => m.roles.includes(role)).ma
 // anyone who had already customised — they would sit under "Add a module"
 // unseen. NEW_SINCE lists what each layout version brought; a saved layout
 // older than the current version gets those appended once.
-const LAYOUT_VERSION = 2
-const NEW_SINCE = { 2: ['enquiries', 'docs', 'staffyear'] }
+const LAYOUT_VERSION = 3
+const NEW_SINCE = { 2: ['enquiries', 'docs', 'staffyear'], 3: ['followups'] }
 function loadLayout(role) {
   try {
     const v = JSON.parse(localStorage.getItem(layoutKey(role)))
@@ -420,7 +423,49 @@ function renderModule(id, c) {
   if (id === 'enquiries') return <EnquiriesModule go={c.go} user={c.user} isOpen={c.isOpen} toggleCard={c.toggleCard} />
   if (id === 'docs') return <DocsModule go={c.go} isOpen={c.isOpen} toggleCard={c.toggleCard} />
   if (id === 'staffyear') return <StaffYearModule go={c.go} isOpen={c.isOpen} toggleCard={c.toggleCard} />
+  if (id === 'followups') return <FollowUpsModule go={c.go} isOpen={c.isOpen} toggleCard={c.toggleCard} />
   return null
+}
+
+// "Somebody needs to ring them." Ticked off here; Undo on the toast puts it
+// back. Renders even when empty so people know where these land.
+function FollowUpsModule({ go, isOpen, toggleCard }) {
+  const { data, reload } = useData(listFollowUps)
+  const rows = data || []
+  async function done(f) {
+    try {
+      await setFollowUpDone(f.id, true)
+      toast(`Done: ${f.title}`, { undo: async () => { try { await setFollowUpDone(f.id, false); reload() } catch (e) { toast(e.message) } } })
+      reload()
+    } catch (e) { toast('Could not save: ' + e.message) }
+  }
+  return (
+    <DashCard id="followups" title="📞 Follow-ups" badge={rows.length} count={rows.length} open={isOpen('followups')} onToggle={toggleCard}>
+      <table>
+        <thead><tr><th>What</th><th>Raised</th><th></th></tr></thead>
+        <tbody>
+          {!data && <tr><td colSpan={3} className="empty">Loading…</td></tr>}
+          {data && rows.length === 0 && <tr><td colSpan={3} className="empty">Nothing to follow up</td></tr>}
+          {rows.map((f) => (
+            <tr key={f.id}>
+              <td>
+                <b>{f.title}</b>
+                {f.detail && <div className="muted small">{f.detail}</div>}
+                <div className="small" style={{ marginTop: 4 }}>
+                  {f.clientId && <button className="dn-link" onClick={() => go('delegates', f.clientId)}>delegate</button>}
+                  {f.clientId && f.sessionId && ' · '}
+                  {f.sessionId && <button className="dn-link" onClick={() => go('calendarnext', { id: f.sessionId })}>course</button>}
+                </div>
+              </td>
+              <td className="muted small nowrap">{f.by}<br />{fmt(f.at)}</td>
+              <td className="nowrap"><button className="btn ghost sm" onClick={() => done(f)}>✓ Done</button></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="banner">Raised automatically — for now, when a qualification from another course grouping is added to somebody's booking on the calendar, which usually means something to timetable and a phone call. Tick it when it is dealt with.</div>
+    </DashCard>
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

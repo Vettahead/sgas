@@ -19,8 +19,17 @@
 
 export const RELEASES = [
   {
+    v: '1.66.0', build: 231, date: '10 Sep 2026',
+    title: 'Mixed courses: qualifications from another grouping, and follow-up reminders',
+    notes: [
+      'A delegate on a domestic week who also wants their COM or LPG, or their oil at the same time, can now have it put on their booking. Under the person on the course panel, "add a qual" has an "override the grouping" button: pick the grouping (ACS Commercial, LPG, OFTEC…), the course within it if there is more than one, then the qualification. The normal case — this course’s own qualifications — is unchanged and still one dropdown.',
+      'A run with anybody doing a qualification from another grouping is a mixed course. It shows as amber stripes over the course’s own colour on the calendar, so it still reads as that course with something extra on it; the panel carries a "mixed · +LPG" tag naming the extra groupings; and the key explains the stripes. This is worked out from what is booked, every time, so it can never be out of date.',
+      'Adding one raises a reminder: a new Follow-ups card on the Dashboard lists "Ring so-and-so — CENWAT (ACS Domestic) added on Commercial Gas 14 Sep", with links to the delegate and the course, and a Done tick with Undo. An override nearly always means something has to be timetabled that week or a different assessor found, which is a phone call. Other reminders will land in the same card in time.',
+    ],
+  },
+  {
     v: '1.65.0', build: 230, date: '10 Sep 2026',
-    title: 'A polish pass — twenty small things that got in the way',
+    title: 'Fixes and usability improvements across the app',
     notes: [
       'Six faults fixed. The "Payments outstanding" tile on the Dashboard went nowhere if you had removed the Outstanding card. The outstanding count was counting MLP (a programme marker, not a debt) and missing certificates and photos, so it never agreed with the Payments screen. "Scheduled sessions" counted every course since 2019 — it is now courses still to run. The Payments screen said Chase sent an email; it did not, it only recorded that you had chased — now it does both: records it and opens the email for you to send. Payments, Assess and the calendar were pulling unlimited lists, which past a thousand rows would have quietly dropped the newest bookings and courses. And a lapsed sign-in used to show "No companies" — as if the data had gone — instead of saying it could not load.',
       'Enter now submits every form, not just the sign-in: log an enquiry, save a delegate, a company, a course, a qualification, a staff member. After logging an enquiry the cursor goes straight back to Name for the next call.',

@@ -316,6 +316,13 @@ export const SECTIONS = [
         ],
       },
       {
+        q: 'They want to do a COM or LPG module on a domestic week. How?',
+        a: [
+          'Open the course, press “add a qual” under the person, then “override the grouping”. Pick the grouping (ACS Commercial, LPG, OFTEC…), the course within it if there is more than one, then the qualification, and Add. That is the group-first order rather than one long list.',
+          'Once anybody on a run holds a qualification from another grouping the run is a mixed course: amber stripes on the calendar bar, a “mixed · +LPG” tag at the top of its panel, and an entry in the key. A reminder to ring them lands in the Follow-ups card on the Dashboard — an override nearly always means something has to be timetabled or a different assessor found — and is ticked off there when dealt with.',
+        ],
+      },
+      {
         q: 'How do I create or change a course block on the calendar?',
         a: [
           'Drag across the days you want and a “new block” box opens for you to pick the course. To change an existing block, drag it to move it, or drag its edge to make it longer or shorter.',

@@ -11,6 +11,7 @@ import {
   listEngagements, createEngagement, updateEngagement, deleteEngagement,
   getSettings, getFormData, getBlockFormData,
   setBookingClient, addClientToBlock, updateClient, deleteClientRecord, searchDelegates,
+  addFollowUp,
 } from '../lib/api.js'
 import { dayLoad, loadLabel, peopleOn } from '../lib/seats.js'
 import { downloadCombined, downloadZip, downloadForm, formFaults } from '../lib/acspdf.js'
@@ -378,7 +379,7 @@ export function MiniMonth({ blocks, onOpen, selection, onPick, month: mIn, onMon
               })}
               {segs.filter((s) => s.row === r).map((s) => (
                 <button key={s.key} type="button"
-                  className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '')}
+                  className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (s.b.mixed ? ' mixed' : '')}
                   style={{
                     left: `calc(${(s.col / cols) * 100}% + 4px)`,
                     width: `calc(${(s.span / cols) * 100}% - 8px)`,
@@ -509,11 +510,10 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
   useEffect(() => {
     if (!focus || !blocks || focused.current === focus.at) return
     focused.current = focus.at
-    if (focus.date) { setDir(0); setAnchor(focus.date) }
-    if (focus.id != null) {
-      const b = blocks.find((x) => String(x.id) === String(focus.id))
-      if (b) { setAt(null); setOpen(b) }
-    }
+    const b = focus.id != null ? blocks.find((x) => String(x.id) === String(focus.id)) : null
+    const date = focus.date || b?.start
+    if (date) { setDir(0); setAnchor(date) }
+    if (b) { setAt(null); setOpen(b) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, blocks])
   // The rail is a sidebar of things to deal with, not part of the calendar —
@@ -1438,6 +1438,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
           <span><i className="cx-l-part" />Doing part of it</span>
           <span className="cx-l-sep" />
           <span><i className="cx-l-warn" />Needs a trainer or delegates</span>
+          <span><i className="cx-l-mixed" />Mixed course — somebody is doing a qualification from another grouping</span>
         </div>
       )}
 
@@ -1584,7 +1585,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
                   })}
                   {segments.filter((s) => s.row === r).map((s) => (
                     <button key={s.key} type="button" data-bid={s.b.id} data-head={s.head ? '1' : '0'}
-                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
+                      className={'cx-bar' + (s.b.isHoliday ? ' hol' : '') + (!s.b.ready ? ' warn' : '') + (s.b.mixed ? ' mixed' : '') + (flash === String(s.b.id) ? ' flash' : '') + dropClass('course', s.b.id)}
                       style={{
                         left: `calc(${(s.col / cols) * 100}% + 4px)`,
                         width: `calc(${(s.span / cols) * 100}% - 8px)`,
@@ -2084,8 +2085,9 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
         <Popover at={at} onClose={() => setOpen(null)} label={open.course} className="cx-course-pop">
           {/* No edit mode. You type into it and it saves — the way Calendars
               does it — instead of asking you to unlock the thing first. */}
-          <header className="cx-pop-head" style={{ '--c': open.color || '#5b6b80' }}>
+          <header className={'cx-pop-head' + (open.mixed ? ' mixed' : '')} style={{ '--c': open.color || '#5b6b80' }}>
             <span className="cx-pop-dot" />
+            {open.mixed && <span className="cx-mixed-tag" data-tip={`Somebody on this run is also doing ${open.extraSchemes.join(', ')}`}>mixed · +{open.extraSchemes.join(', ')}</span>}
             {canWrite ? (
               /* The course is changed HERE, at the top — it has always been a
                  picker, it just did not look like one, so a Teamup title read
@@ -2347,12 +2349,27 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
                       <Delegate key={d.bookingId} d={d} block={open} canWrite={canWrite} busy={busy}
                         formBusy={formBusy} onPrint={() => printForms('one', d)}
                         cats={cats}
+                        courses={courses}
                         onAddQual={async (categoryId, kind) => {
                           setBusy(true)
                           try {
                             const n = await addQualsToBooking(Number(d.bookingId), [{ category_id: Number(categoryId), kind }])
+                            const c = (cats || []).find((x) => String(x.category_id) === String(categoryId))
+                            // OUTSIDE the course's grouping = an override. That almost
+                            // always means "I normally do my oil at the same time" —
+                            // something to timetable and somebody to ring. Raise it.
+                            const outside = n && c && open.scheme && c.scheme !== open.scheme
+                            if (outside) {
+                              try {
+                                await addFollowUp({
+                                  kind: 'override', bookingId: Number(d.bookingId), clientId: d.clientId ?? null, sessionId: open.id,
+                                  title: `Ring ${d.name} — ${c.code} (${c.scheme}) added on ${open.course} ${fmt(open.start)}`,
+                                  detail: `${c.code} is outside this course's grouping (${open.scheme}). Check it can be timetabled and assessed that week.`,
+                                })
+                              } catch { /* the qualification is on; the reminder is a bonus */ }
+                            }
                             const x = await load(); setOpen(x.find((y) => y.id === open.id) || null)
-                            toast(n ? `Added to ${d.name}` : 'Already on their booking')
+                            toast(n ? (outside ? `${c.code} added to ${d.name} — this is now a mixed course, and a reminder to ring them is on the Dashboard` : `Added to ${d.name}`) : 'Already on their booking')
                           } catch (err) { toast(err.message) } finally { setBusy(false) }
                         }}
                         onDragStart={(e) => dragStart('delegate', { ...d, blockId: open.id }, d.name, schemeColour(open.scheme), e)}
@@ -3232,22 +3249,45 @@ function PersonPicker({ label, busy, exclude = [], onPick, onCancel }) {
 /* Another qualification for somebody already on the course.
    Two rows rather than the board's single cramped line: the catalogue is 110
    entries long and the dropdown needs the width more than the buttons do. */
-function AddQual({ d, block, cats, busy, onAdd, onCancel }) {
+/* The normal case is one dropdown: this course's own qualifications. "Override
+   the grouping" opens it out — pick the GROUP (scheme), then the course within
+   it if there is more than one, then the qualification — the order Simon asked
+   for on 7 Sep, rather than one flat list of 110. Adding one from another
+   grouping makes the run a mixed course and raises a reminder to ring them. */
+function AddQual({ d, block, cats, courses, busy, onAdd, onCancel }) {
   const [catId, setCatId] = useState('')
   const [kind, setKind] = useState('REASSESS')   // the common case, per the review meeting
-  const [all, setAll] = useState(false)
+  const [override, setOverride] = useState(false)
+  const [grp, setGrp] = useState('')
+  const [crs, setCrs] = useState('')
   const held = new Set(d.categoryIds || [])
-  const scheme = block.scheme
-  const inScope = (all || !scheme) ? (cats || []) : (cats || []).filter((c) => c.scheme === scheme)
+  const home = block.scheme
+  const schemes = [...new Set((cats || []).map((c) => c.scheme).filter(Boolean))].sort()
+  const scheme = override ? grp : home
+  const coursesIn = (courses || []).filter((c) => c.scheme === scheme && !c.is_internal)
+  const inScope = !scheme ? (cats || []) : (cats || []).filter((c) => c.scheme === scheme)
   const free = inScope.filter((c) => !held.has(c.category_id))
+  const outside = override && grp && home && grp !== home
   return (
     <span className="cx-addq" onPointerDown={(e) => e.stopPropagation()}>
-      <select value={catId} disabled={busy} onChange={(e) => setCatId(e.target.value)} aria-label="Qualification">
-        <option value="">Pick a qualification…</option>
+      {override && (
+        <span className="cx-addq-row">
+          <select value={grp} disabled={busy} onChange={(e) => { setGrp(e.target.value); setCrs(''); setCatId('') }} aria-label="Course grouping">
+            <option value="">Pick a grouping…</option>
+            {schemes.map((sc) => <option key={sc} value={sc}>{sc}{sc === home ? ' (this course)' : ''}</option>)}
+          </select>
+          {coursesIn.length > 1 && (
+            <select value={crs} disabled={busy} onChange={(e) => setCrs(e.target.value)} aria-label="Course">
+              <option value="">Any course in {grp}</option>
+              {coursesIn.map((c) => <option key={c.course_id} value={c.course_id}>{c.name}</option>)}
+            </select>
+          )}
+        </span>
+      )}
+      <select value={catId} disabled={busy || (override && !grp)} onChange={(e) => setCatId(e.target.value)} aria-label="Qualification">
+        <option value="">{override && !grp ? 'Pick a grouping first…' : 'Pick a qualification…'}</option>
         {free.map((c) => (
-          <option key={c.category_id} value={c.category_id}>
-            {c.code} · {c.description}{all && scheme && c.scheme !== scheme ? ` [${c.scheme}]` : ''}
-          </option>
+          <option key={c.category_id} value={c.category_id}>{c.code} · {c.description}</option>
         ))}
       </select>
       <span className="cx-addq-row">
@@ -3255,17 +3295,17 @@ function AddQual({ d, block, cats, busy, onAdd, onCancel }) {
           <button className={kind === 'REASSESS' ? 'on' : ''} onClick={() => setKind('REASSESS')}>Reassessment</button>
           <button className={kind === 'NEW' ? 'on' : ''} onClick={() => setKind('NEW')}>New</button>
         </span>
-        <label className="cx-addq-all">
-          <input type="checkbox" checked={all} onChange={(e) => setAll(e.target.checked)} />
-          every scheme
-        </label>
+        <button type="button" className={'cx-x' + (override ? ' on' : '')} onClick={() => { setOverride((v) => !v); setGrp(''); setCrs(''); setCatId('') }}
+          data-tip={override ? 'Back to this course\'s own qualifications' : 'Add a qualification from another course grouping — COM or LPG on a domestic week, oil at the same time'}>
+          {override ? 'this course only' : 'override the grouping'}
+        </button>
         <button className="cx-x" disabled={busy || !catId} onClick={() => onAdd(catId, kind)}>Add</button>
         <button className="cx-x" onClick={onCancel}>Cancel</button>
       </span>
-      {free.length === 0 && (
+      {outside && <em className="cx-addq-none">Outside this course's grouping: the run becomes a <b>mixed course</b> and a reminder to ring {d.name} goes on the Dashboard.</em>}
+      {free.length === 0 && scheme && (
         <em className="cx-addq-none">
-          {d.name} already has every {all || !scheme ? '' : scheme + ' '}qualification.
-          {!all && scheme ? ' Tick “every scheme” to look wider.' : ''}
+          {d.name} already has every {scheme} qualification.{!override ? ' Use “override the grouping” to look in another.' : ''}
         </em>
       )}
     </span>
@@ -3328,7 +3368,7 @@ function DaysGrid({ days, blocks, onOpen, canWrite, onBarDown, flash, single, ch
           ))}
           {allDay.map(({ b, col, span, lane }) => (
             <button key={b.id} type="button" data-bid={b.id}
-              className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (flash === String(b.id) ? ' flash' : '') + (dropClass?.('course', b.id) || '')}
+              className={'cx-bar' + (b.isHoliday ? ' hol' : '') + (!b.ready && !b.isHoliday && !b.isEngagement ? ' warn' : '') + (b.mixed ? ' mixed' : '') + (flash === String(b.id) ? ' flash' : '') + (dropClass?.('course', b.id) || '')}
               style={{ left: `calc(${(col / days.length) * 100}% + 4px)`, width: `calc(${(span / days.length) * 100}% - 8px)`,
                 top: lane * 28 + 5, height: 24, '--c': b.color || '#5b6b80' }}
               onPointerDown={(e) => {
