@@ -4,6 +4,12 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-10 — v1.67.1 Fix: Book crashed after load
+
+- `Book.jsx`: the `saving` `useState` (v1.65.0 double-click guard) sat below the
+  `if (!dres || l2 || l3 || l4) return` loading return, so the hook count changed
+  between the first and second render — React #310, blank page. Moved above.
+
 ## 2026-09-10 — v1.67.0 Timesheet (Simon 7 Sep)
 
 - New `src/views/Timesheet.jsx`: modal (uses `components/Modal.jsx`) opened from

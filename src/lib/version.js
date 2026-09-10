@@ -19,6 +19,13 @@
 
 export const RELEASES = [
   {
+    v: '1.67.1', build: 233, date: '10 Sep 2026',
+    title: 'Fix: Book a Delegate crashed after loading',
+    notes: [
+      'Book a Delegate showed a blank page with an error once the delegate list had loaded. Fixed.',
+    ],
+  },
+  {
     v: '1.67.0', build: 232, date: '10 Sep 2026',
     title: 'Timesheet: one person\u2019s year of training and assisting, for accounts',
     notes: [

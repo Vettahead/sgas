@@ -144,6 +144,10 @@ export default function Book({ prefill = null }) {
     return out
   }, [blocks])
 
+  // Double-click guard for every save on this screen. Above the loading
+  // return: a hook below it changes the hook count between renders.
+  const [saving, setSaving] = useState(false)
+
   // Only the FIRST delegate load blocks the screen. Blocking on l1 afterwards
   // would tear the form down on every keystroke and throw away the focus.
   if (!dres || l2 || l3 || l4) return <div className="loading">Loading…</div>
@@ -193,7 +197,6 @@ export default function Book({ prefill = null }) {
     catch (e) { toast('Could not remove it: ' + e.message) }
   }
 
-  const [saving, setSaving] = useState(false)
   async function saveCompany() {
     if (saving) return
     if (!nco.name.trim()) return toast('Company name required')
