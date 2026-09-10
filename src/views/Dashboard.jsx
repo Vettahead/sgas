@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { MiniMonth } from './CalendarNext.jsx'
 import { getDashboard, listBlocks, recordRenewalContact, getRenewalContacts, RENEWAL_COLD_THRESHOLD, listHolidayRequests, decideHoliday, getSettings, canApproveHolidays, listInquiries, listMyMentions, INQUIRY_CLOSE_REASONS, listDocumentation, staffYearSummary } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
@@ -93,7 +93,7 @@ export default function Dashboard({ go, user }) {
   const STAT = {
     renew:       [counts.renew,       `Expiring within ${windowLabel}`, 'amber', { card: 'renewals',    or: 'delegates' }],
     sessions:    [counts.sessions,    'Scheduled sessions',             'brand', { go: 'calendar' }],
-    outstanding: [counts.outstanding, 'Payments outstanding',           'green', { card: 'outstanding', or: 'payments' }],
+    outstanding: [counts.outstanding, 'Payments outstanding',           'green', { card: 'outstanding', or: 'pay' }],
     unassigned:  [counts.unassigned,  'Blocks awaiting assignment',     'amber', { card: 'scheduling',  or: 'calendar' }],
     toAssess:    [counts.toAssess,    'Delegates to assess',            'brand', { card: 'assessment',  or: 'assess' }],
     cold:        [counts.cold,        'On the cold list (phone)',       'green', { card: 'cold',        or: 'delegates' }],
@@ -344,7 +344,7 @@ function renderModule(id, c) {
                 <td><b>{b.course}</b></td>
                 <td className="nowrap">{fmt(b.start)} – {fmt(b.end)}</td>
                 <td>{b.missing.length ? b.missing.map((m) => <span key={m} className="b pend" style={{ marginRight: 4 }}>{m}</span>) : <span className="muted small">—</span>}</td>
-                <td><button className="btn ghost sm" onClick={() => go('calendarnext')}>Open the calendar</button></td>
+                <td><button className="btn ghost sm" onClick={() => go('calendarnext', { date: b.start, id: b.id })}>Open the calendar</button></td>
               </tr>
             ))}
           </tbody>
@@ -365,7 +365,7 @@ function renderModule(id, c) {
                 <td><b>{b.course}</b></td>
                 <td className="nowrap">{fmt(b.start)} – {fmt(b.end)}</td>
                 <td style={{ textAlign: 'center' }}>{b.count}</td>
-                <td><button className="btn ghost sm" onClick={() => go('assess')}>Open assess</button></td>
+                <td><button className="btn ghost sm" onClick={() => go('assess', b.id)}>Open assess</button></td>
               </tr>
             ))}
           </tbody>
@@ -374,16 +374,23 @@ function renderModule(id, c) {
     )
   }
   if (id === 'outstanding') {
-    const { chase, isOpen, toggleCard } = c
+    const { chase, isOpen, toggleCard, go } = c
     return (
       <DashCard id="outstanding" title="💷 Outstanding — to chase" badge={chase.length} open={isOpen('outstanding')} onToggle={toggleCard}>
         <table>
-          <thead><tr><th>Delegate</th><th>Payer</th><th>Flags</th></tr></thead>
+          <thead><tr><th>Delegate</th><th>Payer</th><th>Outstanding</th></tr></thead>
           <tbody>
             {chase.length === 0 && <tr><td colSpan={3} className="empty">All clear</td></tr>}
-            {chase.map((x, i) => (<tr key={i}><td>{x.name}</td><td>{x.payer}</td><td><span className="b due">{x.flags.join(', ')}</span></td></tr>))}
+            {chase.map((x, i) => (
+              <tr key={x.bookingId || i}>
+                <td>{x.clientId ? <button className="dn-link" onClick={() => go('delegates', x.clientId)}>{x.name}</button> : x.name}</td>
+                <td>{x.payer}</td>
+                <td><span className="b due">{x.flags.join(', ')}</span></td>
+              </tr>
+            ))}
           </tbody>
         </table>
+        <div className="body" style={{ paddingTop: 10 }}><button className="btn ghost sm" onClick={() => go('pay')}>Open Payments &amp; chase</button></div>
       </DashCard>
     )
   }
@@ -678,8 +685,14 @@ function ContactLog({ clientId, code, cols }) {
 
 function CallModal({ target, onSave, onClose }) {
   const [note, setNote] = useState('')
+  // Escape closes, like every other dialog in the app; so does the backdrop.
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true" aria-label={`Log call — ${target.name}`}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>📞 Log call — {target.name}</h3>
         <div className="muted small">{target.code} · expires {fmt(target.expiry)}{target.mobile ? ' · ' + target.mobile : ''}</div>

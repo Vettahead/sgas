@@ -53,12 +53,16 @@ export default function Documentation({ go }) {
   }, [rows])
   const shown = rows.filter((d) => d.stage === tab)
 
+  // One click stamps it — and one click on Undo (in the message at the bottom)
+  // puts it back, instead of hunting the row on another tab to clear it.
   async function stamp(d, stage, date = todayISO()) {
     setBusy(d.bookingId)
+    const prev = stage === 'sent' ? d.sent : stage === 'received' ? d.received : d.client
     try {
       await setCertStage(d.bookingId, stage, date)
       const what = stage === 'sent' ? 'sent to the awarding body' : stage === 'received' ? 'received back' : 'sent to the client'
-      toast(`${d.name} · ${d.course}: ${what}${date ? ' ' + fmt(date) : ' — cleared'}`)
+      toast(`${d.name} · ${d.course}: ${what}${date ? ' ' + fmt(date) : ' — cleared'}`,
+        { undo: async () => { try { await setCertStage(d.bookingId, stage, prev || null); reload() } catch (e) { toast(e.message) } } })
       reload()
     } catch (e) { toast(e.message) } finally { setBusy(null) }
   }

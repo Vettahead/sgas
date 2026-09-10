@@ -437,7 +437,7 @@ export const SECTIONS = [
       {
         q: 'How does chasing work?',
         a: [
-          'Press Chase on a booking and it emails the company’s accounts contact, stamps the date, and records the items in a chase log. Each chase carries the booking’s ID so reception can search their sent mail for it.',
+          'Press Chase on a booking and it stamps the date, records the items in the chase log, and opens an email to the company’s contact with the outstanding items already written — you check it and press send. Nothing is sent without you. Each chase carries the booking’s ID so reception can search their sent mail for it. Use the search box and the filter chips at the top (Only outstanding is the usual one) to find a company or a booking number; every flag you flip can be undone from the message at the bottom of the screen.',
           'There is a Sage reference box to tie a booking back to its record in Sage, and a Log button to see the history of chases on that booking.',
         ],
       },

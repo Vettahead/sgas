@@ -7,9 +7,9 @@ import { fmt, initials, resultClass } from '../lib/util.js'
 // Book a Delegate can show the same answer while somebody is on the phone.
 import { renewalSummary, RENEWAL_BADGE } from '../lib/renewals.js'
 
-export default function Delegates({ openDelegate }) {
+export default function Delegates({ openDelegate, go }) {
   const [selected, setSelected] = useState(openDelegate || null)
-  if (selected) return <DelegateDetail clientId={selected} back={() => setSelected(null)} />
+  if (selected) return <DelegateDetail clientId={selected} back={() => setSelected(null)} go={go} />
   return <DelegateList onOpen={setSelected} />
 }
 
@@ -35,30 +35,33 @@ function EditDelegate({ client, onSaved, onCancel }) {
   })
   const [busy, setBusy] = useState(false)
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  async function save() {
+    if (busy) return
+    setBusy(true)
+    try { await updateClient(client.client_id, f); toast('Saved'); onSaved() }
+    catch (e) { toast(e.message) } finally { setBusy(false) }
+  }
+  // A form, so Enter saves — the way every box on the Login screen already did.
   return (
-    <div className="subform">
+    <form className="subform" onSubmit={(e) => { e.preventDefault(); save() }}>
       <div className="sfh">Edit delegate</div>
       <div className="twocol">
         <Inp label="Forename" v={f.forename} on={set('forename')} />
         <Inp label="Surname" v={f.surname} on={set('surname')} />
       </div>
       <div className="twocol">
-        <Inp label="NI number" v={f.ni_number} on={set('ni_number')} />
+        <Inp label="NI number" v={f.ni_number} on={set('ni_number')} kind="ni" />
         <Inp label="Date of birth" type="date" v={f.date_of_birth} on={set('date_of_birth')} />
       </div>
       <div className="twocol">
-        <Inp label="Mobile" v={f.mobile} on={set('mobile')} />
-        <Inp label="Email" v={f.email} on={set('email')} />
+        <Inp label="Mobile" v={f.mobile} on={set('mobile')} type="tel" />
+        <Inp label="Email" v={f.email} on={set('email')} type="email" />
       </div>
       <div className="inrow">
-        <button className="btn sm" disabled={busy} onClick={async () => {
-          setBusy(true)
-          try { await updateClient(client.client_id, f); toast('Saved'); onSaved() }
-          catch (e) { toast(e.message) } finally { setBusy(false) }
-        }}>Save changes</button>
-        <button className="btn ghost sm" disabled={busy} onClick={onCancel}>Cancel</button>
+        <button type="submit" className="btn sm" disabled={busy}>Save changes</button>
+        <button type="button" className="btn ghost sm" disabled={busy} onClick={onCancel}>Cancel</button>
       </div>
-    </div>
+    </form>
   )
 }
 
@@ -100,11 +103,14 @@ function DeleteDelegate({ client, onDone, onCancel }) {
   )
 }
 
-function Inp({ label, v, on, type = 'text' }) {
+// type="tel" / "email" bring up the right keyboard on a tablet; kind="ni"
+// capitalises as you type, because an NI number is always upper case.
+function Inp({ label, v, on, type = 'text', kind = null }) {
+  const extra = kind === 'ni' ? { autoCapitalize: 'characters', style: { textTransform: 'uppercase' } } : {}
   return (
     <div className="field">
       <label className="fl">{label}</label>
-      <input type={type} value={v} onChange={on} />
+      <input type={type} value={v} onChange={on} {...extra} />
     </div>
   )
 }
@@ -150,13 +156,14 @@ function DelegateList({ onOpen }) {
           {loading && <tr><td colSpan={6} className="empty">Searching…</td></tr>}
           {!loading && rows.length === 0 && <tr><td colSpan={6} className="empty">No matching delegates</td></tr>}
           {!loading && rows.map((c) => (
-            <tr key={c.client_id} className="clickrow" onClick={() => onOpen(c.client_id)}>
+            <tr key={c.client_id} className="clickrow" tabIndex={0} role="button" onClick={() => onOpen(c.client_id)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onOpen(c.client_id) }}>
               <td><b>{c.forename} {c.surname}</b></td>
               <td>{c.company}</td>
               <td className="muted">{c.ni_number || '—'}</td>
               <td className="muted">{c.date_of_birth ? fmt(c.date_of_birth) : '—'}</td>
-              <td className="muted">{c.mobile || '—'}</td>
-              <td className="muted">{c.email || '—'}</td>
+              <td className="muted"><Reach kind="tel" v={c.mobile} /></td>
+              <td className="muted"><Reach kind="mailto" v={c.email} /></td>
             </tr>
           ))}
         </tbody>
@@ -234,7 +241,15 @@ function Duplicates({ onOpen, onClose }) {
   )
 }
 
-function DelegateDetail({ clientId, back }) {
+// A phone number you can tap to ring, an email you can tap to write — the way
+// Enquiries already does it. stopPropagation so the row click does not fire.
+function Reach({ kind, v }) {
+  if (!v) return '—'
+  const href = kind === 'tel' ? 'tel:' + String(v).replace(/\s+/g, '') : 'mailto:' + v
+  return <a href={href} onClick={(e) => e.stopPropagation()}>{v}</a>
+}
+
+function DelegateDetail({ clientId, back, go }) {
   const { data, loading, reload } = useData(() => getDelegateHistory(clientId), [clientId])
   const [mode, setMode] = useState(null)   // 'edit' | 'delete' | null
   if (loading || !data) return <div className="loading">Loading history…</div>
@@ -250,6 +265,7 @@ function DelegateDetail({ clientId, back }) {
         <span style={{ marginLeft: 'auto' }} />
         <button className="btn ghost sm" onClick={() => setMode(mode === 'edit' ? null : 'edit')}>✎ Edit details</button>
         <button className="btn ghost sm" onClick={() => setMode(mode === 'delete' ? null : 'delete')}>Delete record</button>
+        {go && <button className="btn sm" onClick={() => go('book', { clientId, name: `${client.forename} ${client.surname}` })} title="Open Book a Delegate with this person already picked">＋ Book them on a course</button>}
       </div>
       <div className="card" style={{ marginBottom: 18 }}>
         <h3>
@@ -266,11 +282,18 @@ function DelegateDetail({ clientId, back }) {
               onDone={() => { setMode(null); back() }} onCancel={() => setMode(null)} />
           )}
           <div className="twocol">
-            <Field label="Associated company" value={client.company} />
+            <div className="field">
+              <label className="fl">Associated company</label>
+              <div style={{ padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: '#f7f9fc' }}>
+                {client.company_id && go
+                  ? <button className="dn-link" onClick={() => go('companies', client.company_id)} title="Open the company">{client.company || '—'}</button>
+                  : (client.company || '—')}
+              </div>
+            </div>
             <Field label="NI number" value={client.ni_number} />
             <Field label="Date of birth" value={client.date_of_birth ? fmt(client.date_of_birth) : '—'} />
-            <Field label="Mobile" value={client.mobile} />
-            <Field label="Email" value={client.email} />
+            <div className="field"><label className="fl">Mobile</label><div style={{ padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: '#f7f9fc' }}><Reach kind="tel" v={client.mobile} /></div></div>
+            <div className="field"><label className="fl">Email</label><div style={{ padding: '9px 11px', border: '1px solid var(--line)', borderRadius: 8, background: '#f7f9fc' }}><Reach kind="mailto" v={client.email} /></div></div>
           </div>
         </div>
       </div>

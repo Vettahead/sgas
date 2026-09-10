@@ -431,7 +431,9 @@ export function MiniYear({ year, blocks, selection, onPick }) {
   )
 }
 
-export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
+// focus: { date, id, at } from another screen ("Open the calendar" on the
+// Dashboard) — land on that course's month and open it, not on today.
+export default function CalendarNext({ canWrite, user, go, onSetup, reload, focus = null }) {
   // `canWrite` is the scheduler capability, not admin-ness — see canSchedule()
   // in lib/roles.js. Everything that changes a course, a holiday or a diary
   // entry is gated on it; everything else is visible to anyone who can open
@@ -503,6 +505,17 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
   // just finished dragging.
   const justDragged = useRef(false)
   const [at, setAt] = useState(null)   // the bar the popover is anchored to
+  const focused = useRef(null)
+  useEffect(() => {
+    if (!focus || !blocks || focused.current === focus.at) return
+    focused.current = focus.at
+    if (focus.date) { setDir(0); setAnchor(focus.date) }
+    if (focus.id != null) {
+      const b = blocks.find((x) => String(x.id) === String(focus.id))
+      if (b) { setAt(null); setOpen(b) }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus, blocks])
   // The rail is a sidebar of things to deal with, not part of the calendar —
   // it slides in when you want it and gets out of the way when you don't.
   const [rail, setRail] = useState(() => {
@@ -1298,8 +1311,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
             </div>
           )}
           <div className="cx-steps">
-            <button onClick={() => step(-1)} aria-label="Previous month" data-tip="Previous">‹</button>
-            <button onClick={() => step(1)} aria-label="Next month" data-tip="Next">›</button>
+            <button onClick={() => step(-1)} aria-label={`Previous ${view.toLowerCase()}`} data-tip={`Previous ${view.toLowerCase()}`}>‹</button>
+            <button onClick={() => step(1)} aria-label={`Next ${view.toLowerCase()}`} data-tip={`Next ${view.toLowerCase()}`}>›</button>
           </div>
           <button className="cx-today" onClick={goToday} data-tip="Jump back to today">Today</button>
           {/* Beside the controls, not in a band of its own above the grid. */}
@@ -2377,6 +2390,7 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
                             const x = await load(); setOpen(x.find((y) => y.id === open.id) || null); toast(`${d.name} confirmed`)
                           } catch (err) { toast(err.message) } finally { setBusy(false) }
                         }}
+                        onOpenRecord={go && d.clientId ? () => go('delegates', d.clientId) : null}
                         onDelete={async () => {
                           setBusy(true)
                           try {
@@ -2558,6 +2572,11 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload }) {
           {/* There is no Save button, so the popover has to say so. */}
           <footer className="cx-pop-foot">
             {busy ? <><span className="cx-spin" />Saving…</> : <>✓ Changes save as you make them</>}
+            {/* Straight to marking this course — Assess used to open on a blank
+                picker with this week's course at the bottom of hundreds. */}
+            {go && !open.isInternal && open.delegates.length > 0 && (
+              <button className="cx-x" onClick={() => go('assess', open.id)} data-tip="Open Assess on this course">Assess this course</button>
+            )}
             {/* Removing a course was simply not possible here — deleteBlock was
                 never even imported. Two steps rather than a browser confirm box,
                 so the question is answered where it is asked. The database
@@ -3056,7 +3075,7 @@ function RailCard({ id, title, count, shut, onToggle, className = '', children }
 
 /* One person on a course: what they are here for, and whether they are only
    doing part of it — the "split" case. */
-function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove, onDragStart, onPrint, onAddQual, onRename, onSwap, onConfirm, onDelete }) {
+function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove, onDragStart, onPrint, onAddQual, onRename, onSwap, onConfirm, onDelete, onOpenRecord }) {
   const [edit, setEdit] = useState(false)
   // Adding a qualification to somebody already booked on. It opens under THEM,
   // rather than as a separate screen, because the question is always "another
@@ -3084,7 +3103,10 @@ function Delegate({ d, block, canWrite, busy, formBusy, cats, onSplit, onRemove,
           people pushed the panel past its height and made you scroll for the
           rows underneath. This is two lines, always. */}
       <b className="cx-dname">
-        {d.name}
+        {/* The name opens their record — Simon was retyping it in Delegates. */}
+        {onOpenRecord
+          ? <button type="button" className="cx-namelink" onClick={onOpenRecord} data-tip={`Open ${d.name}'s record`}>{d.name}</button>
+          : d.name}
         {/* Invented by the Teamup note parser and not yet confirmed as a real
             person. The line it came from is the tooltip — that is the evidence
             Simon judges by. */}

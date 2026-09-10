@@ -51,6 +51,7 @@ export default function Book({ prefill = null }) {
   const [picked, setPicked] = useState(null)
   const [catKind, setCatKind] = useState(() => new Map()) // category_id -> 'REASSESS' | 'NEW'
   const [collapsed, setCollapsed] = useState({})
+  const [qualFilter, setQualFilter] = useState('')
   const [opts, setOpts] = useState(EMPTY_OPTS)
   const [mlpCourses, setMlpCourses] = useState(() => new Set())
   const [showNewClient, setShowNewClient] = useState(false)
@@ -67,6 +68,16 @@ export default function Book({ prefill = null }) {
   // list to pick, rather than a duplicate being created.
   useEffect(() => {
     if (!prefill) return
+    // From a delegate's record ("Book them on a course"): the person is
+    // already on file, so pick them — no new-delegate form.
+    if (prefill.clientId) {
+      const id = String(prefill.clientId)
+      setClientId(id)
+      getDelegateHistory(Number(id)).then((h) => {
+        if (h?.client) { setPicked({ ...h.client, company: h.client.company }); setQuery(prefill.name || '') }
+      }).catch(() => {})
+      return
+    }
     const parts = (prefill.name || '').trim().split(/\s+/)
     const forename = parts.shift() || ''
     const surname = parts.join(' ')
@@ -80,6 +91,8 @@ export default function Book({ prefill = null }) {
   // out, so "your water and plumbing is due in three months — do it the same
   // week" is a sentence she can say on the phone. Loaded when a delegate is
   // picked; refreshed after a wrong imported line is removed.
+  const catById = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.category_id, c)); return m }, [categories])
+  const catByCode = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.code, c)); return m }, [categories])
   const [held, setHeld] = useState(null) // renewalSummary rows, or null while loading / none picked
   const [heldTick, setHeldTick] = useState(0)
   useEffect(() => {
@@ -87,7 +100,16 @@ export default function Book({ prefill = null }) {
     let alive = true
     setHeld(null)
     getDelegateHistory(Number(clientId))
-      .then((h) => { if (alive) setHeld(renewalSummary(h?.bookings || [])) })
+      .then((h) => {
+        if (!alive) return
+        const rows = renewalSummary(h?.bookings || [])
+        setHeld(rows)
+        // Open the course groups they already hold something in — that is
+        // almost always where the next booking lives.
+        const open = {}
+        for (const r of rows) { const c = catByCode.get(r.code); if (c) open[c.scheme] = false }
+        setCollapsed((prev) => ({ ...prev, ...open }))
+      })
       .catch(() => { if (alive) setHeld([]) })
     return () => { alive = false }
   }, [clientId, heldTick])
@@ -104,8 +126,6 @@ export default function Book({ prefill = null }) {
     return g
   }, [categories])
 
-  const catById = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.category_id, c)); return m }, [categories])
-  const catByCode = useMemo(() => { const m = new Map(); (categories || []).forEach((c) => m.set(c.code, c)); return m }, [categories])
 
   // Upcoming, bookable runs by scheme: not internal, not already finished,
   // within the next few months, soonest first.
@@ -173,9 +193,14 @@ export default function Book({ prefill = null }) {
     catch (e) { toast('Could not remove it: ' + e.message) }
   }
 
+  const [saving, setSaving] = useState(false)
   async function saveCompany() {
+    if (saving) return
     if (!nco.name.trim()) return toast('Company name required')
-    const row = await createCompany(nco)
+    setSaving(true)
+    let row
+    try { row = await createCompany(nco) } catch (e) { setSaving(false); return toast('Could not save the company: ' + e.message) }
+    setSaving(false)
     reloadCompanies()
     setNc((p) => ({ ...p, company_id: String(row.company_id) }))
     setNco({ name: '', address: '', contact_name: '', phone: '', email: '', sage_ref: '' })
@@ -184,9 +209,13 @@ export default function Book({ prefill = null }) {
   }
 
   async function saveClient() {
+    if (saving) return
     if (!nc.forename.trim() || !nc.surname.trim()) return toast('Forename and surname required')
     if (!nc.company_id) return toast('Pick or add a company')
-    const row = await createClient({ ...nc, company_id: Number(nc.company_id) })
+    setSaving(true)
+    let row
+    try { row = await createClient({ ...nc, company_id: Number(nc.company_id) }) } catch (e) { setSaving(false); return toast('Could not save the delegate: ' + e.message) }
+    setSaving(false)
     reloadDelegates()
     setClientId(String(row.client_id))
     setPicked(row)
@@ -290,19 +319,19 @@ export default function Book({ prefill = null }) {
             </div>
 
             {showNewClient && (
-              <div className="subform">
+              <div className="subform" onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'search') { e.preventDefault(); if (showNewCompany && e.target.closest('.subform .subform')) saveCompany(); else saveClient() } }}>
                 <div className="sfh">New delegate</div>
                 <div className="twocol">
                   <Inp label="Forename" v={nc.forename} on={(v) => setNc({ ...nc, forename: v })} />
                   <Inp label="Surname" v={nc.surname} on={(v) => setNc({ ...nc, surname: v })} />
                 </div>
                 <div className="twocol">
-                  <Inp label="NI number" v={nc.ni_number} on={(v) => setNc({ ...nc, ni_number: v })} placeholder="AB123456C" />
+                  <Inp label="NI number" v={nc.ni_number} on={(v) => setNc({ ...nc, ni_number: v })} placeholder="AB123456C" kind="ni" />
                   <Inp label="Date of birth" type="date" v={nc.date_of_birth} on={(v) => setNc({ ...nc, date_of_birth: v })} />
                 </div>
                 <div className="twocol">
-                  <Inp label="Mobile" v={nc.mobile} on={(v) => setNc({ ...nc, mobile: v })} />
-                  <Inp label="Email" v={nc.email} on={(v) => setNc({ ...nc, email: v })} />
+                  <Inp label="Mobile" v={nc.mobile} on={(v) => setNc({ ...nc, mobile: v })} type="tel" />
+                  <Inp label="Email" v={nc.email} on={(v) => setNc({ ...nc, email: v })} type="email" />
                 </div>
                 <div className="twocol">
                   <Inp label="House name / number" v={nc.premise} on={(v) => setNc({ ...nc, premise: v })} />
@@ -334,20 +363,20 @@ export default function Book({ prefill = null }) {
                       onResolved={(a) => setNco((p) => ({ ...p, _postcode: a.postcode, address: p.address?.trim() ? p.address : [a.town, a.county, a.postcode].filter(Boolean).join(', ') }))} />
                     <div className="twocol">
                       <Inp label="Contact" v={nco.contact_name} on={(v) => setNco({ ...nco, contact_name: v })} />
-                      <Inp label="Phone" v={nco.phone} on={(v) => setNco({ ...nco, phone: v })} />
+                      <Inp label="Phone" v={nco.phone} on={(v) => setNco({ ...nco, phone: v })} type="tel" />
                     </div>
                     <div className="twocol">
-                      <Inp label="Email" v={nco.email} on={(v) => setNco({ ...nco, email: v })} />
+                      <Inp label="Email" v={nco.email} on={(v) => setNco({ ...nco, email: v })} type="email" />
                       <Inp label="Sage ref" v={nco.sage_ref} on={(v) => setNco({ ...nco, sage_ref: v })} />
                     </div>
                     <div className="inrow">
-                      <button className="btn sm" onClick={saveCompany}>Save company</button>
+                      <button className="btn sm" disabled={saving} onClick={saveCompany}>Save company</button>
                       <button className="btn ghost sm" onClick={() => setShowNewCompany(false)}>Cancel</button>
                     </div>
                   </div>
                 )}
                 <div className="inrow">
-                  <button className="btn sm" onClick={saveClient}>Save delegate</button>
+                  <button className="btn sm" disabled={saving} onClick={saveClient}>Save delegate</button>
                   <button className="btn ghost sm" onClick={() => setShowNewClient(false)}>Cancel</button>
                 </div>
               </div>
@@ -499,9 +528,16 @@ export default function Book({ prefill = null }) {
           <h3>② Qualifications to attempt <span className="tag">{catKind.size} selected</span></h3>
           <div className="body">
             <div className="hint">Click each qualification to cycle <b style={{ color: '#0a5ad6' }}>Reassessment</b> → <b style={{ color: '#1a8a4b' }}>New</b> → off. Set <b>once, here</b>; after the assessment you flip these to pass/fail.</div>
-            {Object.entries(grouped).map(([scheme, arr]) => {
-              const sel = arr.filter((c) => catKind.has(c.category_id)).length
-              const isCollapsed = collapsed[scheme] ?? true
+            <div className="field">
+              <input type="search" value={qualFilter} placeholder="Find a qualification — code or description, e.g. CCN1 or water" onChange={(e) => setQualFilter(e.target.value)} />
+            </div>
+            {Object.entries(grouped).map(([scheme, all]) => {
+              const qf = qualFilter.trim().toLowerCase()
+              const arr = qf ? all.filter((c) => (c.code || '').toLowerCase().includes(qf) || (c.description || '').toLowerCase().includes(qf)) : all
+              if (qf && !arr.length) return null
+              const sel = all.filter((c) => catKind.has(c.category_id)).length
+              // Filtering opens every group that has a match; otherwise as before.
+              const isCollapsed = qf ? false : (collapsed[scheme] ?? true)
               return (
                 <div className={'cgroup' + (isCollapsed ? ' collapsed' : '')} key={scheme}>
                   <div className="ch" onClick={() => setCollapsed({ ...collapsed, [scheme]: !isCollapsed })}>
@@ -570,11 +606,14 @@ function PostcodeLookup({ value, onChange, onResolved }) {
   )
 }
 
-function Inp({ label, v, on, type = 'text', placeholder }) {
+// type="tel" / "email" bring up the right keyboard on a tablet; kind="ni"
+// capitalises as you type, because an NI number is always upper case.
+function Inp({ label, v, on, type = 'text', placeholder, kind = null }) {
+  const extra = kind === 'ni' ? { autoCapitalize: 'characters', style: { textTransform: 'uppercase' } } : {}
   return (
     <div className="field">
       <label className="fl">{label}</label>
-      <input type={type} value={v} placeholder={placeholder} onChange={(e) => on(e.target.value)} />
+      <input type={type} value={v} placeholder={placeholder} onChange={(e) => on(e.target.value)} {...extra} />
     </div>
   )
 }

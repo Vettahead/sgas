@@ -1,20 +1,35 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { listBlocks, getSessionBookings, markCategory, setDisposition, setAssessNotes, assignBlockRole, listStaff, listSchemes, getFormData, getBlockFormData } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
-import { fmt, initials, resultClass, dispLabel, delegateStatus } from '../lib/util.js'
+import { fmt, initials, resultClass, dispLabel, delegateStatus, todayISO } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 import { downloadForm, downloadCombined } from '../lib/acspdf.js'
 
-export default function Assess() {
+// openBlock: { id, at } from the Dashboard or the calendar — open that course
+// straight away instead of landing on the blank picker.
+export default function Assess({ openBlock = null }) {
   const { data: blocks, loading, reload: reloadBlocks } = useData(listBlocks)
   const { data: staff } = useData(listStaff)
   const { data: schemes } = useData(listSchemes)
-  const [sid, setSid] = useState('')
+  const [sid, setSid] = useState(() => (openBlock?.id ? String(openBlock.id) : ''))
   const [schemeFilter, setSchemeFilter] = useState('')
+  // The list used to be every course ever, oldest first — this week's at the
+  // bottom of hundreds. Now: recent and upcoming (a month either side), newest
+  // first, with a switch for the lot.
+  const [allTime, setAllTime] = useState(false)
+  useEffect(() => { if (openBlock?.id) setSid(String(openBlock.id)) }, [openBlock])
   if (loading || !blocks) return <div className="loading">Loading sessions…</div>
 
   const block = blocks.find((b) => b.id === Number(sid))
-  const shownBlocks = schemeFilter ? blocks.filter((b) => b.scheme === schemeFilter) : blocks
+  const today = todayISO()
+  const lo = new Date(); lo.setDate(lo.getDate() - 31)
+  const hi = new Date(); hi.setDate(hi.getDate() + 31)
+  const inWindow = (b) => (b.end || b.start) >= lo.toISOString().slice(0, 10) && b.start <= hi.toISOString().slice(0, 10)
+  const shownBlocks = blocks
+    .filter((b) => !b.isInternal)
+    .filter((b) => !schemeFilter || b.scheme === schemeFilter)
+    .filter((b) => allTime || inWindow(b) || String(b.id) === sid)
+    .sort((a, b) => (b.start || '').localeCompare(a.start || ''))
 
   return (
     <>
@@ -27,9 +42,9 @@ export default function Assess() {
         </select>
       </div>
       <div className="field" style={{ maxWidth: 460 }}>
-        <label className="fl">Select a session to assess</label>
+        <label className="fl">Select a session to assess <label className="chk" style={{ display: 'inline-flex', marginLeft: 12, fontWeight: 500 }}><input type="checkbox" checked={allTime} onChange={(e) => setAllTime(e.target.checked)} /> show every course, not just this month or so</label></label>
         <select value={sid} onChange={(e) => setSid(e.target.value)}>
-          <option value="">— choose session —</option>
+          <option value="">— choose session —{shownBlocks.length ? ` (${shownBlocks.length}, newest first)` : ''}</option>
           {shownBlocks.map((b) => (
             <option key={b.id} value={b.id}>{b.course} · {fmt(b.start)}{b.end && b.end !== b.start ? '–' + fmt(b.end) : ''}{b.trainer ? ' · ' + b.trainer : ''}</option>
           ))}
@@ -102,21 +117,31 @@ function DelegateCard({ d, reload }) {
   const counts = { PASS: 0, FAIL: 0, NYC: 0, PENDING: 0 }
   d.categories.forEach((x) => { counts[x.result] = (counts[x.result] || 0) + 1 })
 
+  // Every click says what it did — a Fail used to save silently, and a save
+  // that FAILED said nothing at all. Undo puts the previous result back.
   async function mark(x, result) {
-    await markCategory(x.bookingCategoryId, result)
-    if (result === 'PASS') toast(`${x.code} passed — expiry auto-calculated`)
-    reload()
+    const prev = x.result
+    try {
+      await markCategory(x.bookingCategoryId, result)
+      toast(result === 'PASS' ? `${d.name}: ${x.code} passed — expiry auto-calculated` : `${d.name}: ${x.code} marked ${result === 'NYC' ? 'NYC' : 'Fail'}`,
+        { undo: async () => { try { await markCategory(x.bookingCategoryId, prev); reload() } catch (e) { toast(e.message) } } })
+      reload()
+    } catch (e) { toast('Could not save: ' + e.message) }
   }
   async function disp(value) {
+    const prev = d.disposition || 'NONE'
     const next = d.disposition === value ? 'NONE' : value
-    await setDisposition(d.bookingId, next)
-    toast(next === 'NONE' ? 'Attendance cleared' : `Marked ${dispLabel(next)} — goes back to scheduling`)
-    reload()
+    try {
+      await setDisposition(d.bookingId, next)
+      toast(next === 'NONE' ? `${d.name}: attendance cleared` : `${d.name} marked ${dispLabel(next)} — goes back to scheduling`,
+        { undo: async () => { try { await setDisposition(d.bookingId, prev); reload() } catch (e) { toast(e.message) } } })
+      reload()
+    } catch (e) { toast('Could not save: ' + e.message) }
   }
   async function saveNote() {
     if (note !== (d.assessNotes || '')) {
-      await setAssessNotes(d.bookingId, note)
-      toast('Notes saved')
+      try { await setAssessNotes(d.bookingId, note); toast('Notes saved') }
+      catch (e) { toast('Could not save the note: ' + e.message) }
     }
   }
   async function genForm() {

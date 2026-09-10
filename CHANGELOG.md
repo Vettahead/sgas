@@ -4,6 +4,60 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-10 — v1.65.0 QoL pass (21 items from a whole-app review)
+
+### Bugs
+- `Dashboard.jsx` STAT.outstanding `or: 'payments'` → `'pay'` (no such view).
+- `getDashboard`: chase query now `flag_igas|payment|cert|photo` (MLP dropped —
+  a programme marker); rows carry `bookingId`/`clientId`; `flagList` labels
+  Certification/Photo/IGAS/Payment. Sessions tile = `end_date >= today`.
+- `listPayments`: `.order(id desc).range(0,4999)`, throws on error, adds
+  clientId/course/start/payerEmail/payerContact. `listBlocks`: `.range(0,4999)`
+  + throws. 24 `const { data } = await supabase…` list calls now destructure
+  `error` and throw (script-applied; scoped blocks checked).
+- `useData` (hooks.js) toasts a load failure — lapsed sign-in wording when the
+  message looks like auth — instead of leaving "Loading…"/"No companies".
+- Payments "Chase emails the company" was false: `chase()` now records AND
+  opens a prefilled `mailto:` to `company.email`; banner + Help reworded.
+
+### Shared
+- `toast(msg, { undo })` + `ToastHost`: duration = max(2.8 s, 45 ms/char),
+  6 s min when undoable, Undo button (`.toast-undo`), `role=status`.
+- `App.jsx` `go(v, param)`: `calendarnext` takes `{date,id}` → `focus` prop;
+  `assess` takes a block id → `openBlock`; `companies` takes an id →
+  `openCompany`; `navTick` keys Delegates/Companies so a repeat menu click
+  returns to the list.
+- `styles.css`: `input[type=tel]` added to the global input rule (the untyped
+  input gotcha), `.toast-undo`, `.cx-namelink`.
+
+### Screens
+- Inquiries: Enter submits (name/email/mobile), focus back to Name after
+  logging, `loadingFor` ref guards the thread fetch, tel/email input types.
+- Delegates: `Reach` tel/mailto in list + record, company → `go('companies')`,
+  "＋ Book them on a course" → `go('book', {clientId,name})`, EditDelegate is a
+  `<form>`, Inp types (tel/email/ni), rows keyboard-openable.
+- Companies: `EditCompany` (`updateCompany` in api.js, COMPANY_FIELDS incl.
+  payment_terms_days), Reach links, `openCompany` prop, keyboard rows.
+- Book: `prefill.clientId` picks an existing delegate (no new-delegate form);
+  held schemes auto-expand (`catByCode` hoisted above the effect); qualification
+  search box; `saving` guard + try/catch on saveClient/saveCompany; Enter in
+  the subforms; Inp types.
+- Assess: `openBlock` prop; list = non-internal, ±31 days (or all), newest
+  first; mark/disp toast + Undo + try/catch; note save try/catch.
+- Admin: toasts on changeRole/toggleActive; `adding` guard on addStaff; Enter
+  on the new-staff Inps; CreatedModal Escape + backdrop.
+- Courses: `useSave(fn)` guard + `enterTo(save)` on all five forms (QualRow's
+  hook moved above its early return).
+- Payments: FILTERS chips (default Only outstanding), search, course/date
+  column, RESULT_WORD, name → delegate record, flag Undo, Sage-ref toast.
+- Documentation: stamp Undo restores the previous date.
+- Dashboard: chase rows link to the delegate + "Open Payments & chase"; awaiting
+  → `go('calendarnext',{date,id})`; assess → `go('assess', id)`; CallModal
+  Escape + backdrop.
+- CalendarNext: `focus` effect (anchor + open block, centred popover); step
+  buttons labelled by view; delegate name → `onOpenRecord` → delegate record;
+  "Assess this course" in the popover footer.
+
 ## 2026-09-09 — v1.64.0 Hand-editing the imported calendar (Simon 7 Sep)
 
 - `listBlocks()` delegates now carry `clientId`, `unconfirmed`

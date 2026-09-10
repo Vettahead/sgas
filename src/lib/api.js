@@ -57,17 +57,23 @@ export async function getDashboard({ windowDays = RENEWAL_WINDOW_DEFAULT } = {})
     // Contact history (staged follow-up counts).
     const { data: rc } = await supabase.from('renewal_contact').select('client_id,category_code,sent_at')
     const contacts = contactIndex(rc || [])
+    // "Scheduled sessions" means courses still to run — not every course since
+    // 2019, which is what a bare count of the table gave.
     const { count: sessions } = await supabase
-      .from('session').select('*', { count: 'exact', head: true })
+      .from('session').select('*', { count: 'exact', head: true }).gte('end_date', todayISO())
+    // Outstanding = things to CHASE. MLP is a programme marker, not a debt, so
+    // it is not one; certificate and photo outstanding are, and were missing —
+    // which is why this number never matched the Payments screen.
     const { data: chaseRows } = await supabase
       .from('booking')
-      .select('booking_id,flag_mlp,flag_igas,flag_payment_outstanding,client:client_id(forename,surname),company:company_id(name)')
-      .or('flag_mlp.eq.true,flag_igas.eq.true,flag_payment_outstanding.eq.true')
+      .select('booking_id,client_id,flag_igas,flag_payment_outstanding,flag_cert_outstanding,flag_photo_outstanding,client:client_id(forename,surname),company:company_id(name)')
+      .or('flag_igas.eq.true,flag_payment_outstanding.eq.true,flag_cert_outstanding.eq.true,flag_photo_outstanding.eq.true')
     const dueAll = (lq || [])
       .filter((r) => !bookedSet.has(`${r.client_id}:${r.category_code}`))
       .map((r) => renewalEntry(r.client_id, `${r.forename} ${r.surname}`, r.category_code, r.category_desc, r.scheme, r.expiry_date, r.days_to_expiry, r.email, r.mobile, contacts))
     const chase = (chaseRows || []).map((b) => ({
-      name: `${b.client.forename} ${b.client.surname}`, payer: b.company?.name || '—', flags: flagList(b),
+      bookingId: b.booking_id, clientId: b.client_id,
+      name: `${b.client?.forename || ''} ${b.client?.surname || ''}`.trim() || '—', payer: b.company?.name || '—', flags: flagList(b),
     }))
     return dashboardShape(dueAll, chase, await listMLPs(), sessions || 0, windowDays, blockSummaries(await listBlocks()))
   }
@@ -88,10 +94,11 @@ export async function getDashboard({ windowDays = RENEWAL_WINDOW_DEFAULT } = {})
     })
     .filter((x) => !pendingSet.has(`${x.clientId}:${x.code}`))
     .map((x) => x.entry)
-  const chase = D.bookings.filter((b) => b.flag_mlp || b.flag_igas || b.flag_payment_outstanding).map((b) => ({
+  const chase = D.bookings.filter((b) => b.flag_igas || b.flag_payment_outstanding || b.flag_cert_outstanding || b.flag_photo_outstanding).map((b) => ({
+    bookingId: b.booking_id, clientId: b.client_id,
     name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`, payer: co(b.company_id)?.name || '—', flags: flagList(b),
   }))
-  return dashboardShape(dueAll, chase, await listMLPs(), D.sessions.length, windowDays, blockSummaries(await listBlocks()))
+  return dashboardShape(dueAll, chase, await listMLPs(), D.sessions.filter((s) => !s.end_date || s.end_date >= todayISO()).length, windowDays, blockSummaries(await listBlocks()))
 }
 
 // Role-relevant block worklists for the per-user dashboards (§4.10).
@@ -163,10 +170,11 @@ export async function recordRenewalContact(clientId, code, channel = 'email', no
 // so the renewal/cold-list rows can show a reviewable log of emails and calls.
 export async function getRenewalContacts(clientId, code) {
   if (LIVE) {
-    const { data } = await supabase.from('renewal_contact')
+    const { data, error } = await supabase.from('renewal_contact')
       .select('renewal_contact_id,sent_at,channel,notes')
       .eq('client_id', clientId).eq('category_code', code)
       .order('sent_at', { ascending: false })
+    if (error) throw new Error(error.message)
     return (data || []).map((r) => ({ id: r.renewal_contact_id, at: r.sent_at, channel: r.channel, notes: r.notes || '' }))
   }
   return (D.renewal_contact || [])
@@ -176,15 +184,16 @@ export async function getRenewalContacts(clientId, code) {
 }
 
 function flagList(b) {
-  return [b.flag_mlp && 'MLP', b.flag_igas && 'IGAS', b.flag_payment_outstanding && 'Payment'].filter(Boolean)
+  return [b.flag_cert_outstanding && 'Certification', b.flag_photo_outstanding && 'Photo', b.flag_igas && 'IGAS', b.flag_payment_outstanding && 'Payment'].filter(Boolean)
 }
 
 export async function listDelegates() {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('client')
       .select('client_id,forename,surname,ni_number,date_of_birth,mobile,email,company_id,company:company_id(name)')
       .order('surname', { ascending: true })
+    if (error) throw new Error(error.message)
     return (data || []).map((c) => ({ ...c, company: c.company?.name || '—' }))
   }
   return D.clients.map((c) => ({
@@ -294,7 +303,7 @@ export async function getDelegateHistory(clientId) {
   if (LIVE) {
     const { data: client } = await supabase
       .from('client')
-      .select('client_id,forename,surname,ni_number,date_of_birth,mobile,email,company:company_id(name)')
+      .select('client_id,forename,surname,ni_number,date_of_birth,mobile,email,company_id,company:company_id(name)')
       .eq('client_id', clientId).single()
     const { data: bookings } = await supabase
       .from('booking')
@@ -453,7 +462,8 @@ export function staffYearSummary(blocks, year) {
 
 export async function listCompanies() {
   if (LIVE) {
-    const { data } = await supabase.from('company').select('*').order('name')
+    const { data, error } = await supabase.from('company').select('*').order('name')
+    if (error) throw new Error(error.message)
     const { data: clients } = await supabase.from('client').select('company_id')
     const counts = tally(clients || [], 'company_id')
     return (data || []).map((c) => ({ ...c, delegates: counts[c.company_id] || 0, sendToEmployer: c.send_to_employer !== false }))
@@ -508,7 +518,8 @@ export async function setSendToEmployer(companyId, value) {
 
 export async function listAssessors() {
   if (LIVE) {
-    const { data } = await supabase.from('assessor').select('*').order('name')
+    const { data, error } = await supabase.from('assessor').select('*').order('name')
+    if (error) throw new Error(error.message)
     const { data: sessions } = await supabase.from('session').select('assessor_id')
     const counts = tally(sessions || [], 'assessor_id')
     return (data || []).map((a) => ({ ...a, sessions: counts[a.assessor_id] || 0, color: ASSESSOR_COLOR[a.assessor_id] || '#48566a' }))
@@ -527,7 +538,8 @@ export async function listClientCourses() {
 
 export async function listCourses() {
   if (LIVE) {
-    const { data } = await supabase.from('course').select('*').order('name')
+    const { data, error } = await supabase.from('course').select('*').order('name')
+    if (error) throw new Error(error.message)
     const { data: cats } = await supabase.from('category').select('scheme')
     const { data: sessions } = await supabase.from('session').select('course_id')
     const catCounts = tally(cats || [], 'scheme')
@@ -544,7 +556,8 @@ export async function listCourses() {
 
 export async function listCategories() {
   if (LIVE) {
-    const { data } = await supabase.from('category').select('*').eq('is_active', true).order('code')
+    const { data, error } = await supabase.from('category').select('*').eq('is_active', true).order('code')
+    if (error) throw new Error(error.message)
     return data || []
   }
   return D.categories
@@ -559,10 +572,11 @@ export async function listBookableCategories() {
 
 export async function listSessions() {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('session')
       .select('session_id,start_date,end_date,assessor:assessor_id(assessor_id,name,assigned_room),course:course_id(name,scheme)')
       .order('start_date')
+    if (error) throw new Error(error.message)
     return (data || []).map((s) => ({
       session_id: s.session_id, start_date: s.start_date, end_date: s.end_date,
       assessor_id: s.assessor?.assessor_id, assessor: s.assessor?.name, room: s.assessor?.assigned_room,
@@ -578,11 +592,12 @@ export async function listSessions() {
 
 export async function getSessionBookings(sessionId) {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('booking')
       .select('booking_id,client_id,overall_result,disposition,assess_notes,attend_from,attend_to,client:client_id(forename,surname),booking_category(booking_category_id,result,achieved_date,expiry_date,category:category_id(code,description))')
       .eq('session_id', sessionId)
       .order('booking_id')
+    if (error) throw new Error(error.message)
     const rows = data || []
     const clientIds = [...new Set(rows.map((b) => b.client_id))]
     const noShows = {}
@@ -650,7 +665,8 @@ const FORM_SELECT = 'booking_id,is_reassessment,client:client_id(*),company:comp
 
 export async function getFormData(bookingId) {
   if (LIVE) {
-    const { data } = await supabase.from('booking').select(FORM_SELECT).eq('booking_id', bookingId).single()
+    const { data, error } = await supabase.from('booking').select(FORM_SELECT).eq('booking_id', bookingId).single()
+    if (error) throw new Error(error.message)
     return data ? formDelegate(data) : null
   }
   const b = D.bookings.find((x) => x.booking_id === bookingId)
@@ -663,7 +679,8 @@ export async function getFormData(bookingId) {
 
 export async function getBlockFormData(sessionId) {
   if (LIVE) {
-    const { data } = await supabase.from('booking').select(FORM_SELECT).eq('session_id', sessionId)
+    const { data, error } = await supabase.from('booking').select(FORM_SELECT).eq('session_id', sessionId)
+    if (error) throw new Error(error.message)
     return (data || []).map(formDelegate)
   }
   return D.bookings.filter((b) => b.session_id === sessionId).map((b) => {
@@ -674,21 +691,31 @@ export async function getBlockFormData(sessionId) {
   })
 }
 
+// Newest first and RANGED. PostgREST caps an unranged select at 1,000 rows,
+// and there are 6,000+ bookings — ordered ascending by id that meant the 1,000
+// OLDEST showed and every recent booking was missing from the Payments screen.
+// The screen searches and filters what it gets; 5,000 newest is more than the
+// years anybody chases.
 export async function listPayments() {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('booking')
-      .select('booking_id,overall_result,disposition,flag_mlp,flag_igas,flag_payment_outstanding,flag_cert_outstanding,flag_photo_outstanding,sage_ref,igas_evidence_date,last_chased,client:client_id(forename,surname),company:company_id(name)')
-      .order('booking_id')
+      .select('booking_id,client_id,overall_result,disposition,flag_mlp,flag_igas,flag_payment_outstanding,flag_cert_outstanding,flag_photo_outstanding,sage_ref,igas_evidence_date,last_chased,client:client_id(forename,surname),company:company_id(name,email,contact_name),session:session_id(start_date,course:course_id(name))')
+      .order('booking_id', { ascending: false })
+      .range(0, 4999)
+    if (error) throw new Error(error.message)
     return (data || []).map((b) => ({
-      bookingId: b.booking_id, name: `${b.client.forename} ${b.client.surname}`, payer: b.company?.name || '—',
+      bookingId: b.booking_id, clientId: b.client_id, name: `${b.client?.forename || ''} ${b.client?.surname || ''}`.trim() || '—', payer: b.company?.name || '—',
+      course: b.session?.course?.name || null, start: b.session?.start_date || null,
+      payerEmail: b.company?.email || null, payerContact: b.company?.contact_name || null,
       overall: b.overall_result, disposition: b.disposition || 'NONE', mlp: b.flag_mlp, igas: b.flag_igas, pay: b.flag_payment_outstanding,
       cert: b.flag_cert_outstanding, photo: b.flag_photo_outstanding, sageRef: b.sage_ref || '', lastChased: b.last_chased,
       igasEvidenceDate: b.igas_evidence_date || null, igasExpiry: b.igas_evidence_date ? addMonths(b.igas_evidence_date, 60) : null,
     }))
   }
-  return D.bookings.map((b) => ({
-    bookingId: b.booking_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`, payer: co(b.company_id)?.name || '—',
+  return [...D.bookings].reverse().map((b) => ({
+    bookingId: b.booking_id, clientId: b.client_id, name: `${cl(b.client_id).forename} ${cl(b.client_id).surname}`, payer: co(b.company_id)?.name || '—',
+    course: crs(ses(b.session_id)?.course_id)?.name || null, start: ses(b.session_id)?.start_date || null,
     overall: demoRollup(b.booking_id), disposition: b.disposition || 'NONE', mlp: b.flag_mlp, igas: b.flag_igas, pay: b.flag_payment_outstanding,
     cert: b.flag_cert_outstanding, photo: b.flag_photo_outstanding, sageRef: b.sage_ref || '', lastChased: b.last_chased,
     igasEvidenceDate: b.igas_evidence_date || null, igasExpiry: b.igas_evidence_date ? addMonths(b.igas_evidence_date, 60) : null,
@@ -716,9 +743,10 @@ export function getPool() {
 // rather than schedule a fresh draft.
 export async function getReschedulePool() {
   if (LIVE) {
-    const { data } = await supabase.from('booking')
+    const { data, error } = await supabase.from('booking')
       .select('booking_id,client_id,company_id,disposition,client:client_id(forename,surname,mobile,email),booking_category(category_id,result,category:category_id(scheme))')
       .in('disposition', ['NYC', 'NO_SHOW']).eq('rescheduled', false)
+    if (error) throw new Error(error.message)
     return (data || []).map((b) => {
       const remaining = (b.booking_category || []).filter((x) => x.result !== 'PASS')
       const scheme = remaining[0]?.category?.scheme || null
@@ -823,6 +851,25 @@ export async function createCompany(d) {
   D.companies.push(row)
   return row
 }
+// Edit a company in place — a wrong phone number used to mean re-importing
+// from Sage. Same clean-up rule as updateClient: '' is "no value", not a value.
+const COMPANY_FIELDS = ['name', 'address', 'contact_name', 'phone', 'email', 'sage_ref', 'payment_terms_days']
+export async function updateCompany(companyId, patch) {
+  const clean = {}
+  for (const k of COMPANY_FIELDS) {
+    if (!(k in patch)) continue
+    clean[k] = patch[k] === '' ? null : patch[k]
+  }
+  if (clean.payment_terms_days != null) clean.payment_terms_days = Number(clean.payment_terms_days)
+  if (!String(clean.name ?? 'x').trim()) throw new Error('A company needs a name')
+  if (LIVE) {
+    const { error } = await supabase.from('company').update(clean).eq('company_id', companyId)
+    if (error) throw new Error(error.message)
+    return
+  }
+  const c = co(companyId)
+  if (c) Object.assign(c, clean)
+}
 
 export async function createClient(d) {
   if (LIVE) {
@@ -913,7 +960,8 @@ export const INQUIRY_CLOSE_REASONS = [
 // closed itself; one query rather than three keeps the counts honest.
 export async function listInquiries() {
   if (LIVE) {
-    const { data } = await supabase.from('inquiry').select('*').order('created_at', { ascending: false }).range(0, 999)
+    const { data, error } = await supabase.from('inquiry').select('*').order('created_at', { ascending: false }).range(0, 999)
+    if (error) throw new Error(error.message)
     return (data || []).map(inqShape)
   }
   return [...D.inquiries].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).map(inqShape)
@@ -999,7 +1047,8 @@ export async function listInquiryLastMessages() {
   const out = new Map()
   let rows
   if (LIVE) {
-    const { data } = await supabase.from('inquiry_message').select('*').order('created_at', { ascending: false }).range(0, 1999)
+    const { data, error } = await supabase.from('inquiry_message').select('*').order('created_at', { ascending: false }).range(0, 1999)
+    if (error) throw new Error(error.message)
     rows = data || []
   } else {
     rows = [...demoMsgs()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -1111,11 +1160,12 @@ export async function addToPool(client, cats, opts = {}) {
 // booking with a result is history; only a PENDING one is a queue.
 export async function loadPool() {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('booking')
       .select('booking_id,client_id,company_id,is_reassessment,flag_mlp,flag_igas,pref_date_from,pref_date_to,client:client_id(forename,surname,mobile,email),booking_category(category_id,is_reassessment,category:category_id(scheme))')
       .is('session_id', null)
       .eq('overall_result', 'PENDING')
+    if (error) throw new Error(error.message)
     poolList.length = 0
     for (const b of data || []) {
       const bcs = b.booking_category || []
@@ -1282,7 +1332,8 @@ export async function setSageRef(bookingId, ref) {
 
 export async function getChaseLog(bookingId) {
   if (LIVE) {
-    const { data } = await supabase.from('chase_log').select('chase_id,chased_at,items,channel').eq('booking_id', bookingId).order('chased_at', { ascending: false })
+    const { data, error } = await supabase.from('chase_log').select('chase_id,chased_at,items,channel').eq('booking_id', bookingId).order('chased_at', { ascending: false })
+    if (error) throw new Error(error.message)
     return (data || []).map((r) => ({ id: r.chase_id, at: r.chased_at, items: r.items || '', channel: r.channel }))
   }
   return D.chase_log.filter((x) => x.booking_id === bookingId)
@@ -1504,7 +1555,8 @@ export async function setUserPassword(userId, password, adminAuth) {
 async function passedCourseIdsByClient(clientIds) {
   const out = {}
   if (!clientIds.length) return out
-  const { data } = await supabase.from('booking').select('client_id,session:session_id(course_id)').eq('overall_result', 'PASS').in('client_id', clientIds)
+  const { data, error } = await supabase.from('booking').select('client_id,session:session_id(course_id)').eq('overall_result', 'PASS').in('client_id', clientIds)
+  if (error) throw new Error(error.message)
   for (const b of data || []) (out[b.client_id] = out[b.client_id] || new Set()).add(b.session?.course_id)
   return out
 }
@@ -1707,7 +1759,8 @@ export async function listHolidays({ includeRejected = false } = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getSettings() {
   if (LIVE) {
-    const { data } = await supabase.from('app_setting').select('key,value')
+    const { data, error } = await supabase.from('app_setting').select('key,value')
+    if (error) throw new Error(error.message)
     const out = {}
     for (const r of data || []) out[r.key] = r.value
     return out
@@ -1741,9 +1794,10 @@ export function canApproveHolidays(user, settings) {
 // Everything still waiting on somebody, for the approver's list.
 export async function listHolidayRequests() {
   if (LIVE) {
-    const { data } = await supabase.from('holiday')
+    const { data, error } = await supabase.from('holiday')
       .select('holiday_id,staff_id,start_date,end_date,note,status,decision_note,staff:staff_id(name)')
       .eq('status', 'REQUESTED').order('start_date')
+    if (error) throw new Error(error.message)
     return (data || []).map((h) => holidayShape(h, h.staff?.name || '—'))
   }
   return (D.holidays || []).filter((h) => h.status === 'REQUESTED')
@@ -1991,10 +2045,14 @@ const attendeeRows = (sessionId) => attendeeDemo
 // (trainer, assessor, verifier, and any number of assists) and its delegates.
 export async function listBlocks() {
   if (LIVE) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('session')
       .select('session_id,start_date,end_date,seats,teamup_event_id,trainer_id,assessor_id,verifier_id,course:course_id(course_id,name,scheme,color,teamup_designator,default_seats,is_internal),session_attendee(session_attendee_id,staff_id,from_date,to_date,note,staff:staff_id(name)),trainer:trainer_id(name,left_on),assessor:assessor_id(name),verifier:verifier_id(name),session_assist(session_assist_id,staff_id,from_date,to_date,note,staff:staff_id(name)),booking(booking_id,client_id,legacy_access_id,is_reassessment,disposition,resat_from,resat_kind,attend_from,attend_to,client:client_id(forename,surname,needs_confirming,from_teamup_line),company:company_id(name),booking_category(category_id,is_reassessment,category:category_id(code))))')
       .order('start_date')
+      // 495 imported runs plus everything since; the 1,000-row cap would
+      // silently drop the NEWEST courses first once it is reached.
+      .range(0, 4999)
+    if (error) throw new Error(error.message)
     return (data || []).map((s) => block({
       id: s.session_id, start: s.start_date, end: s.end_date, designator: s.course?.teamup_designator,
       seats: s.seats ?? null, courseSeats: s.course?.default_seats ?? null,
@@ -2397,9 +2455,10 @@ export async function listTeamupMonth(month) {
 
 export async function getSessionOrigin(sessionId) {
   if (!LIVE) return null
-  const { data } = await supabase.from('teamup_event')
+  const { data, error } = await supabase.from('teamup_event')
     .select('event_id,title,who,start_dt,end_dt,class_staff_id,staff:class_staff_id(name)')
     .eq('session_id', sessionId).order('start_dt')
+  if (error) throw new Error(error.message)
   const list = data || []
   if (list.length < 1) return null
 
@@ -2469,7 +2528,8 @@ export async function assignBlockRole(blockId, role, staffId) {
   let prev = null
   if (role === 'trainer') {
     if (LIVE) {
-      const { data } = await supabase.from('session').select('trainer_id').eq('session_id', blockId).maybeSingle()
+      const { data, error } = await supabase.from('session').select('trainer_id').eq('session_id', blockId).maybeSingle()
+      if (error) throw new Error(error.message)
       prev = data ? data.trainer_id : null
     } else {
       const s0 = ses(blockId)
@@ -2564,7 +2624,8 @@ export async function deleteCategory(categoryId) {
 // Distinct schemes from the category catalogue — single source for all filter dropdowns.
 export async function listSchemes() {
   if (LIVE) {
-    const { data } = await supabase.from('category').select('scheme')
+    const { data, error } = await supabase.from('category').select('scheme')
+    if (error) throw new Error(error.message)
     return [...new Set((data || []).map((r) => r.scheme).filter(Boolean))].sort()
   }
   return [...new Set(D.categories.map((c) => c.scheme).filter(Boolean))].sort()
@@ -2617,8 +2678,9 @@ export async function updateBlock(sessionId, { from, to, courseId }) {
   // The dates it is moving FROM, for the email. Read first, same reason as above.
   let before = null
   if (LIVE) {
-    const { data } = await supabase.from('session')
+    const { data, error } = await supabase.from('session')
       .select('start_date,end_date,trainer_id').eq('session_id', sessionId).maybeSingle()
+    if (error) throw new Error(error.message)
     before = data || null
   } else {
     const s0 = D.sessions.find((x) => x.session_id === sessionId)
@@ -3213,9 +3275,10 @@ export async function saveEmailTemplate({ key, subject, body, enabled, mailbox }
 // a trainer on it, so the preview shows real names and real dates rather than
 // invented ones.
 async function previewSession() {
-  const { data } = await supabase.from('session')
+  const { data, error } = await supabase.from('session')
     .select('session_id,trainer_id').not('trainer_id', 'is', null)
     .order('start_date', { ascending: false }).limit(1)
+  if (error) throw new Error(error.message)
   return (data || [])[0] || null
 }
 
@@ -3223,8 +3286,9 @@ const HOLIDAY_KINDS = ['holiday_requested', 'holiday_approved', 'holiday_rejecte
 
 // Something real to render against, chosen by what the email is about.
 async function previewHoliday() {
-  const { data } = await supabase.from('holiday')
+  const { data, error } = await supabase.from('holiday')
     .select('holiday_id').order('start_date', { ascending: false }).limit(1)
+  if (error) throw new Error(error.message)
   return (data || [])[0] || null
 }
 

@@ -85,6 +85,20 @@ function SchemeDatalist({ schemes }) {
   return <datalist id="schemes-list">{schemes.map((s) => <option key={s} value={s} />)}</datalist>
 }
 
+// One save guard for every form on this screen: a double-click on "Add" used
+// to make two courses, and a save that FAILED said nothing at all.
+function useSave(fn) {
+  const [busy, setBusy] = useState(false)
+  const run = async (...args) => {
+    if (busy) return
+    setBusy(true)
+    try { await fn(...args) } catch (e) { toast('Could not save: ' + (e?.message || e)) } finally { setBusy(false) }
+  }
+  return [run, busy]
+}
+// Enter in any box of a form submits it.
+const enterTo = (fn) => (e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type !== 'checkbox') { e.preventDefault(); fn() } }
+
 function Field({ label, v, on, placeholder }) {
   return (
     <div className="field">
@@ -108,14 +122,15 @@ function ConfirmDelete({ what, onConfirm }) {
 
 function AddCourse({ onDone }) {
   const [d, setD] = useState({ name: '', scheme: '', price: '', teamup_designator: '' })
-  async function save() {
+  async function doSave() {
     if (!d.name.trim() || !d.scheme.trim()) return toast('Name and scheme are required')
     await createCourse({ name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: true })
     toast(`Course added: ${d.name.trim()}`)
     onDone()
   }
+  const [save, saving] = useSave(doSave)
   return (
-    <div className="subform" style={{ background: '#fff' }}>
+    <div className="subform" style={{ background: '#fff' }} onKeyDown={enterTo(save)}>
       <div className="sfh">New course</div>
       <div className="twocol">
         <Field label="Name" v={d.name} on={(v) => setD({ ...d, name: v })} placeholder="e.g. Domestic Gas ACS" />
@@ -127,22 +142,23 @@ function AddCourse({ onDone }) {
       <div className="twocol">
         <Field label="Package price (£, optional)" v={d.price} on={(v) => setD({ ...d, price: v })} placeholder="leave blank — price by module" />
       </div>
-      <button className="btn sm" onClick={save}>Add course</button>
+      <button className="btn sm" disabled={saving} onClick={save}>Add course</button>
     </div>
   )
 }
 
 function AddQualGlobal({ schemes, onDone }) {
   const [d, setD] = useState({ code: '', description: '', scheme: '', renewal_years: '5', price: '' })
-  async function save() {
+  async function doSave() {
     if (!d.code.trim()) return toast('Code is required')
     if (!d.scheme.trim()) return toast('Scheme is required')
     await createCategory({ code: d.code.trim().toUpperCase(), description: d.description || null, scheme: d.scheme.trim(), renewal_years: d.renewal_years === '' ? null : Number(d.renewal_years), price: d.price === '' ? null : Number(d.price) })
     toast(`Qualification added: ${d.code.trim().toUpperCase()}`)
     onDone()
   }
+  const [save, saving] = useSave(doSave)
   return (
-    <div className="subform" style={{ background: '#fff' }}>
+    <div className="subform" style={{ background: '#fff' }} onKeyDown={enterTo(save)}>
       <div className="sfh">New qualification (module)</div>
       <div className="twocol">
         <Field label="Code" v={d.code} on={(v) => setD({ ...d, code: v })} placeholder="e.g. CCN1" />
@@ -156,14 +172,14 @@ function AddQualGlobal({ schemes, onDone }) {
         <Field label="Price (£, optional)" v={d.price} on={(v) => setD({ ...d, price: v })} />
       </div>
       <Field label="Renewal (years, blank = non-expiring)" v={d.renewal_years} on={(v) => setD({ ...d, renewal_years: v })} />
-      <button className="btn sm" onClick={save}>Add qualification</button>
+      <button className="btn sm" disabled={saving} onClick={save}>Add qualification</button>
     </div>
   )
 }
 
 function CourseEdit({ course, onSaved }) {
   const [d, setD] = useState({ name: course.name || '', scheme: course.scheme || '', price: course.price ?? '', teamup_designator: course.teamup_designator || '', is_active: course.is_active !== false, color: course.color || '#48566a', cert_returns: course.cert_returns !== false })
-  async function save() {
+  async function doSave() {
     if (!d.name.trim()) return toast('Course name is required')
     if (!d.scheme.trim()) return toast('Scheme is required')
     await updateCourse(course.course_id, { name: d.name.trim(), scheme: d.scheme.trim(), price: d.price === '' ? null : Number(d.price), teamup_designator: d.teamup_designator || null, is_active: d.is_active, color: d.color, cert_returns: !!d.cert_returns })
@@ -175,8 +191,9 @@ function CourseEdit({ course, onSaved }) {
     toast(`Course deleted: ${course.name}`)
     onSaved()
   }
+  const [save, saving] = useSave(doSave)
   return (
-    <div className="subform">
+    <div className="subform" onKeyDown={enterTo(save)}>
       <div className="sfh">Edit course</div>
       <div className="twocol">
         <Field label="Name" v={d.name} on={(v) => setD({ ...d, name: v })} />
@@ -201,7 +218,7 @@ function CourseEdit({ course, onSaved }) {
           <ConfirmDelete what="this course" onConfirm={remove} />
         </div>
       </div>
-      <button className="btn sm" onClick={save}>Save course</button>
+      <button className="btn sm" disabled={saving} onClick={save}>Save course</button>
     </div>
   )
 }
@@ -229,12 +246,13 @@ function QualSection({ scheme, schemes, cats, onChanged }) {
 function QualRow({ c, schemes, onSaved }) {
   const [edit, setEdit] = useState(false)
   const [d, setD] = useState({ code: c.code, description: c.description || '', renewal_years: c.renewal_years ?? '', price: c.price ?? '' })
-  async function save() {
+  async function doSave() {
     if (!d.code.trim()) return toast('Code is required')
     await updateCategory(c.category_id, { code: d.code.trim().toUpperCase(), description: d.description || null, renewal_years: d.renewal_years === '' ? null : Number(d.renewal_years), price: d.price === '' ? null : Number(d.price) })
     toast('Qualification updated')
     setEdit(false); onSaved()
   }
+  const [save, saving] = useSave(doSave)   // before the early return — hooks must run every render
   async function move(newScheme) {
     if (!newScheme || newScheme === c.scheme) return
     await updateCategory(c.category_id, { scheme: newScheme })
@@ -262,33 +280,34 @@ function QualRow({ c, schemes, onSaved }) {
     </tr>
   )
   return (
-    <tr>
+    <tr onKeyDown={enterTo(save)}>
       <td><input type="text" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} style={{ textTransform: 'uppercase', maxWidth: 90 }} /></td>
       <td><input type="text" value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} /></td>
       <td><input type="text" value={d.price} placeholder="£" onChange={(e) => setD({ ...d, price: e.target.value })} style={{ maxWidth: 70 }} /></td>
       <td><input type="text" value={d.renewal_years} onChange={(e) => setD({ ...d, renewal_years: e.target.value })} style={{ maxWidth: 60 }} /></td>
       <td className="small muted">save first to move</td>
-      <td className="nowrap"><button className="btn sm" onClick={save}>Save</button> <button className="btn ghost sm" onClick={() => setEdit(false)}>✕</button></td>
+      <td className="nowrap"><button className="btn sm" disabled={saving} onClick={save}>Save</button> <button className="btn ghost sm" onClick={() => setEdit(false)}>✕</button></td>
     </tr>
   )
 }
 
 function AddQual({ scheme, onDone }) {
   const [d, setD] = useState({ code: '', description: '', renewal_years: '5', price: '' })
-  async function save() {
+  async function doSave() {
     if (!d.code.trim()) return toast('Code is required')
     await createCategory({ code: d.code.trim().toUpperCase(), description: d.description || null, scheme, renewal_years: d.renewal_years === '' ? null : Number(d.renewal_years), price: d.price === '' ? null : Number(d.price) })
     toast(`Qualification added: ${d.code.trim().toUpperCase()}`)
     onDone()
   }
+  const [save, saving] = useSave(doSave)
   return (
-    <div className="addqual">
+    <div className="addqual" onKeyDown={enterTo(save)}>
       <div className="addqual-row">
         <input type="text" placeholder="Code (e.g. CCN1)" value={d.code} onChange={(e) => setD({ ...d, code: e.target.value })} style={{ textTransform: 'uppercase' }} />
         <input type="text" placeholder="Description" value={d.description} onChange={(e) => setD({ ...d, description: e.target.value })} />
         <input type="text" placeholder="£ price" value={d.price} onChange={(e) => setD({ ...d, price: e.target.value })} style={{ maxWidth: 90 }} />
         <input type="text" placeholder="Renewal yrs" value={d.renewal_years} onChange={(e) => setD({ ...d, renewal_years: e.target.value })} style={{ maxWidth: 100 }} />
-        <button className="btn sm" onClick={save}>Add</button>
+        <button className="btn sm" disabled={saving} onClick={save}>Add</button>
       </div>
     </div>
   )

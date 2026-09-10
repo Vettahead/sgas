@@ -69,7 +69,7 @@ tr:last-child td{border-bottom:none}
 .b.scheme{background:#eef2f7;color:var(--slate);font-weight:600}
 label.fl{display:block;font-size:12px;font-weight:600;color:var(--slate);margin:0 0 5px}
 .field{margin-bottom:16px}
-input[type=text],input[type=date],input[type=password],input[type=email],input[type=search],select,textarea{width:100%;padding:9px 11px;border:1px solid #cfd8e3;border-radius:8px;font-size:13.5px;font-family:inherit;background:#fff}
+input[type=text],input[type=date],input[type=password],input[type=email],input[type=tel],input[type=search],select,textarea{width:100%;padding:9px 11px;border:1px solid #cfd8e3;border-radius:8px;font-size:13.5px;font-family:inherit;background:#fff}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
 .twocol{display:grid;grid-template-columns:1fr 1fr;gap:0 16px}
 .btn{display:inline-flex;align-items:center;gap:7px;background:var(--brand);color:#fff;border:none;padding:10px 16px;border-radius:8px;font-size:13.5px;font-weight:600;cursor:pointer}
@@ -210,6 +210,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--brand);b
 .av{display:inline-flex;align-items:center;justify-content:center}
 .toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:#0d1b2e;color:#fff;padding:12px 20px;border-radius:10px;box-shadow:0 8px 30px rgba(0,0,0,.25);opacity:0;transition:.3s;font-size:13.5px;z-index:50;max-width:520px}
 .toast.show{transform:translateX(-50%) translateY(0);opacity:1}
+.toast-undo{margin-left:14px;background:#fff;color:#0d1b2e;border:none;border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer}
+.toast-undo:hover{background:var(--brand-soft)}
 .tu{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#0a7d63;background:#e3f7f1;padding:1px 7px;border-radius:20px}
 
 /* ---- additions for the live app (not in the static mockup) ---- */
@@ -1209,6 +1211,8 @@ body.cx-dragging .cx-grab::after,body.cx-dragging .cx-resize::after{opacity:1;tr
 /* Hand-editing the import: the "?" on a name the Teamup note parser invented,
    and the person picker that swaps / adds somebody by searching the database.
    Same box as the qualification picker so the popover reads as one thing. */
+.cx-namelink{background:none;border:none;padding:0;font:inherit;font-weight:inherit;color:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}
+.cx-namelink:hover{color:var(--cx-brand)}
 .cx-unconf{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;margin-left:5px;
   border-radius:50%;background:var(--amber);color:#fff;font-style:normal;font-size:10px;font-weight:800;vertical-align:1px;cursor:help}
 .cx-pick{display:flex;flex-direction:column;gap:6px;width:100%;margin-top:7px;

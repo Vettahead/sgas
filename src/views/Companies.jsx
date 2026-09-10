@@ -1,11 +1,11 @@
 import { useMemo, useState } from 'react'
-import { listCompanies, getCompany, setSendToEmployer, importCompanies } from '../lib/api.js'
+import { listCompanies, getCompany, setSendToEmployer, importCompanies, updateCompany } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt } from '../lib/util.js'
 import { toast } from '../lib/toast.js'
 
-export default function Companies({ go }) {
-  const [selected, setSelected] = useState(null)
+export default function Companies({ go, openCompany = null }) {
+  const [selected, setSelected] = useState(openCompany || null)
   if (selected) return <CompanyDetail companyId={selected} back={() => setSelected(null)} go={go} />
   return <CompanyList onOpen={setSelected} />
 }
@@ -67,11 +67,12 @@ function CompanyList({ onOpen }) {
           <tbody>
             {rows.length === 0 && <tr><td colSpan={8} className="empty">No matching companies</td></tr>}
             {rows.map((c) => (
-              <tr key={c.company_id} className="clickrow" onClick={() => onOpen(c.company_id)}>
+              <tr key={c.company_id} className="clickrow" tabIndex={0} role="button" onClick={() => onOpen(c.company_id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') onOpen(c.company_id) }}>
                 <td><b>{c.name}</b></td>
                 <td className="muted">{c.contact_name || '—'}</td>
-                <td className="muted">{c.phone || '—'}</td>
-                <td className="muted">{c.email || '—'}</td>
+                <td className="muted"><Reach kind="tel" v={c.phone} /></td>
+                <td className="muted"><Reach kind="mailto" v={c.email} /></td>
                 <td className="muted">{c.sage_ref || '—'}</td>
                 <td className="muted nowrap">{c.payment_terms_days != null ? c.payment_terms_days + ' days' : '—'}</td>
                 <td style={{ textAlign: 'center' }}><SendBadge on={c.sendToEmployer} onClick={(e) => toggle(e, c)} /></td>
@@ -240,8 +241,54 @@ function SageImport({ onDone, onClose }) {
   )
 }
 
+// Tap-to-ring / tap-to-email, as on Enquiries and Delegates.
+function Reach({ kind, v }) {
+  if (!v) return '—'
+  const href = kind === 'tel' ? 'tel:' + String(v).replace(/\s+/g, '') : 'mailto:' + v
+  return <a href={href} onClick={(e) => e.stopPropagation()}>{v}</a>
+}
+
+// Edit the company in place. A wrong phone number or missing payment terms
+// used to mean waiting for the next Sage import.
+function EditCompany({ company, onSaved, onCancel }) {
+  const [f, setF] = useState({
+    name: company.name || '', contact_name: company.contact_name || '', phone: company.phone || '', email: company.email || '',
+    address: company.address || '', sage_ref: company.sage_ref || '', payment_terms_days: company.payment_terms_days ?? '',
+  })
+  const [busy, setBusy] = useState(false)
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value })
+  async function save() {
+    if (busy) return
+    setBusy(true)
+    try { await updateCompany(company.company_id, f); toast('Company saved'); onSaved() }
+    catch (e) { toast(e.message) } finally { setBusy(false) }
+  }
+  const Inp = ({ label, k, type = 'text', ...rest }) => (
+    <div className="field"><label className="fl">{label}</label><input type={type} value={f[k]} onChange={set(k)} {...rest} /></div>
+  )
+  return (
+    <form className="subform" onSubmit={(e) => { e.preventDefault(); save() }}>
+      <div className="sfh">Edit company</div>
+      <div className="twocol">
+        <Inp label="Company name" k="name" />
+        <Inp label="Contact" k="contact_name" />
+        <Inp label="Phone" k="phone" type="tel" />
+        <Inp label="Email" k="email" type="email" />
+        <Inp label="Sage reference" k="sage_ref" />
+        <Inp label="Payment terms (days)" k="payment_terms_days" inputMode="numeric" placeholder="e.g. 30" />
+      </div>
+      <Inp label="Address" k="address" />
+      <div className="inrow">
+        <button type="submit" className="btn sm" disabled={busy}>Save changes</button>
+        <button type="button" className="btn ghost sm" disabled={busy} onClick={onCancel}>Cancel</button>
+      </div>
+    </form>
+  )
+}
+
 function CompanyDetail({ companyId, back, go }) {
   const { data, loading, reload } = useData(() => getCompany(companyId), [companyId])
+  const [editing, setEditing] = useState(false)
   if (loading || !data) return <div className="loading">Loading company…</div>
   const { company, delegates } = data
 
@@ -254,17 +301,20 @@ function CompanyDetail({ companyId, back, go }) {
 
   return (
     <>
-      <div style={{ marginBottom: 14 }}>
+      <div style={{ marginBottom: 14, display: 'flex', gap: 8, alignItems: 'center' }}>
         <button className="btn ghost sm" onClick={back}>← All companies</button>
+        <span style={{ marginLeft: 'auto' }} />
+        <button className="btn ghost sm" onClick={() => setEditing((v) => !v)}>✎ Edit details</button>
       </div>
 
       <div className="card" style={{ marginBottom: 18 }}>
         <h3>🏢 {company.name} <span className="tag">{delegates.length} delegate{delegates.length !== 1 ? 's' : ''}</span></h3>
         <div className="body">
+          {editing && <EditCompany company={company} onSaved={() => { setEditing(false); reload() }} onCancel={() => setEditing(false)} />}
           <div className="twocol">
             <Field label="Contact" value={company.contact_name} />
-            <Field label="Phone" value={company.phone} />
-            <Field label="Email" value={company.email} />
+            <Field label="Phone" value={<Reach kind="tel" v={company.phone} />} />
+            <Field label="Email" value={<Reach kind="mailto" v={company.email} />} />
             <Field label="Sage reference" value={company.sage_ref} />
             <Field label="Address" value={company.address} />
             <Field label="Payment terms" value={company.payment_terms_days != null ? company.payment_terms_days + ' days' : null} />
@@ -293,11 +343,12 @@ function CompanyDetail({ companyId, back, go }) {
           <tbody>
             {delegates.length === 0 && <tr><td colSpan={6} className="empty">No delegates on record for this employer.</td></tr>}
             {delegates.map((d) => (
-              <tr key={d.client_id} className={go ? 'clickrow' : ''} onClick={() => go && go('delegates', d.client_id)}>
+              <tr key={d.client_id} className={go ? 'clickrow' : ''} tabIndex={go ? 0 : undefined} role={go ? 'button' : undefined}
+                onClick={() => go && go('delegates', d.client_id)} onKeyDown={(e) => { if (go && e.key === 'Enter') go('delegates', d.client_id) }}>
                 <td><b>{d.forename} {d.surname}</b></td>
                 <td className="muted">{d.ni_number || '—'}</td>
-                <td className="muted">{d.mobile || '—'}</td>
-                <td className="muted">{d.email || '—'}</td>
+                <td className="muted"><Reach kind="tel" v={d.mobile} /></td>
+                <td className="muted"><Reach kind="mailto" v={d.email} /></td>
                 <td style={{ textAlign: 'center' }}>{d.bookings}</td>
                 <td className="muted nowrap">{d.lastBooking ? fmt(d.lastBooking) : '—'}</td>
               </tr>

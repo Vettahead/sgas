@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { listPayments, setFlag, chaseBooking, setSageRef, getChaseLog, setIgasEvidence } from '../lib/api.js'
 import { useData } from '../lib/hooks.js'
 import { fmt, resultClass, delegateStatus, dispLabel, daysUntil } from '../lib/util.js'
@@ -12,46 +12,83 @@ const ITEMS = [
   ['pay', 'Payment'],
 ]
 
-export default function Payments() {
+const FILTERS = [['all', 'Everything'], ['outstanding', 'Only outstanding'], ['unchased', 'Outstanding, never chased'], ['noshow', 'No-shows (credit?)']]
+
+export default function Payments({ go }) {
   const { data, loading, reload } = useData(listPayments)
   const [openLog, setOpenLog] = useState(null)
+  // Search + filter: accounts used to scroll the whole booking table to find
+  // one company. Newest booking first (the list arrives that way).
+  const [q, setQ] = useState('')
+  const [filter, setFilter] = useState('outstanding')
+  const rows = useMemo(() => {
+    const all = data || []
+    const s = q.trim().toLowerCase()
+    return all.filter((b) => {
+      if (filter === 'outstanding' && !ITEMS.some(([k]) => b[k])) return false
+      if (filter === 'unchased' && (!ITEMS.some(([k]) => b[k]) || b.lastChased)) return false
+      if (filter === 'noshow' && b.disposition !== 'NO_SHOW') return false
+      if (!s) return true
+      return b.name.toLowerCase().includes(s) || (b.payer || '').toLowerCase().includes(s)
+        || (b.course || '').toLowerCase().includes(s) || String(b.bookingId) === s.replace('#', '') || (b.sageRef || '').toLowerCase().includes(s)
+    })
+  }, [data, q, filter])
   if (loading || !data) return <div className="loading">Loading bookings…</div>
 
-  async function toggle(b, key) {
-    await setFlag(b.bookingId, key, !b[key])
-    reload()
-  }
-  async function saveSage(b, ref) {
-    if (ref === (b.sageRef || '')) return
-    await setSageRef(b.bookingId, ref)
-    reload()
-  }
-  async function saveIgas(b, date) {
-    await setIgasEvidence(b.bookingId, date || null)
-    reload()
-  }
   function outstandingItems(b) {
     return ITEMS.filter(([k]) => b[k]).map(([, label]) => label)
   }
+  // Every flag flip says what it did and can be undone from the toast — a
+  // mis-click used to be a silent, permanent "Yes".
+  async function toggle(b, key) {
+    const label = ITEMS.find(([k]) => k === key)?.[1] || key
+    const next = !b[key]
+    try {
+      await setFlag(b.bookingId, key, next)
+      toast(`${b.name}: ${label} ${next ? 'flagged outstanding' : 'cleared'}`, { undo: async () => { try { await setFlag(b.bookingId, key, !next); reload() } catch (e) { toast(e.message) } } })
+      reload()
+    } catch (e) { toast('Could not save: ' + e.message) }
+  }
+  async function saveSage(b, ref) {
+    if (ref === (b.sageRef || '')) return
+    try { await setSageRef(b.bookingId, ref); toast(`Sage ref saved for #${b.bookingId}`); reload() }
+    catch (e) { toast('Could not save: ' + e.message) }
+  }
+  async function saveIgas(b, date) {
+    try { await setIgasEvidence(b.bookingId, date || null); reload() }
+    catch (e) { toast('Could not save: ' + e.message) }
+  }
+  // Chase = record it AND open the email, prefilled. It never sent anything
+  // itself; the old banner said it did, and Jen thought the chase had gone.
   async function chase(b) {
     const items = outstandingItems(b)
     if (!items.length) return toast('Nothing outstanding to chase')
-    await chaseBooking(b.bookingId, items.join(', '))
-    // Booking id doubles as the "course id" reception types into their email search.
-    toast(`Chase #${b.bookingId} → ${b.payer}: ${items.join(', ')}`)
+    try { await chaseBooking(b.bookingId, items.join(', ')) } catch (e) { return toast('Could not record the chase: ' + e.message) }
+    const subject = `Outstanding for booking #${b.bookingId} — ${b.name}${b.course ? ' — ' + b.course : ''}`
+    const body = `Hello${b.payerContact ? ' ' + b.payerContact : ''},\n\n` +
+      `Regarding ${b.name}${b.course ? `'s booking on ${b.course}` : ''}${b.start ? ` (${fmt(b.start)})` : ''}, booking reference #${b.bookingId}, the following is still outstanding:\n\n` +
+      items.map((i) => `  • ${i}`).join('\n') + `\n\nPlease could you let us have this at your earliest convenience.\n\nKind regards\nSpecialist Gas Assessment Services`
+    if (b.payerEmail) window.location.href = `mailto:${b.payerEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`
+    toast(`Chase #${b.bookingId} recorded → ${b.payer}: ${items.join(', ')}${b.payerEmail ? ' — email opened' : ' — no email on the company, ring them'}`)
     reload()
   }
 
   return (
     <>
-      <div className="hint">The <b>final stage</b>: after a course runs, flag what's <b>outstanding</b> (default No) and chase the <b>company</b>. Each chase is logged with the booking id — that id goes in the email so reception can search their sent mail. No money lives here — that's Sage.</div>
+      <div className="hint">The <b>final stage</b>: after a course runs, flag what's <b>outstanding</b> (default No) and chase the <b>company</b>. <b>Chase</b> records the date and the items against the booking, then opens an email to the company's contact with them filled in — you press send. No money lives here — that's Sage.</div>
       <div className="card">
-        <h3>💷 Bookings — invoicing &amp; outstanding</h3>
+        <h3>💷 Bookings — invoicing &amp; outstanding <span className="tag">{rows.length} of {data.length} shown</span></h3>
+        <div className="body" style={{ paddingBottom: 8 }}>
+          <div className="inq-courses" style={{ margin: 0, alignItems: 'center' }}>
+            {FILTERS.map(([k, l]) => <button type="button" key={k} className={'inq-chip' + (filter === k ? ' on' : '')} onClick={() => setFilter(k)}>{l}</button>)}
+            <input type="search" value={q} placeholder="Find a delegate, company, course, Sage ref or #booking…" onChange={(e) => setQ(e.target.value)} style={{ marginLeft: 'auto', maxWidth: 340 }} />
+          </div>
+        </div>
         <div className="tablewrap">
         <table className="paytable">
           <thead>
             <tr>
-              <th>Booking</th><th>Delegate</th><th>Invoiced to</th><th>Result</th>
+              <th>Booking</th><th>Delegate</th><th>Course</th><th>Invoiced to</th><th>Result</th>
               <th style={{ textAlign: 'center' }}>Cert</th>
               <th style={{ textAlign: 'center' }}>Photo</th>
               <th style={{ textAlign: 'center' }}>IGAS</th>
@@ -60,11 +97,12 @@ export default function Payments() {
             </tr>
           </thead>
           <tbody>
-            {data.map((b) => {
+            {rows.length === 0 && <tr><td colSpan={12} className="empty">{q ? 'Nothing matches' : filter === 'all' ? 'No bookings' : 'Nothing outstanding — all clear'}</td></tr>}
+            {rows.map((b) => {
               const items = outstandingItems(b)
               const isNoShow = b.disposition === 'NO_SHOW'
               return (
-                <Row key={b.bookingId} b={b} items={items} isNoShow={isNoShow}
+                <Row key={b.bookingId} b={b} items={items} isNoShow={isNoShow} go={go}
                   toggle={toggle} chase={chase} saveSage={saveSage} saveIgas={saveIgas}
                   open={openLog === b.bookingId} onToggleLog={() => setOpenLog(openLog === b.bookingId ? null : b.bookingId)} />
               )
@@ -72,22 +110,26 @@ export default function Payments() {
           </tbody>
         </table>
         </div>
-        <div className="banner">Flag an item to mark it outstanding (defaults to No). "Chase" emails the company's accounts contact, stamps the date, and records the items in the chase log. A <b>No-show</b> result can be credited by clearing its Payment flag.</div>
+        <div className="banner">Flag an item to mark it outstanding (defaults to No) — every flip can be undone from the message at the bottom. <b>Chase</b> stamps the date, records the items in the log, and opens the email for you to send. A <b>No-show</b> result can be credited by clearing its Payment flag.</div>
       </div>
     </>
   )
 }
 
-function Row({ b, items, isNoShow, toggle, chase, saveSage, saveIgas, open, onToggleLog }) {
+// PENDING / PASS / FAIL in words a person uses.
+const RESULT_WORD = { PENDING: 'Not yet assessed', PASS: 'Passed', FAIL: 'Failed', NYC: 'Not yet competent' }
+
+function Row({ b, items, isNoShow, toggle, chase, saveSage, saveIgas, open, onToggleLog, go }) {
   const [sage, setSage] = useState(b.sageRef || '')
   return (
     <>
       <tr className={isNoShow ? 'noshow-row' : ''}>
         <td className="muted">#{b.bookingId}</td>
-        <td>{b.name}{b.mlp ? <span className="b scheme" style={{ marginLeft: 6 }}>MLP</span> : null}</td>
+        <td>{go && b.clientId ? <button className="dn-link" onClick={() => go('delegates', b.clientId)}>{b.name}</button> : b.name}{b.mlp ? <span className="b scheme" style={{ marginLeft: 6 }}>MLP</span> : null}</td>
+        <td className="small">{b.course || <span className="muted">not on a course</span>}{b.start && <div className="muted nowrap">{fmt(b.start)}</div>}</td>
         <td>{b.payer}</td>
         <td>
-          <span className={'b ' + resultClass(delegateStatus(b.overall, b.disposition))}>{dispLabel(b.disposition) || b.overall}</span>
+          <span className={'b ' + resultClass(delegateStatus(b.overall, b.disposition))}>{dispLabel(b.disposition) || RESULT_WORD[b.overall] || b.overall}</span>
           {isNoShow && <span className="muted small" style={{ marginLeft: 6 }}>credit?</span>}
         </td>
         <td style={{ textAlign: 'center' }}><FlagBtn on={b.cert} onClick={() => toggle(b, 'cert')} /></td>
@@ -116,7 +158,7 @@ function DetailRow({ b, saveIgas }) {
   return (
     <tr className="logrow">
       <td></td>
-      <td colSpan={10}>
+      <td colSpan={11}>
         {showIgas && (
           <div className="igas-block">
             <span className="muted small">IGAS evidence (5-year):</span>

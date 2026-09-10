@@ -19,6 +19,19 @@
 
 export const RELEASES = [
   {
+    v: '1.65.0', build: 230, date: '10 Sep 2026',
+    title: 'A polish pass — twenty small things that got in the way',
+    notes: [
+      'Six faults fixed. The "Payments outstanding" tile on the Dashboard went nowhere if you had removed the Outstanding card. The outstanding count was counting MLP (a programme marker, not a debt) and missing certificates and photos, so it never agreed with the Payments screen. "Scheduled sessions" counted every course since 2019 — it is now courses still to run. The Payments screen said Chase sent an email; it did not, it only recorded that you had chased — now it does both: records it and opens the email for you to send. Payments, Assess and the calendar were pulling unlimited lists, which past a thousand rows would have quietly dropped the newest bookings and courses. And a lapsed sign-in used to show "No companies" — as if the data had gone — instead of saying it could not load.',
+      'Enter now submits every form, not just the sign-in: log an enquiry, save a delegate, a company, a course, a qualification, a staff member. After logging an enquiry the cursor goes straight back to Name for the next call.',
+      'Phone numbers and email addresses are tap-to-ring and tap-to-write on Delegates and Companies, as they already were on Enquiries. Email and phone boxes bring up the right keyboard on a tablet; NI numbers capitalise as you type.',
+      'Assess: the course list is now this month or so, newest first, with a switch for everything; every mark says what it did, including Fail and NYC, and can be undone; a failed save says so. "Assess this course" on the calendar panel and "Open assess" on the Dashboard open that course, not a blank picker.',
+      'Companies can be edited in place — a wrong phone number no longer waits for the next Sage import. A delegate’s record has "Book them on a course", which opens Book a Delegate with them already picked, and their company is a link. On Book a Delegate, the course groups they already hold something in open by themselves, and there is a search box over the qualifications.',
+      'Payments has a search box, filter chips (Only outstanding is the default), the course and date on every row, plain words for the result, and the delegate’s name opens their record. Flags, certificate stamps and assessment marks all get an Undo button on the message at the bottom, which now stays on screen long enough to read.',
+      'Smaller: clicking a menu item you are already on takes you back to its list; the calendar’s arrows say week / month / year rather than always "month"; "Open the calendar" from the Dashboard lands on that course’s month with it open; the name of anyone on a course panel opens their record; role changes and disabled logins say so; the two remaining dialogs close on Escape and on clicking outside; every clickable row works from the keyboard.',
+    ],
+  },
+  {
     v: '1.64.0', build: 229, date: '9 Sep 2026',
     title: 'Hand-editing the imported calendar',
     notes: [

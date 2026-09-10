@@ -68,6 +68,10 @@ export default function Inquiries({ go, user, onMentionsSeen, openId = null }) {
   const [matches, setMatches] = useState([]) // delegates already on file with this name
   const [busy, setBusy] = useState(false)
   const taRef = useRef(null)
+  const nameRef = useRef(null)
+  // Which enquiry's thread is being fetched: clicking two rows quickly could
+  // leave B's messages under A's header once A's slower fetch landed.
+  const loadingFor = useRef(null)
   const threadRef = useRef(null)
 
   const mentionedInqs = useMemo(() => new Set((myMentions || []).map((m) => m.inquiryId)), [myMentions])
@@ -100,7 +104,10 @@ export default function Inquiries({ go, user, onMentionsSeen, openId = null }) {
     setF({ name: q.name || '', email: q.email || '', mobile: q.mobile || '', prefFrom: q.prefFrom || '', prefTo: q.prefTo || '', first: '' })
     setPicked(new Set((q.courses || '').split(',').map((s) => s.trim()).filter(Boolean)))
     setClosing(false); setCloseReason(''); setCloseNote(''); setDraft(''); setMatches([])
-    setMsgs(await listInquiryMessages(q.inquiryId))
+    loadingFor.current = q.inquiryId
+    const msgs = await listInquiryMessages(q.inquiryId)
+    if (loadingFor.current !== q.inquiryId) return
+    setMsgs(msgs)
     // Opening it is reading it: any @mention of me on this thread is now seen.
     // Always asked, not only when the badge list says so — that list may not
     // have arrived yet when a notification click opens this enquiry.
@@ -149,6 +156,8 @@ export default function Inquiries({ go, user, onMentionsSeen, openId = null }) {
         toast(`Enquiry logged: ${row.name}`)
         startNew()
         reloadLast()
+        // Straight back to Name for the next call — Jen was clicking into it.
+        requestAnimationFrame(() => nameRef.current?.focus())
       }
       reload()
     } catch (e) { toast(e.message) } finally { setBusy(false) }
@@ -247,16 +256,19 @@ export default function Inquiries({ go, user, onMentionsSeen, openId = null }) {
 
           <div className="field">
             <label className="fl">Name</label>
-            <input type="text" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="First name is fine" autoFocus={!editing} disabled={!isOpen} />
+            <input type="text" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="First name is fine" autoFocus={!editing} disabled={!isOpen} ref={nameRef}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } }} />
           </div>
           <div className="twocol">
             <div className="field">
               <label className="fl">Email {f.email.trim() && <a className="small" href={'mailto:' + f.email.trim()} title="Email them">✉ email</a>}</label>
-              <input type="text" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} disabled={!isOpen} />
+              <input type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} disabled={!isOpen}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } }} />
             </div>
             <div className="field">
               <label className="fl">Mobile {f.mobile.trim() && <a className="small" href={'tel:' + f.mobile.replace(/\s+/g, '')} title="Ring them">☎ ring</a>}</label>
-              <input type="text" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} disabled={!isOpen} />
+              <input type="tel" value={f.mobile} onChange={(e) => setF({ ...f, mobile: e.target.value })} disabled={!isOpen}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } }} />
             </div>
           </div>
           <div className="small muted" style={{ marginTop: -8, marginBottom: 12 }}>At least one of email / mobile.</div>

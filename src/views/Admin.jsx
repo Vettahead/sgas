@@ -268,10 +268,13 @@ export default function Admin({ currentUser }) {
 
   const holDays = (staffId) => holidays.filter((h) => h.staffId === staffId).reduce((n, h) => n + weekdayDays(h.start, h.end), 0)
 
+  const [adding, setAdding] = useState(false)
   async function addStaff() {
     if (!nu.name.trim()) return toast('Name is required')
     if (!nu.username.trim()) return toast('Username is required')
     if (!nu.password) return toast('Password is required')
+    if (adding) return   // a double-click made two staff members
+    setAdding(true)
     try {
       const st = await createStaff({ name: nu.name.trim(), email: nu.email, room: nu.room })
       const created = await createUser({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password, staffId: st.staff_id }, adminAuth)
@@ -280,7 +283,7 @@ export default function Admin({ currentUser }) {
       setCreated({ username: nu.username.trim(), name: nu.name.trim(), email: nu.email, role: nu.role, password: nu.password })
       setNu({ name: '', email: '', room: '', username: '', role: 'STANDARD', password: '' })
       setShowAdd(false); load()
-    } catch (e) { toast(e.message) }
+    } catch (e) { toast(e.message) } finally { setAdding(false) }
   }
 
   async function createLogin(staffId) {
@@ -306,7 +309,7 @@ export default function Admin({ currentUser }) {
 
   async function changeRole(u, role) {
     if (role === u.role) return
-    try { await updateUser(u.user_id, { role }, adminAuth); load() }
+    try { await updateUser(u.user_id, { role }, adminAuth); toast(`${u.name || u.username} is now ${ROLE_LABELS[role] || role}`); load() }
     catch (e) { toast(e.message) }
   }
 
@@ -324,6 +327,7 @@ export default function Admin({ currentUser }) {
       const nowActive = !u.is_active
       await updateUser(u.user_id, { is_active: nowActive }, adminAuth)
       notifyAccount({ kind: nowActive ? 'account_enabled' : 'account_disabled', userId: u.user_id }, adminAuth)
+      toast(`${u.username} ${nowActive ? 'can sign in again' : 'can no longer sign in'} — they have been emailed`)
       load()
     } catch (e) { toast(e.message) }
   }
@@ -461,12 +465,12 @@ export default function Admin({ currentUser }) {
               <div className="subform">
                 <div className="sfh">New staff member</div>
                 <div className="twocol">
-                  <Inp label="Full name" v={nu.name} on={(v) => setNu({ ...nu, name: v })} />
-                  <Inp label="Email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
+                  <Inp onEnter={addStaff} label="Full name" v={nu.name} on={(v) => setNu({ ...nu, name: v })} />
+                  <Inp onEnter={addStaff} label="Email" type="email" v={nu.email} on={(v) => setNu({ ...nu, email: v })} />
                 </div>
                 <div className="twocol">
-                  <Inp label="Room (optional)" v={nu.room} on={(v) => setNu({ ...nu, room: v })} />
-                  <Inp label="Username (for login)" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
+                  <Inp onEnter={addStaff} label="Room (optional)" v={nu.room} on={(v) => setNu({ ...nu, room: v })} />
+                  <Inp onEnter={addStaff} label="Username (for login)" v={nu.username} on={(v) => setNu({ ...nu, username: v })} />
                 </div>
                 <div className="twocol">
                   <div className="field">
@@ -475,10 +479,10 @@ export default function Admin({ currentUser }) {
                       {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABELS[r]}</option>)}
                     </select>
                   </div>
-                  <Inp label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
+                  <Inp onEnter={addStaff} label="Initial password" type="password" v={nu.password} on={(v) => setNu({ ...nu, password: v })} />
                 </div>
                 <div className="inrow">
-                  <button className="btn sm" onClick={addStaff}>Create staff member</button>
+                  <button className="btn sm" disabled={adding} onClick={addStaff}>Create staff member</button>
                   <button className="btn ghost sm" onClick={() => setShowAdd(false)}>Cancel</button>
                 </div>
               </div>
@@ -678,6 +682,11 @@ export default function Admin({ currentUser }) {
 
 function CreatedModal({ u, onClose }) {
   const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   const text = `SGAS Training Management — your login details
 Sign in at: ${origin}
@@ -691,7 +700,7 @@ Please sign in and change your password after your first login.`
     catch { toast('Could not copy — select the text and copy manually') }
   }
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true" aria-label="Login created">
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <h3>Login created — share these details</h3>
         <p className="muted small">No email is sent yet. Copy this and pass it to {u.name || u.username} securely.</p>
@@ -705,11 +714,13 @@ Please sign in and change your password after your first login.`
   )
 }
 
-function Inp({ label, v, on, type = 'text' }) {
+// onEnter: the form's save, so Enter in any box submits it.
+function Inp({ label, v, on, type = 'text', onEnter = null }) {
   return (
     <div className="field">
       <label className="fl">{label}</label>
-      <input type={type} value={v} onChange={(e) => on(e.target.value)} />
+      <input type={type} value={v} onChange={(e) => on(e.target.value)}
+        onKeyDown={onEnter ? (e) => { if (e.key === 'Enter') { e.preventDefault(); onEnter() } } : undefined} />
     </div>
   )
 }

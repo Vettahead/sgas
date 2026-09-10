@@ -168,6 +168,10 @@ export default function App() {
   const [wizard, setWizard] = useState(false)
   const [calReload, setCalReload] = useState(0)
   const [bookPrefill, setBookPrefill] = useState(null)
+  const [calFocus, setCalFocus] = useState(null)
+  const [openCompanyId, setOpenCompanyId] = useState(null)
+  const [assessBlock, setAssessBlock] = useState(null)
+  const [navTick, setNavTick] = useState(0)
   // ── one definition of "the menu is a drawer over the page" ────────────────
   // The CSS switches to the drawer at (max-width:760px) OR (max-height:500px) —
   // the second because a phone held sideways is 915px WIDE and was getting the
@@ -271,7 +275,15 @@ export default function App() {
   const nav = buildNav(user.role)
   const go = (v, param = null) => {
     setOpenDelegate(v === 'delegates' ? param : null)
+    setOpenCompanyId(v === 'companies' ? param : null)
     setBookPrefill(v === 'book' ? param : null)
+    // A course to land on: the calendar opens on its month, Assess opens it.
+    setCalFocus(v === 'calendarnext' && param ? { ...param, at: Date.now() } : null)
+    setAssessBlock(v === 'assess' && param ? { id: param, at: Date.now() } : null)
+    // Clicking the menu item you are already on used to do nothing — on a
+    // delegate's record, "Delegates" left you on the record. Every go() now
+    // remounts the screen, so the menu is also "back to the list".
+    setNavTick((n) => n + 1)
     setView(v)
     // On a phone the menu overlays the page, so leaving it open would hide
     // whatever you just picked.
@@ -360,12 +372,12 @@ export default function App() {
           {activeView === 'book' && <Book prefill={bookPrefill} />}
           {activeView === 'setup' && <SetupWizard go={go} />}
           {activeView === 'calendarnext' && <CalendarNext go={go} canWrite={canSchedule(user.role)} user={user}
-            onSetup={() => setWizard(true)} reload={calReload} />}
-          {activeView === 'assess' && <Assess />}
+            onSetup={() => setWizard(true)} reload={calReload} focus={calFocus} />}
+          {activeView === 'assess' && <Assess openBlock={assessBlock} />}
           {activeView === 'docs' && <Documentation go={go} />}
-          {activeView === 'pay' && <Payments />}
-          {activeView === 'delegates' && <Delegates openDelegate={openDelegate} />}
-          {activeView === 'companies' && <Companies go={go} />}
+          {activeView === 'pay' && <Payments go={go} />}
+          {activeView === 'delegates' && <Delegates key={navTick} openDelegate={openDelegate} go={go} />}
+          {activeView === 'companies' && <Companies key={navTick} go={go} openCompany={openCompanyId} />}
           {activeView === 'courses' && <Courses />}
           {activeView === 'admin' && isAdmin && <Admin currentUser={user} />}
           {activeView === 'roadmap' && isAdmin && <Roadmap currentUser={user} />}
