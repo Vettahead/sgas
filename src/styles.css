@@ -1978,8 +1978,54 @@ body.cx-dragging .cx-pop-scrim{pointer-events:none}
     vertical-align:top;color:#000;text-transform:none;letter-spacing:0;font-size:11px}
   .cx-printout th{background:#eee;font-weight:700}
   .cx-printout tr{break-inside:avoid}
+  /* The timesheet prints from inside a modal, which locks body scrolling;
+     left locked, some browsers print page one and stop. */
+  body{overflow:visible!important}
+  .cx-printout .ts-totals{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:12px;margin:0 0 10px}
+  .cx-printout .ts-months{width:auto;min-width:60%;margin:0 0 14px}
+  .cx-printout .ts-sum td{font-weight:700;background:#f3f3f3}
+  .cx-printout .ts-role{font-weight:600}
   @page{margin:14mm}
 }
+
+/* ── TIMESHEET (modal) ──────────────────────────────────────────────────────
+   One person, one year, trained + assisted. Simon checks an invoice against
+   it, so it reads as a sheet of figures, not a dashboard. */
+.cal-modal.ts-modal{width:min(980px,96vw);max-height:92vh}
+.ts-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 14px;margin-bottom:12px}
+.ts-controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:flex-end;padding:10px 12px;
+  border:1px solid var(--line);border-radius:10px;background:var(--panel-soft,#f7f8fb);margin-bottom:14px}
+.ts-ctl{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.ts-ctl>span{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ts-ctl select{min-width:160px}
+.ts-rolechips{display:flex;flex-wrap:wrap;gap:6px}
+.ts-dd{position:relative}
+.ts-ddbtn{display:inline-flex;align-items:center;gap:8px;min-width:180px;padding:7px 10px;border:1px solid var(--line);
+  border-radius:8px;background:#fff;font:inherit;font-size:13px;cursor:pointer;text-align:left}
+.ts-ddbtn i{margin-left:auto;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:5px solid currentColor;opacity:.6}
+.ts-dd.open .ts-ddbtn{border-color:var(--brand)}
+.ts-ddlist{position:absolute;z-index:5;top:calc(100% + 4px);left:0;min-width:240px;max-height:280px;overflow:auto;
+  background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(13,27,46,.16);padding:6px}
+.ts-ddlist .chk{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;font-size:13px;cursor:pointer}
+.ts-ddlist .chk:hover{background:var(--panel-soft,#f3f5f9)}
+.ts-ddlist .linkbtn{margin:4px 8px 2px}
+.ts-sub{font-size:12px;color:var(--muted);margin:0 0 8px}
+.ts-totals{display:flex;flex-wrap:wrap;gap:6px 10px;margin:0 0 12px}
+.ts-tot{padding:6px 10px;border-radius:8px;background:var(--panel-soft,#f3f5f9);font-size:13px}
+.ts-tot b{margin-right:4px}
+.ts-grand{background:var(--brand-soft);color:var(--brand-dark);font-weight:600}
+.ts-sheet table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px}
+.ts-sheet th,.ts-sheet td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+.ts-sheet th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.ts-sheet .ts-months{width:auto;min-width:60%}
+.ts-sheet .ts-sum td{font-weight:700;border-top:2px solid var(--line)}
+.ts-role{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:700}
+.ts-role.trained{background:#dbeafe;color:#1e3a8a}
+.ts-role.assisted{background:#dcfce7;color:#14532d}
+.ts-role.assessed{background:#fef3c7;color:#78350f}
+.ts-role.verified{background:#ede9fe;color:#4c1d95}
+.ts-foot{display:flex;gap:8px;justify-content:flex-end;padding-top:8px;border-top:1px solid var(--line)}
+@media (max-width:640px){ .ts-ctl select,.ts-ddbtn{min-width:0;width:100%} .ts-ctl{width:100%} }
 
 /* The Teamup entries an imported course was built from. A plain list, quiet:
    it is evidence for a decision, not a warning to act on now. */

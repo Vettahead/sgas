@@ -556,7 +556,7 @@ function StaffYearModule({ go, isOpen, toggleCard }) {
           ))}
         </tbody>
       </table>
-      <div className="banner">Sessions with nobody in a role are the ones the "Blocks awaiting assignment" card lists — if a course was assessed but nobody was put on it, it is not counted here, which is the point: put the assessor on the course.</div>
+      <div className="banner">Sessions with nobody in a role are the ones the "Blocks awaiting assignment" card lists — if a course was assessed but nobody was put on it, it is not counted here, which is the point: put the assessor on the course. Need the <b>days</b> for one person, to check an invoice? <button className="linkbtn" onClick={() => go('calendarnext', { timesheet: true })}>Open the timesheet</button></div>
     </DashCard>
   )
 }

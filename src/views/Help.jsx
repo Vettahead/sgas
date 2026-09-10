@@ -323,6 +323,13 @@ export const SECTIONS = [
         ],
       },
       {
+        q: 'How do I check what somebody trained and assisted on this year (an invoice)?',
+        a: [
+          'On the Calendar press “Timesheet”. Pick the person and the year, and optionally narrow it to certain course types with the tick-box drop-down. You get one row per course they trained and per course they assisted on, with the dates, the role and the days (Monday to Friday), plus a month-by-month table of days trained, days assisted and the total.',
+          'Assessing and verifying can be counted too, from the Count chips — those are counted as courses, not days, because the calendar does not record which day the assessing happened. “Print this timesheet” prints just that sheet for accounts. It is worked out from the calendar, so if a day is missing, put the person on the course and it appears.',
+        ],
+      },
+      {
         q: 'How do I create or change a course block on the calendar?',
         a: [
           'Drag across the days you want and a “new block” box opens for you to pick the course. To change an existing block, drag it to move it, or drag its edge to make it longer or shorter.',

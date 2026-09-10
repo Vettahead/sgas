@@ -4,6 +4,27 @@ All notable changes to the SGAS Training Management frontend.
 Newest first. The in-app Changelog screen (Settings → Changelog) shows the same
 releases in plain English for the client; this file carries the technical detail.
 
+## 2026-09-10 — v1.67.0 Timesheet (Simon 7 Sep)
+
+- New `src/views/Timesheet.jsx`: modal (uses `components/Modal.jsx`) opened from
+  the CalendarNext toolbar (🧾 Timesheet) or `go('calendarnext', { timesheet: true })`
+  (Dashboard Staff-this-year banner). Person / year / course-type multi-select
+  checkbox dropdown (`CheckDropdown`) / role chips (trained + assisted default;
+  assessed + verified optional, counted as courses not days).
+- `timesheetRows(blocks, staffId, year, roles, schemes)` — one row per (course,
+  role); trained = block span, assisted = each `assists[]` entry's from–to;
+  `workDays()` counts Mon–Fri (falls back to calendar days for a weekend-only
+  block). `timesheetTotals()` → per-role courses/days, per-month trained/assisted,
+  grand days. Derived from `listBlocks()` only; holidays, engagements and
+  internal courses skipped. Nothing stored.
+- `TimesheetSheet` renders both on screen and in the calendar's `.cx-printout`
+  (`printTs` state; the print effect now clears `printSession` and `printTs`).
+  Print CSS adds `body{overflow:visible!important}` because the modal locks body
+  scroll and some browsers stop after page one.
+- CSS: `.ts-*` (modal 980px, controls, dropdown, totals chips, role pills,
+  month table) + print rules.
+- Help: calendar FAQ entry; version 1.67.0 build 232.
+
 ## 2026-09-10 — v1.66.0 Mixed courses + follow-ups (Simon 7 Sep)
 
 - `listBlocks()` delegates carry `schemes` (from `category.scheme`); `block()`

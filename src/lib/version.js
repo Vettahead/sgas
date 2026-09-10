@@ -19,6 +19,15 @@
 
 export const RELEASES = [
   {
+    v: '1.67.0', build: 232, date: '10 Sep 2026',
+    title: 'Timesheet: one person\u2019s year of training and assisting, for accounts',
+    notes: [
+      'A Timesheet button on the calendar toolbar opens a sheet for one member of staff and one year: every course they trained and every course they assisted on, one row per course, with the dates, the course type, the role and the number of days (Monday to Friday). Assessing and verifying can be counted too, as courses rather than days.',
+      'Course types are a tick-box drop-down, so you can narrow it to, say, ACS Domestic and LPG only. A month-by-month table at the top gives the days trained, days assisted and the total for each month, with the year totalled underneath \u2014 the figures to check an invoice against.',
+      'Print this timesheet prints just the sheet, with the person, the year, the filters and the date it was printed at the top. The Dashboard\u2019s Staff this year card links to it.',
+    ],
+  },
+  {
     v: '1.66.0', build: 231, date: '10 Sep 2026',
     title: 'Mixed courses: qualifications from another grouping, and follow-up reminders',
     notes: [

@@ -44,6 +44,7 @@ const span = (a, b) => {
 import { toast } from '../lib/toast.js'
 import Popover from '../components/Popover.jsx'
 import TeamupArchive from './TeamupArchive.jsx'
+import Timesheet, { TimesheetSheet } from './Timesheet.jsx'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CALENDAR (NEW) — a visual revamp, on its own tab. Nothing existing is touched.
@@ -506,10 +507,16 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
   // just finished dragging.
   const justDragged = useRef(false)
   const [at, setAt] = useState(null)   // the bar the popover is anchored to
+  /* The timesheet: one person, one year, trained + assisted, for accounts.
+     Simon checks Phil's invoice against it. It opens over the calendar and
+     prints through the same single sheet as everything else. */
+  const [tsOpen, setTsOpen] = useState(false)
+  const [printTs, setPrintTs] = useState(null)
   const focused = useRef(null)
   useEffect(() => {
     if (!focus || !blocks || focused.current === focus.at) return
     focused.current = focus.at
+    if (focus.timesheet) { setTsOpen(true); return }
     const b = focus.id != null ? blocks.find((x) => String(x.id) === String(focus.id)) : null
     const date = focus.date || b?.start
     if (date) { setDir(0); setAnchor(date) }
@@ -1267,14 +1274,14 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
   const printTheList = (block) => setPrintSession(block)
 
   useEffect(() => {
-    if (!printSession) return
+    if (!printSession && !printTs) return
     let cleared = false
-    const done = () => { if (!cleared) { cleared = true; setPrintSession(null) } }
+    const done = () => { if (!cleared) { cleared = true; setPrintSession(null); setPrintTs(null) } }
     window.addEventListener('afterprint', done)
     const t = setTimeout(done, 2000)
     window.print()
     return () => { window.removeEventListener('afterprint', done); clearTimeout(t) }
-  }, [printSession])
+  }, [printSession, printTs])
 
   const inSel = (d) => sel && d >= sel.from && d <= sel.to
   const title = view === 'Day'
@@ -1330,6 +1337,8 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
               point of it. Filter to one person, print, send it to accounts. */}
           <button type="button" className="cx-keybtn" onClick={() => window.print()}
             data-tip="Print the courses you can currently see">🖨 Print</button>
+          <button type="button" className={'cx-keybtn' + (tsOpen ? ' on' : '')} onClick={() => setTsOpen(true)}
+            data-tip="One person's year: what they trained and assisted on, with the days totted up — for checking an invoice">🧾 Timesheet</button>
           {/* Not a filter. A filter narrows what you are looking at; this shows
               you a DIFFERENT CALENDAR — the old Teamup one, over the top. It
               belongs beside the other things that change the view. */}
@@ -1448,7 +1457,9 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
           is for is a list somebody signs off: a month of coloured bars does not
           photocopy into anything you can check an invoice against. */}
       <div className="cx-printout" aria-hidden="true">
-        {printSession ? (
+        {printTs ? (
+          <TimesheetSheet data={printTs} print />
+        ) : printSession ? (
           <>
             <h1>{printSession.course || printSession.title}</h1>
             <p className="cx-print-sub">
@@ -1515,6 +1526,11 @@ export default function CalendarNext({ canWrite, user, go, onSetup, reload, focu
         </>
         )}
       </div>
+
+      {tsOpen && (
+        <Timesheet blocks={blocks || []} staff={staff || []} user={user}
+          onClose={() => setTsOpen(false)} onPrint={(d) => setPrintTs(d)} />
+      )}
 
       {drag && (
         <>
